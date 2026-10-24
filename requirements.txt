@@ -1,0 +1,4 @@
+psycopg[binary]==3.3.6
+psycopg-pool==3.3.3
+pillow==12.3.0
+cryptography==50.0.2

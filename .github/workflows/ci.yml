@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  private-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: No private patterns in the tree
+        env:
+          # Extra private patterns live in the repository variable PRIVATE_PATTERNS,
+          # never in this file (it is public).
+          PRIVATE_PATTERNS: ${{ vars.PRIVATE_PATTERNS }}
+        run: scripts/scan-private.sh
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # The production image; checksums on, as initdb does in deploy/docker-compose.yml.
+        image: postgres:18.6-bookworm
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_INITDB_ARGS: "--locale-provider=builtin --builtin-locale=C.UTF-8 --encoding=UTF8 --data-checksums"
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MEDIALIB_DB_HOST: 127.0.0.1
+      MEDIALIB_DB_PORT: "5432"
+      MEDIALIB_SECRETS_DIR: ${{ github.workspace }}/.ci-secrets
+      MEDIALIB_MEDIA_DIR: ${{ github.workspace }}/.ci-media
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - name: Role passwords for the test database (throwaway)
+        run: |
+          mkdir -p .ci-secrets .ci-media
+          echo ci-only-password > .ci-secrets/postgres.pw
+          for r in ml_migrator ml_app ml_readonly; do python -c 'import secrets; print(secrets.token_urlsafe(24))' > .ci-secrets/$r.pw; done
+      - name: Tests (schema rules, importer, metadata fill, web API)
+        run: pytest -q tests/
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the image and import the package from another folder
+        run: |
+          docker build -t media-library:ci -f deploy/Dockerfile .
+          docker run --rm -w /tmp --entrypoint python media-library:ci -m medialib --help
+          docker compose -f deploy/docker-compose.yml config -q
+        env:
+          ML_UID: "1000"
+          ML_GID: "1000"
+          OWNER_LOGIN: ci@example.com
+          MEDIALIB_ORIGIN: https://ci.example
+          CONSOLE_PASSWORD_FILE: /dev/null
+          AGENT_CONSOLE_STATE: /tmp
+          SNAPSHOT_DIR: /tmp

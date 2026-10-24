@@ -1,0 +1,38 @@
+# Decisions
+
+Design decisions behind 0.1.0, most of them defaults taken while building and
+later confirmed by the owner (the library's one user). Each can be reversed; the
+cost of reversing is noted where it is not trivial. Code comments cite these
+numbers. See also `DESIGN.md` §12.
+
+| # | Date | Decision | Why | Reversal |
+|---|---|---|---|---|
+| D1 | 2026-10-24 | **PostgreSQL 18**, image `postgres:18.6-bookworm`, exact minor pinned, Watchtower off | DESIGN §2. Not 19.0 (too new for a "gold standard"); bookworm so ICU 72 matches the tested dev cluster | minor: tag change; major: dump/restore (rehearsed weekly) |
+| D2 | 2026-10-24 | Dev database = official PGDG 18.6 Debian packages unpacked into `.devdb/` (no root, unix socket only), not `pgserver` | `pgserver` bundles 16.2 **without ICU**; ICU collations are a requirement, tests must run on the production engine | — |
+| D3 | 2026-10-24 | **Single owner**: no user/reader column anywhere | one person's library; adding a reader later is a migration with a default | migration |
+| D4 | 2026-10-24 | Status codes `planned / in_progress / completed / paused / dropped` (Yamtrack's vocabulary), labels per kind (To read / To watch …) | one status set for books, movies and series; maps 1:1 from Yamtrack | — |
+| D5 | 2026-10-24 | **Rating and review belong to the book** (`library.entry`); each reading has an optional note | what the detail sheet and Visuals use; Yamtrack has no re-reads, so nothing is lost; earlier ratings stay in the audit history | migration (add per-reading rating) |
+| D6 | 2026-10-24 | Rating stored as `numeric(3,1)` 0–10 and **shown 0–10** (owner answer) | lossless for Yamtrack's decimal 0–10 score | display only |
+| D7 | 2026-10-24 | Dates have an explicit precision (day/month/year); the 91 imported readings are **year** precision | Yamtrack's 12-31 and migration-day dates are spreadsheet "Reading Year" values, not real dates; stats must not invent months | — |
+| D8 | 2026-10-24 | Authors: **CWA's current authors** > Yamtrack notes "By:" > Open Library edition | Yamtrack stores no authors; notes "By:" is the older copy with typos; Open Library lists translators as authors | per book in the console |
+| D9 | 2026-10-24 | ~~Not imported~~ → **owner answer: to read / to watch.** Never-logged items (books, a movie, a series) become entries with status planned; items an entry was moved off become **non-primary editions** of that book (no duplicate book) | owner; duplicates of already-read books would be wrong | make an edition its own book in the console |
+| D10 | 2026-10-24 | ~~No status~~ → **owner answer: to read.** `entry.status` is NOT NULL DEFAULT `planned` | owner: "default is to read" | — |
+| D11 | 2026-10-24 | CWA `ignore` records (2 box sets, the read-along test file) are not imported now; **owner: box sets must be moved in later** (follow-up, omnibus edition, DESIGN §11) | same decision as `cwa-links.json`; volumes are logged separately | — |
+| D12 | 2026-10-24 | Field provenance as a `jsonb` column per row; a trigger **rejects** non-owner changes to owner-set values and to `locked` items | atomic with the value, no polymorphic side table; "never overwrite owner values" becomes a database rule | — |
+| D13 | 2026-10-24 | Audit log is append-only **and hash-chained** (`audit.verify()`) | tamper evidence for "military-grade"; one writer, so serialising the chain costs nothing | — |
+| D14 | 2026-10-24 | Console on **127.0.0.1:8099**, published by Tailscale Serve on a free tailnet HTTPS port | no host port beyond loopback; TLS and identity come from Tailscale | port change in compose + serve |
+| D15 | 2026-10-24 | Stack: stdlib `ThreadingHTTPServer` + `psycopg[binary]==3.3.6`, `psycopg-pool==3.3.3`, `Pillow==12.3.0`, hash-pinned | house style (agent-console); the driver is the one unavoidable exception to stdlib-only; Pillow for image validation + thumbnails | — |
+| D16 | 2026-10-24 | Backups: own cron for `pg_dump` a few minutes before each run of the host's file backup (4×/day), nightly base backup + WAL archive, weekly restore test | fits a file-level backup (restic/Backrest) without touching other services' dump jobs | — |
+| D17 | 2026-10-24 | Database default collation **builtin `C.UTF-8`**; ICU only in explicit sort collations (`catalog.sort_und/da/it/en`, numeric) | keys and unique indexes never depend on the ICU version; sort indexes are the only REINDEX after an ICU change | — |
+| D18 | 2026-10-24 | Covers in a content-addressed local store; a chosen cover must be local; alternatives are kept URL-only | "download Apple URLs once"; alternatives stay available without downloading everything | — |
+| D19 | 2026-10-24 | CWA `comments` (publisher blurbs) go to `edition.description` | they come from the edition's EPUB metadata | — |
+| D20 | 2026-10-24 | Tailscale only (owner: yes); writes allowed only for the owner's Tailscale login (`OWNER_LOGIN`), reads for the tailnet | same model as agent-console | env setting |
+| D21 | 2026-10-24 | "Greek" original language → `ell`, listed in the report (Plato is really `grc`) | no guessing; the owner can fix two books | per book |
+| D22 | 2026-10-24 | The readings table is named `library.consumption` | it also holds movie/episode watches later; avoids a rename migration | — |
+| D23 | 2026-10-24 | Git: `data/`, `.devdb/`, `out/`, `media/` and `private/` ignored; CI scans for private patterns | library data and site details must never reach history | — |
+| D24 | 2026-10-24 | Read dates stay year-only; the owner adds months/days by hand, so the console makes editing a reading's dates (with precision) quick | owner answer 4 | — |
+| D25 | 2026-10-24 | A superseded Yamtrack edition is detected by id: `app_book N` now on a newer item while item `N` has no entry (all were created pairwise on 2026-10-18); all 9 titles confirm it | Yamtrack's history has no item column, this is the evidence available | — |
+| D26 | 2026-10-24 | **Pages: the owner's CWA/Excel numbers win** over Open Library's (owner answer after the first import: 71 books differed). Open Library pages only where CWA has none | owner | — |
+| D27 | 2026-10-24 | Console unlock **reuses the agent console's password hash and passkeys** (read-only mounts of `/etc/agent-console/password` and its passkey store); same Tailscale host, so the same Touch ID / Face ID credential works; passkeys are added/removed in the agent console | owner: "reuse same passchain password" | own password file + store |
+| D28 | 2026-10-24 | Console layout: left pane Database / Visuals × Books / Movies / Series; filter chips on top; grid / list (sortable columns) toggle; editing in the detail pane | owner feedback on the review page | — |
+| D29 | 2026-10-24 | The claude.ai preview runs the same page with an in-browser store (edits stay in that browser); real writes only through the server console | an artifact cannot reach the tailnet | — |

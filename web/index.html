@@ -1,0 +1,1134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Media Library</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: agent-console family. Left pane (Database | Visuals, then Books / Movies / Series and collections), main area with
+   a toolbar, the cover grid or list, and a detail pane on the right (a sheet on phones). Charts: one green, recessive axes. */
+:root {
+  --bg: #f4f5f2; --panel: #ffffff; --sunk: #eceee9; --fg: #1c221f; --muted: #5f6964; --line: #d8dcd5;
+  --sel: #e3ebe6; --accent: #2f6f5b; --accent-soft: #dcebe4; --on-accent: #ffffff;
+  --ok: #2f8a5f; --ok-soft: #e1f0e7; --warn: #9a6514; --warn-soft: #f6ead4; --bad: #c2412d; --bad-soft: #f6dfda;
+  --chart: #16805a; --grid: #e3e6e0; --shadow: rgb(0 0 0 / 0.14);
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121614; --panel: #1a1f1c; --sunk: #222824; --fg: #e2e7e4; --muted: #98a29c; --line: #303833;
+  --sel: #26322c; --accent: #7cc4a9; --accent-soft: #23362f; --on-accent: #10201a;
+  --ok: #5cc28f; --ok-soft: #1f3529; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
+  --chart: #3aa877; --grid: #2a312d; --shadow: rgb(0 0 0 / 0.5); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121614; --panel: #1a1f1c; --sunk: #222824; --fg: #e2e7e4; --muted: #98a29c; --line: #303833;
+  --sel: #26322c; --accent: #7cc4a9; --accent-soft: #23362f; --on-accent: #10201a;
+  --ok: #5cc28f; --ok-soft: #1f3529; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
+  --chart: #3aa877; --grid: #2a312d; --shadow: rgb(0 0 0 / 0.5); color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--panel); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--mono); font-size: 12px; }
+.app { display: grid; grid-template-columns: 232px minmax(0, 1fr); grid-template-rows: auto 1fr; min-height: 100%; }
+
+/* header */
+header.top { grid-column: 1 / -1; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--panel);
+  border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.brand { font-weight: 650; font-size: 15px; white-space: nowrap; }
+.search { position: relative; flex: 0 1 300px; min-width: 150px; }
+.search input { width: 100%; font-size: 13px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); }
+.search input:focus { background: var(--panel); }
+.search-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 45; width: min(440px, calc(100vw - 32px)); max-height: 65vh; overflow: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px var(--shadow); padding: 6px; }
+.sr-group { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 8px 6px 2px; }
+.pop-item { display: grid; grid-template-columns: 30px 1fr; gap: 0 10px; align-items: center; width: 100%; text-align: left; border: 0; background: none; border-radius: 6px; padding: 5px 6px; }
+.pop-item:hover, .pop-item.active { background: var(--sel); }
+.pop-item img, .pop-item .noimg { width: 30px; height: 44px; object-fit: cover; border-radius: 2px 4px 4px 2px; background: var(--sunk); grid-row: span 2; }
+.pop-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pop-sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.search-pop mark { background: var(--warn-soft); color: inherit; border-radius: 2px; }
+.pop-empty { margin: 4px 6px 8px; font-size: 13px; color: var(--muted); }
+.keybar { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; }
+.keybar input { width: 170px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); font-size: 13px; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 4px 11px; font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.btn.small { padding: 2px 8px; font-size: 12px; }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: default; }
+.unlocked { color: var(--accent); font-weight: 600; }
+.key-msg { color: var(--bad); }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.plain { background: var(--sunk); color: var(--muted); }
+@media (max-width: 760px) { .search { flex-basis: 100%; order: 5; } .keybar { margin-left: 0; } }
+
+/* left pane */
+aside.side { border-right: 1px solid var(--line); background: var(--panel); padding: 14px 12px; display: flex; flex-direction: column; gap: 16px;
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 52px); align-self: start; height: calc(100vh - 52px - env(safe-area-inset-top, 0px)); overflow: auto; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; background: var(--sunk); border-radius: 10px; }
+.seg button { border: 0; background: none; border-radius: 7px; padding: 6px 8px; font-weight: 600; color: var(--muted); }
+.seg button[aria-selected="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 1px 2px var(--shadow); }
+.navlist { display: flex; flex-direction: column; gap: 2px; }
+.navlist h3 { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 6px 4px; font-weight: 500; }
+.nav { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: none; border-radius: 7px; padding: 6px 8px; }
+.nav:hover { background: var(--sunk); }
+.nav[aria-current="true"] { background: var(--sel); font-weight: 600; }
+.nav .n { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.nav .ico { width: 16px; text-align: center; color: var(--muted); }
+.newshelf { display: flex; gap: 6px; padding: 4px 6px 0; }
+.newshelf input { flex: 1; min-width: 0; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--sunk); font-size: 13px; }
+.side-foot { margin-top: auto; font-size: 12px; color: var(--muted); padding: 0 6px; }
+
+main { min-width: 0; padding-block: 16px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  aside.side { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); flex-direction: row; flex-wrap: wrap; gap: 8px; align-items: center; }
+  aside.side .seg { flex: 1 1 100%; }
+  aside.side .navlist { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+  aside.side .navlist h3, .side-foot, .newshelf { display: none; }
+  aside.side .nav { width: auto; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; }
+  aside.side .navlist.shelves { flex: 1 1 100%; }
+}
+
+/* toolbar */
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-bottom: 14px; }
+.toolbar h2 { font-size: 17px; margin: 0 6px 0 0; font-weight: 650; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chip .n { opacity: .75; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; }
+select, .toolbar input[type=search] { padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; }
+.toolbar input[type=search] { background: var(--sunk); width: 170px; }
+.segsmall { display: inline-flex; gap: 2px; padding: 2px; background: var(--sunk); border-radius: 8px; }
+.segsmall button { border: 0; background: none; border-radius: 6px; padding: 3px 9px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.segsmall button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 1px 2px var(--shadow); }
+.hintline { font-size: 12px; color: var(--muted); margin: -6px 0 12px; }
+
+/* content + detail */
+.lib { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
+.lib.withdetail { grid-template-columns: minmax(0, 1fr) 400px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--cw, 124px), 1fr)); gap: 20px 14px; }
+.grid.s { --cw: 92px; } .grid.l { --cw: 168px; }
+.book { border: 0; background: none; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; touch-action: manipulation; }
+.cov { aspect-ratio: 2 / 3; width: 100%; max-width: 100%; border-radius: 3px 6px 6px 3px; overflow: hidden; background: var(--sunk); box-shadow: 0 2px 6px var(--shadow);
+  display: grid; place-items: end start; position: relative; }
+.cov img { width: 100%; height: 100%; object-fit: cover; display: block; -webkit-user-drag: none; user-select: none; pointer-events: none; }
+.cov .ph { padding: 10px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.book[aria-current="true"] .cov { outline: 3px solid var(--accent); outline-offset: 2px; }
+.book .t { font-size: 12.5px; font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.book .a { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.book .s { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.grid.s .book .a, .grid.s .book .s { display: none; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); flex: none; }
+.dot.completed { background: var(--ok); } .dot.planned { background: var(--accent); opacity: .5; } .dot.in_progress { background: var(--warn); }
+.dot.paused, .dot.dropped { background: var(--muted); }
+.book.dragging { opacity: .35; }
+.book.drop-before .cov { box-shadow: -6px 0 0 -2px var(--accent), 0 2px 6px var(--shadow); }
+.ghost { position: fixed; z-index: 60; width: 90px; pointer-events: none; transform: rotate(-3deg); opacity: .92; }
+.ghost img { width: 100%; border-radius: 3px 6px 6px 3px; box-shadow: 0 10px 24px var(--shadow); }
+.listbox { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+table.list { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.list th, table.list td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.list td.wrap { white-space: normal; min-width: 180px; }
+table.list th { font-weight: 600; color: var(--muted); font-size: 12px; background: var(--sunk); position: sticky; top: 0; user-select: none; }
+table.list th button { border: 0; background: none; padding: 0; font: inherit; color: inherit; }
+table.list th[aria-sort] button { color: var(--fg); }
+table.list tr { cursor: pointer; }
+table.list tbody tr:hover { background: var(--sunk); }
+table.list tr[aria-current="true"] { background: var(--sel); }
+table.list img, table.list .noimg { width: 24px; height: 36px; object-fit: cover; border-radius: 2px 3px 3px 2px; display: block; background: var(--sunk); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.empty { color: var(--muted); padding: 30px 0; }
+
+.detail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 66px); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+  max-height: calc(100vh - 86px); overflow: auto; min-width: 0; }
+.detail .head { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; }
+.detail h2 { font-size: 16.5px; margin: 0 0 4px; text-wrap: balance; }
+.xbtn { float: right; border: 0; background: var(--sunk); border-radius: 8px; padding: 2px 9px; color: var(--muted); }
+.d-sec { margin-top: 16px; }
+.d-sec > h3 { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 6px; font-weight: 500;
+  display: flex; align-items: center; gap: 8px; }
+.d-sec > h3 .btn { margin-left: auto; font-family: var(--sans); text-transform: none; letter-spacing: 0; }
+.statusbar { display: flex; flex-wrap: wrap; gap: 4px; }
+.statusbar button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; }
+.statusbar button:disabled, .rating button:disabled, .covers button:disabled { cursor: default; opacity: .7; }
+.statusbar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.rating { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.rating button { width: 27px; height: 27px; border: 1px solid var(--line); background: var(--panel); border-radius: 7px; font-size: 12.5px; font-variant-numeric: tabular-nums; padding: 0; }
+.rating button.on { background: var(--accent-soft); border-color: transparent; }
+.rating button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+.rating .val { margin-left: 6px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.kv { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 4px 10px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.src { font-family: var(--mono); font-size: 10.5px; color: var(--muted); background: var(--sunk); border-radius: 4px; padding: 0 5px; margin-left: 5px; white-space: nowrap; }
+.review { padding: 10px 12px; background: var(--sunk); border-radius: 8px; white-space: pre-wrap; font-size: 13px; }
+textarea, .form input, .form select { width: 100%; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; }
+textarea { min-height: 110px; resize: vertical; }
+.form { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 6px 10px; align-items: center; font-size: 13px; }
+.form label { color: var(--muted); }
+.form .full { grid-column: 1 / -1; }
+.row-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+.err { color: var(--bad); font-size: 12.5px; }
+.reading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.reading:last-child { border-bottom: 0; }
+.reading .sub { color: var(--muted); font-size: 12px; grid-column: 1; }
+.reading .acts { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: 4px; align-items: center; }
+.rform { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 8px; background: var(--sunk); border-radius: 8px; margin-top: 6px; }
+.rform label { font-size: 11.5px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+.rform input, .rform select { padding: 4px 7px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); font-size: 13px; width: 100%; }
+.rform .full { grid-column: 1 / -1; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; }
+.tag.genre { background: var(--accent-soft); border-color: transparent; }
+.ids { display: flex; flex-wrap: wrap; gap: 4px; }
+.ids a, .ids span { font-family: var(--mono); font-size: 11px; background: var(--sunk); border-radius: 4px; padding: 1px 6px; color: var(--fg); text-decoration: none; }
+.ids a:hover { color: var(--accent); }
+.covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 8px; }
+.covers button { border: 2px solid transparent; background: none; padding: 2px; border-radius: 6px; text-align: center; font-size: 11px; color: var(--muted); }
+.covers button[aria-pressed="true"] { border-color: var(--accent); color: var(--fg); }
+.covers .cov { box-shadow: none; }
+.shelfchecks { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.hist { font-size: 12.5px; display: flex; flex-direction: column; gap: 6px; }
+.hist div { border-left: 2px solid var(--line); padding-left: 8px; }
+.hist .when { color: var(--muted); font-size: 11.5px; }
+.desc { color: var(--muted); font-size: 12.5px; white-space: pre-wrap; }
+details.more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+@media (max-width: 1100px) { .lib.withdetail { grid-template-columns: minmax(0, 1fr) 340px; } }
+@media (max-width: 900px) {
+  .lib.withdetail { grid-template-columns: minmax(0, 1fr); }
+  .detail { position: fixed; inset: auto 0 0 0; top: auto; max-height: 86vh; border-radius: 14px 14px 0 0; z-index: 40; box-shadow: 0 -8px 30px var(--shadow);
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+  .grid { --cw: 100px; gap: 16px 10px; } .grid.s { --cw: 76px; } .grid.l { --cw: 136px; }
+}
+
+/* visuals */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.tile .label { color: var(--muted); font-size: 12.5px; }
+.tile .value { font-size: 24px; font-weight: 650; margin-top: 2px; }
+.tile .sub { color: var(--muted); font-size: 12px; }
+.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card h3 { margin: 0; font-size: 14px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+.card h3 .btn { margin-left: auto; }
+.card .note { color: var(--muted); font-size: 12.5px; margin: 2px 0 10px; }
+.card svg { display: block; width: 100%; height: auto; overflow: visible; }
+.card svg text { fill: var(--muted); font-size: 11px; font-family: var(--sans); }
+.card svg text.v { fill: var(--fg); font-weight: 600; }
+.card svg .gl { stroke: var(--grid); stroke-width: 1; }
+.card svg .bar { fill: var(--chart); }
+.card svg .hit { fill: transparent; }
+.card svg .hit:hover + .bar, .card svg .barg:hover .bar, .card svg .barg:focus .bar { opacity: .75; }
+.card svg .barg:focus { outline: none; }
+.card svg .heat0 { fill: var(--sunk); } .card svg .heat1 { fill: color-mix(in srgb, var(--chart) 30%, var(--panel)); }
+.card svg .heat2 { fill: color-mix(in srgb, var(--chart) 55%, var(--panel)); } .card svg .heat3 { fill: color-mix(in srgb, var(--chart) 80%, var(--panel)); }
+.card svg .heat4 { fill: var(--chart); }
+.hbars { display: grid; grid-template-columns: minmax(0, 40%) minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; font-size: 13px; }
+.hbars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbars .track { height: 10px; }
+.hbars .fill { height: 10px; background: var(--chart); border-radius: 0 4px 4px 0; min-width: 2px; }
+.hbars .num { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.meter { height: 8px; background: var(--accent-soft); border-radius: 4px; overflow: hidden; }
+.meter > div { height: 100%; background: var(--chart); }
+table.tv { border-collapse: collapse; width: 100%; font-size: 12.5px; margin-top: 8px; }
+table.tv th, table.tv td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+table.tv td.num, table.tv th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tip { position: fixed; z-index: 70; pointer-events: none; background: var(--fg); color: var(--bg); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; box-shadow: 0 6px 18px var(--shadow); }
+.tip b { font-size: 14px; }
+.toast { position: fixed; z-index: 80; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 10px; font-size: 13px; box-shadow: 0 6px 18px var(--shadow); }
+.toast.bad { background: var(--bad); color: #fff; }
+@media (prefers-reduced-motion: no-preference) { .book .cov { transition: transform .12s ease; } .book:hover .cov { transform: translateY(-2px); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <span class="brand">Media library</span>
+    <div class="search"><input id="search" type="search" placeholder="Search  /" aria-label="Search books, authors, genres" autocomplete="off" spellcheck="false">
+      <div class="search-pop" id="search-pop" role="listbox" aria-label="Search results" hidden></div></div>
+    <div class="keybar" id="keybar"></div>
+  </header>
+  <aside class="side" id="side">
+    <div class="seg" role="tablist" aria-label="Section">
+      <button role="tab" id="sec-database" data-sec="database" aria-selected="true">Database</button>
+      <button role="tab" id="sec-visuals" data-sec="visuals" aria-selected="false">Visuals</button>
+    </div>
+    <div class="navlist" id="kinds"></div>
+    <div class="navlist shelves" id="shelves"></div>
+    <div class="side-foot" id="side-foot"></div>
+  </aside>
+  <main id="main">
+    <div id="v-database"></div>
+    <div id="v-visuals" hidden></div>
+  </main>
+</div>
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- basics
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const fold = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ø/gi, "o").replace(/æ/gi, "ae").replace(/ß/g, "ss").toLowerCase();
+const PREVIEW = window.ML_PREVIEW || null;
+const KINDS = [["book", "Books", "▤"], ["movie", "Movies", "▶"], ["series", "Series", "▦"]];
+const LABEL = {
+  book: {planned: "To read", in_progress: "Reading", completed: "Read", paused: "Paused", dropped: "Abandoned"},
+  movie: {planned: "To watch", in_progress: "Watching", completed: "Watched", paused: "Paused", dropped: "Abandoned"},
+};
+LABEL.series = LABEL.movie;
+const STATUS_ORDER = ["planned", "in_progress", "completed", "paused", "dropped"];
+const SRC = {yamtrack: "Yamtrack", cwa: "CWA", apple: "Apple", openlibrary: "Open Library", owner: "you", tmdb: "TMDB",
+  derived: "computed", system: "system", kosync: "Readest"};
+const SORTS = [["manual", "Manual"], ["title", "Title"], ["author", "Author"], ["added", "Date added"], ["finished", "Date read"],
+  ["rating", "Rating"], ["published", "Published"], ["pages", "Pages"], ["language", "Language"], ["status", "Status"], ["genre", "Genre"]];
+const statusLine = i => i.status === "completed" ? statusLabel(i.kind, i.status) + (i.year ? " " + i.year : "")
+  : statusLabel(i.kind, i.status) + (i.year ? " · " + (i.kind === "book" ? "read " : "watched ") + i.year : "");
+const DESC_FIRST = ["finished", "rating", "added", "pages", "published"];   // newest / highest first when picked
+const statusLabel = (kind, s) => (LABEL[kind] || LABEL.book)[s] || s;
+let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, STATS = null;
+const st = {sec: "database", kind: "book", shelf: null, filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
+  listSort: null, err: "", unlockMsg: ""};
+function load(key, dflt) { try { const v = localStorage.getItem("ml-" + key); return v == null ? dflt : JSON.parse(v); } catch (e) { return dflt; } }
+function save(key, v) { try { localStorage.setItem("ml-" + key, JSON.stringify(v)); } catch (e) {} }
+const langName = c => c ? (LIB.languages[c] || c) : "";
+function toast(msg, bad) {
+  const t = $("toast"); t.textContent = msg; t.className = "toast" + (bad ? " bad" : ""); t.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, bad ? 6000 : 2200);
+}
+function fmtDate(d, p) { if (!d) return ""; return p === "year" ? d.slice(0, 4) : p === "month" ? d.slice(0, 7) : d; }
+function partial(d, p) { return d ? fmtDate(d, p) : ""; }
+
+// ------------------------------------------------------------------- api
+const JSON_POST = (method, body) => ({method, headers: {"Content-Type": "application/json", "X-Console-Action": "1"}, body: JSON.stringify(body || {})});
+const serverApi = {
+  async get(path) { const r = await fetch(path, {credentials: "same-origin"}); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j; },
+  async send(method, path, body) {
+    const r = await fetch(path, JSON_POST(method, body)); const j = await r.json().catch(() => ({}));
+    if (r.status === 401 && !path.startsWith("api/unlock") && !path.startsWith("api/passkey")) { SESSION.unlockedUntil = null; renderKeybar(); }
+    if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j;
+  },
+  session() { return this.get("api/session"); }, library() { return this.get("api/library"); }, stats() { return this.get("api/stats"); },
+  detail(id) { return this.get("api/items/" + id); },
+  patch(id, body) { return this.send("PATCH", "api/items/" + id, body); },
+  status(id, status, date) { return this.send("POST", "api/items/" + id + "/status", {status, date}); },
+  addReading(id, body) { return this.send("POST", "api/items/" + id + "/readings", body); },
+  editReading(rid, body) { return this.send("PATCH", "api/readings/" + rid, body); },
+  deleteReading(rid) { return this.send("DELETE", "api/readings/" + rid, {}); },
+  cover(id, cover) { return this.send("POST", "api/items/" + id + "/cover", {cover}); },
+  newShelf(name, mediaKind) { return this.send("POST", "api/shelves", {name, mediaKind}); },
+  editShelf(sid, body) { return this.send("PATCH", "api/shelves/" + sid, body); },
+  deleteShelf(sid) { return this.send("DELETE", "api/shelves/" + sid, {}); },
+  shelfItems(sid, body) { return this.send("POST", "api/shelves/" + sid + "/items", body); },
+  move(sid, item, to) { return this.send("POST", "api/shelves/" + sid + "/move", {item, to}); },
+  lookup(body) { return this.send("POST", "api/lookup", body); },
+  add(token, index, status) { return this.send("POST", "api/add", {token, index, status}); },
+  fill(id) { return this.send("POST", "api/items/" + id + "/fill", {}); },
+  addManual(body) { return this.send("POST", "api/add-manual", body); },
+  async uploadCover(id, file) {
+    const r = await fetch("api/items/" + id + "/cover-upload", {method: "POST", headers: {"Content-Type": file.type || "application/octet-stream", "X-Console-Action": "1"}, body: file});
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j;
+  },
+  uploadFile(id, file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open("POST", "api/items/" + id + "/file"); x.setRequestHeader("Content-Type", "application/epub+zip"); x.setRequestHeader("X-Console-Action", "1");
+      x.upload.onprogress = e => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+      x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {} x.status >= 200 && x.status < 300 ? resolve(j) : reject(new Error(j.error || "HTTP " + x.status)); };
+      x.onerror = () => reject(new Error("The upload failed (connection)."));
+      x.send(file);
+    });
+  },
+  unlock(password) { return this.send("POST", "api/unlock", {password}); },
+  lock() { return this.send("POST", "api/lock", {}); },
+  passkeyOptions() { return this.send("POST", "api/passkey/options", {purpose: "login"}); },
+  passkeyLogin(body) { return this.send("POST", "api/passkey/login", body); },
+};
+const api = PREVIEW ? makePreviewApi(PREVIEW) : serverApi;
+const coverSrc = url => !url ? null : url.startsWith("data:") ? url : PREVIEW ? (PREVIEW.covers[(url.match(/[0-9a-f]{64}/) || [""])[0]] || null) : url;
+const canEdit = () => PREVIEW ? true : !!(SESSION.owner && SESSION.unlockedUntil && SESSION.unlockedUntil * 1000 > Date.now());
+
+// ------------------------------------------------------------- loading
+async function refresh(keepDetail) {
+  try {
+    [SESSION, LIB] = await Promise.all([api.session(), api.library()]);
+  } catch (e) { $("v-database").innerHTML = `<p class="empty">Could not load the library: ${esc(e.message)}</p>`; return; }
+  if (!st.shelf || !LIB.shelves.some(s => s.id === st.shelf)) st.shelf = allShelf(st.kind)?.id || null;
+  if (st.sec === "visuals") { try { STATS = await api.stats(); } catch (e) { STATS = null; } }
+  if (keepDetail && st.selected) await openDetail(st.selected, true);
+  render();
+}
+const allShelf = kind => LIB.shelves.find(s => s.kind === "all" && s.media_kind === kind);
+const shelvesOf = kind => LIB.shelves.filter(s => s.media_kind === kind);
+const itemsById = () => Object.fromEntries(LIB.items.map(i => [i.id, i]));
+function shelfPrefs(shelf) {
+  const local = load("prefs-" + shelf.id, {});
+  return {sort: local.sort ?? shelf.sort_key, desc: local.desc ?? shelf.sort_desc, size: local.size ?? shelf.cover_size,
+    layout: local.layout ?? shelf.layout, locale: shelf.sort_locale};
+}
+async function setPref(key, value) {
+  const shelf = LIB.shelves.find(s => s.id === st.shelf); if (!shelf) return;
+  const local = load("prefs-" + shelf.id, {}); local[key] = value; save("prefs-" + shelf.id, local);
+  render();
+  if (canEdit()) {
+    const map = {sort: "sortKey", desc: "sortDesc", size: "coverSize", layout: "layout"};
+    try { await api.editShelf(shelf.id, {[map[key]]: value}); shelf[{sort: "sort_key", desc: "sort_desc", size: "cover_size", layout: "layout"}[key]] = value; } catch (e) {}
+  }
+}
+
+// ---------------------------------------------------------------- render
+function render() {
+  for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-selected", String(b.dataset.sec === st.sec));
+  $("v-database").hidden = st.sec !== "database"; $("v-visuals").hidden = st.sec !== "visuals";
+  renderKeybar(); renderSide();
+  if (st.sec === "database") renderDatabase(); else renderVisuals();
+}
+function renderSide() {
+  const counts = Object.fromEntries(KINDS.map(([k]) => [k, LIB.items.filter(i => i.kind === k).length]));
+  $("kinds").innerHTML = `<h3>${st.sec === "database" ? "Library" : "Statistics"}</h3>` + KINDS.map(([k, label, ico]) =>
+    `<button class="nav" id="kind-${k}" data-kind="${k}" aria-current="${st.kind === k}"><span class="ico">${ico}</span>${label}<span class="n">${counts[k]}</span></button>`).join("");
+  if (st.sec === "database") {
+    const shelves = shelvesOf(st.kind);
+    $("shelves").hidden = false;
+    $("shelves").innerHTML = `<h3>Collections</h3>` + shelves.map(s =>
+      `<button class="nav" id="shelf-${s.id}" data-shelf="${s.id}" aria-current="${st.shelf === s.id}"><span class="ico">${s.kind === "all" ? "◉" : "▸"}</span>${esc(s.kind === "all" ? "All " + KINDS.find(k => k[0] === st.kind)[1].toLowerCase() : s.name)}<span class="n">${s.items.length}</span></button>`).join("") +
+      (canEdit() ? `<form class="newshelf" id="newshelf"><input id="newshelf-name" placeholder="New collection" aria-label="New collection name" maxlength="100"><button class="btn small" type="submit">Add</button></form>` : "");
+  } else { $("shelves").hidden = true; }
+  $("side-foot").innerHTML = PREVIEW ? `Preview of the console with your imported data. Edits stay in this browser.` :
+    `Tailnet only · ${esc(SESSION.login || "no login")}`;
+}
+
+// -------------------------------------------------------------- database
+function visibleItems() {
+  const shelf = LIB.shelves.find(s => s.id === st.shelf), byId = itemsById();
+  let list = shelf ? shelf.items.map(id => byId[id]).filter(Boolean) : LIB.items.filter(i => i.kind === st.kind);
+  return list;
+}
+function filtered(list) {
+  const q = fold(st.q.trim());
+  return list.filter(i => (st.filter === "all" || i.status === st.filter) && (!q || fold(i.title + " " + i.authors + " " + i.genres.join(" ")).includes(q)));
+}
+function sorted(list, prefs) {
+  const sortKey = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc;
+  if (sortKey === "manual") return list;
+  const coll = new Intl.Collator(prefs.locale === "und" ? undefined : prefs.locale, {numeric: true, sensitivity: "base"});
+  const val = {title: i => i.sort, author: i => i.authorSort || "~", added: i => i.added, finished: i => i.year ?? -1, rating: i => i.rating ?? -1,
+    published: i => i.published ?? -99999, pages: i => i.pages ?? -1, language: i => langName(i.lang) || "~", status: i => STATUS_ORDER.indexOf(i.status),
+    genre: i => i.genres[0] || "~"}[sortKey] || (i => i.sort);
+  const out = [...list].sort((a, b) => {
+    const x = val(a), y = val(b);
+    const c = typeof x === "number" && typeof y === "number" ? x - y : coll.compare(String(x), String(y));
+    return c || coll.compare(a.sort, b.sort);
+  });
+  return desc ? out.reverse() : out;
+}
+function renderDatabase() {
+  renderSide();
+  const shelf = LIB.shelves.find(s => s.id === st.shelf);
+  if (!shelf) { $("v-database").innerHTML = `<p class="empty">No collection.</p>`; return; }
+  const prefs = shelfPrefs(shelf), base = visibleItems(), list = sorted(filtered(base), prefs);
+  const kind = st.kind, labels = LABEL[kind];
+  const present = STATUS_ORDER.filter(s => ["planned", "in_progress", "completed"].includes(s) || base.some(i => i.status === s));
+  const chips = [["all", "All", base.length], ...present.map(s => [s, labels[s], base.filter(i => i.status === s).length])];
+  const manual = (st.listSort?.key || prefs.sort) === "manual";
+  const canDrag = manual && prefs.layout === "grid" && st.filter === "all" && !st.q && canEdit();
+  const title = shelf.kind === "all" ? "All " + KINDS.find(k => k[0] === kind)[1].toLowerCase() : shelf.name;
+  const v = $("v-database");
+  v.innerHTML = `<div class="toolbar">
+      <h2>${esc(title)}</h2>
+      <div class="chips" role="group" aria-label="Filter">${chips.map(([k, label, n]) => `<button class="chip" id="f-${k}" data-filter="${k}" aria-pressed="${st.filter === k}">${esc(label)}<span class="n">${n}</span></button>`).join("")}</div>
+      <div class="tools">
+        <input type="search" id="filter-q" placeholder="Filter this list" value="${esc(st.q)}" aria-label="Filter this list">
+        <select id="sort" aria-label="Sort">${SORTS.map(([k, l]) => `<option value="${k}" ${(st.listSort?.key || prefs.sort) === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <button class="btn small" id="sortdir" aria-label="Sort direction" title="Sort direction" ${manual ? "disabled" : ""}>${(st.listSort ? st.listSort.desc : prefs.desc) ? "↓" : "↑"}</button>
+        ${prefs.layout === "grid" ? `<span class="segsmall" role="group" aria-label="Cover size">${["s", "m", "l"].map(s => `<button id="size-${s}" data-size="${s}" aria-pressed="${prefs.size === s}">${s.toUpperCase()}</button>`).join("")}</span>` : ""}
+        <span class="segsmall" role="group" aria-label="Layout"><button id="lay-grid" data-layout="grid" aria-pressed="${prefs.layout === "grid"}">Grid</button><button id="lay-list" data-layout="list" aria-pressed="${prefs.layout === "list"}">List</button></span>
+        ${shelf.kind === "manual" && canEdit() ? `<button class="btn small" id="shelf-menu">Collection…</button>` : ""}
+        ${kind === "book" ? `<button class="btn small primary" id="add-book" title="Find a book at Apple Books and Open Library and add it">+ Add book</button>` : ""}
+      </div>
+    </div>
+    ${canDrag ? `<p class="hintline">Drag covers to reorder${shelf.kind === "all" ? " your library" : " this collection"}.</p>` : manual && prefs.layout === "grid" && canEdit() && (st.filter !== "all" || st.q) ? `<p class="hintline">Clear the filter to drag covers into a new order.</p>` : ""}
+    <div class="lib ${st.selected ? "withdetail" : ""}" id="lib">
+      <div id="content">${list.length ? (prefs.layout === "list" ? listHtml(list, prefs) : gridHtml(list, prefs)) : `<p class="empty">${base.length ? "Nothing matches the filter." : "Nothing here yet."}</p>`}</div>
+      <aside class="detail" id="detail" ${st.selected ? "" : "hidden"}></aside>
+    </div>`;
+  if (st.selected) renderDetail();
+  if (canDrag) enableDrag(shelf);
+}
+function gridHtml(list, prefs) {
+  return `<div class="grid ${prefs.size}" id="grid">${list.map(i => `<button class="book" id="b-${i.id}" data-id="${i.id}" aria-current="${st.selected === i.id}">
+    <div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}</div>
+    <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span>
+    <span class="s"><span class="dot ${i.status}"></span>${esc(statusLine(i))}${i.rating != null ? " · " + i.rating + "/10" : ""}</span></button>`).join("")}</div>`;
+}
+const LIST_COLS = [["cover", "", null], ["title", "Title", "title"], ["author", "Author", "author"], ["status", "Status", "status"], ["rating", "Rating", "rating"],
+  ["finished", "Read", "finished"], ["pages", "Pages", "pages"], ["language", "Language", "language"], ["genre", "Genre", "genre"], ["added", "Added", "added"]];
+function listHtml(list, prefs) {
+  const key = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc;
+  const head = LIST_COLS.map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : `<th></th>`).join("");
+  return `<div class="listbox"><table class="list"><thead><tr>${head}</tr></thead><tbody>${list.map(i => `<tr data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}" tabindex="0">
+    <td>${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}</td>
+    <td class="wrap"><b>${esc(i.title)}</b></td><td>${esc(i.authors || "—")}</td>
+    <td><span class="dot ${i.status}" style="display:inline-block;margin-right:6px"></span>${esc(statusLabel(i.kind, i.status))}</td>
+    <td class="num">${i.rating ?? ""}</td><td class="num">${i.year ?? ""}</td><td class="num">${i.pages ?? ""}</td>
+    <td>${esc(langName(i.lang))}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+// ---------------------------------------------------------------- detail
+async function openDetail(id, quiet) {
+  st.selected = id; st.editing = false; st.editReview = false; st.readingEdit = null; st.err = "";
+  if (!quiet) { st.detail = null; renderDatabase(); }
+  try { st.detail = await api.detail(id); } catch (e) { st.detail = {error: e.message}; }
+  if (!quiet) renderDetail();
+}
+function closeDetail() { st.selected = null; st.detail = null; st.editing = false; renderDatabase(); }
+function srcTag(group, col) { const s = st.detail?.prov?.[group]?.[col]; return s ? `<span class="src" title="where this value came from">${esc(SRC[s] || s)}</span>` : ""; }
+function renderDetail() {
+  const el = $("detail"); if (!el) return;
+  const d = st.detail;
+  if (!d) { el.innerHTML = `<p class="muted">Loading…</p>`; return; }
+  if (d.error) { el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button><p class="err">${esc(d.error)}</p>`; return; }
+  const e = d.edition, edit = canEdit(), labels = LABEL[d.kind];
+  const chosen = d.covers.find(c => c.chosen);
+  const statusBtns = STATUS_ORDER.map(s => `<button id="st-${s}" data-status="${s}" aria-pressed="${d.status === s}" ${edit ? "" : "disabled"}>${labels[s]}</button>`).join("");
+  const r = d.rating;
+  const ratingBtns = Array.from({length: 11}, (_, n) => `<button id="rt-${n}" data-rating="${n}" class="${r != null && n < r ? "on" : ""}" aria-pressed="${r != null && Math.round(r) === n}" ${edit ? "" : "disabled"} aria-label="Rate ${n} of 10">${n}</button>`).join("");
+  el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button>
+    <div class="head"><div class="cov">${coverSrc(chosen?.thumb) ? `<img src="${coverSrc(chosen.thumb)}" alt="Cover of ${esc(d.title)}">` : `<span class="ph">no cover</span>`}</div>
+      <div style="min-width:0"><h2>${esc(d.title)}</h2>
+        <div>${d.authorsList.map(a => esc(a.name)).join(", ") || `<span class="muted">no author</span>`}</div>
+        <div class="muted" style="font-size:12.5px;margin-top:4px">${[e?.published ? fmtDate(e.published, e.publishedPrecision) : null, e?.pages ? e.pages + " pages" : null, langName(e?.lang)].filter(Boolean).map(esc).join(" · ")}</div>
+        ${d.locked ? `<div style="margin-top:6px"><span class="pill warn" title="Automated sources may not change it">locked: tts-ereader copy</span></div>` : ""}
+      </div></div>
+    ${st.err ? `<p class="err">${esc(st.err)}</p>` : ""}
+    ${!edit && !PREVIEW && SESSION.owner ? `<p class="muted" style="font-size:12.5px;margin:12px 0 0">Unlock (top right) to change anything here.</p>` : ""}
+    <div class="d-sec"><h3>Status${srcTag("entry", "status")}</h3><div class="statusbar">${statusBtns}</div></div>
+    <div class="d-sec"><h3>Rating${srcTag("entry", "rating")}</h3><div class="rating">${ratingBtns}
+      <button id="rt-clear" data-rating="" ${edit ? "" : "disabled"} aria-label="Clear rating">–</button><span class="val">${r != null ? r + "/10" : "not rated"}</span></div></div>
+    <div class="d-sec"><h3>Review${srcTag("entry", "review")}${edit && !st.editReview ? `<button class="btn small" id="rv-edit">${d.review ? "Edit" : "Write"}</button>` : ""}</h3>
+      ${st.editReview ? `<textarea id="rv-text" aria-label="Review">${esc(d.review || "")}</textarea><div class="row-actions"><button class="btn small" id="rv-cancel">Cancel</button><button class="btn small primary" id="rv-save">Save review</button></div>`
+        : d.review ? `<div class="review">${esc(d.review)}</div>` : `<p class="muted" style="margin:0">No review.</p>`}</div>
+    <div class="d-sec"><h3>${d.kind === "book" ? "Readings" : "Watches"}${edit ? `<button class="btn small" id="rd-add">Add</button>` : ""}</h3>${readingsHtml(d, edit)}</div>
+    <div class="d-sec"><h3>Details${edit && !st.editing ? `${d.kind === "book" && !d.locked ? `<button class="btn small" id="ed-fill" title="Look up Apple Books and Open Library and fill only the empty fields">Fill missing</button>` : ""}<button class="btn small" id="ed-edit" style="margin-left:4px">Edit</button>` : ""}</h3>${st.editing ? editForm(d) : detailsHtml(d)}</div>
+    ${d.kind === "book" ? `<div class="d-sec"><h3>Collections</h3><div class="shelfchecks">${d.shelves.map(s => `<label><input type="checkbox" id="sh-${s.id}" data-shelfcheck="${s.id}" ${s.member ? "checked" : ""} ${edit && s.kind !== "all" ? "" : "disabled"}> ${esc(s.kind === "all" ? "All books" : s.name)}</label>`).join("")}${d.shelves.length < 2 ? `<span class="muted">Create a collection in the left pane.</span>` : ""}</div></div>` : ""}
+    <div class="d-sec"><h3>Cover${edit ? `<button class="btn small" id="cv-upload" title="JPEG, PNG or WebP, up to 15 MB">Upload a cover</button>` : ""}</h3>
+      ${d.covers.length ? `<div class="covers">${d.covers.map(c => `<button id="cv-${c.id}" data-cover="${c.id}" aria-pressed="${c.chosen}" ${edit ? "" : "disabled"} title="${esc(c.note || "")}">
+      <div class="cov">${coverSrc(c.thumb) ? `<img src="${coverSrc(c.thumb)}" alt="">` : `<span class="ph">${esc(SRC[c.source] || c.source)}<br>not downloaded</span>`}</div>${esc(SRC[c.source] || c.source)}${c.chosen ? " · used" : ""}</button>`).join("")}</div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">Click a cover to use it.</p>` : `<p class="muted" style="margin:0">No cover yet.</p>`}
+      <input type="file" id="cv-file" accept="image/jpeg,image/png,image/webp" hidden></div>
+    ${d.kind === "book" ? `<div class="d-sec"><h3>Ebook files${edit ? `<button class="btn small" id="fl-upload" title="An .epub file, up to 500 MB">Upload EPUB</button>` : ""}</h3>
+      ${d.files.length ? d.files.map(f => `<div class="reading"><span>${esc(f.format.toUpperCase())} · ${f.mb} MB${f.storage === "cwa" ? ` <span class="src">in CWA</span>` : ""}</span>
+        <span class="sub">Readest/kosync id <span class="mono">${esc(f.kosync || "—")}</span></span>
+        <span class="acts">${f.download ? `<a class="btn small" href="${esc(f.download)}" id="fl-dl-${f.id}">Download</a>` : ""}</span></div>`).join("") : `<p class="muted" style="margin:0">No file yet.</p>`}
+      <p class="muted" id="fl-progress" style="font-size:12.5px;margin:6px 0 0" hidden></p>
+      <input type="file" id="fl-file" accept=".epub,application/epub+zip" hidden></div>` : ""}
+    <div class="d-sec"><h3>Identifiers</h3><div class="ids">${d.ids.map(x => x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.p.replace(/_/g, " "))} ${esc(x.v)}</a>` : `<span>${esc(x.p.replace(/_/g, " "))} ${esc(x.v)}</span>`).join("") || `<span class="muted">none</span>`}</div></div>
+    <div class="d-sec"><details class="more"><summary>History (${d.history.length})</summary><div class="hist" style="margin-top:8px">${historyHtml(d.history)}</div></details></div>`;
+}
+function readingsHtml(d, edit) {
+  const L = LABEL[d.kind];
+  const rows = d.readings.map(r => st.readingEdit === r.id ? readingForm(r) : `<div class="reading"><span>${esc(L[r.state] || r.state)}${r.ended ? " " + esc(fmtDate(r.ended, r.endedPrecision)) : ""}${r.endedPrecision === "year" ? ` <span class="muted">(year only)</span>` : ""}</span>
+    <span class="sub">${[r.started ? "started " + fmtDate(r.started, r.startedPrecision) : null, r.lang ? "in " + langName(r.lang) : null, r.progress != null ? r.progress + "%" : null, r.note].filter(Boolean).map(esc).join(" · ")}${r.source !== "owner" ? `<span class="src">${esc(SRC[r.source] || r.source)}</span>` : ""}</span>
+    ${edit ? `<span class="acts"><button class="btn small" id="rd-e-${r.id}" data-redit="${r.id}">Edit</button></span>` : ""}</div>`).join("");
+  return (st.readingEdit === "new" ? readingForm(null) : "") + (rows || (st.readingEdit === "new" ? "" : `<p class="muted" style="margin:0">None yet.</p>`));
+}
+function langOptions(sel) { return `<option value="">—</option>` + Object.entries(LIB.languages).sort((a, b) => a[1].localeCompare(b[1])).map(([c, n]) => `<option value="${c}" ${c === sel ? "selected" : ""}>${esc(n)}</option>`).join(""); }
+function readingForm(r) {
+  const L = LABEL[st.detail.kind], id = r ? r.id : "new";
+  return `<form class="rform" id="rform" data-rid="${id}">
+    <label class="full">State<select id="rf-state">${["completed", "in_progress", "paused", "dropped"].map(s => `<option value="${s}" ${(r?.state || "completed") === s ? "selected" : ""}>${L[s]}</option>`).join("")}</select></label>
+    <label>Started <input id="rf-started" placeholder="YYYY, YYYY-MM or YYYY-MM-DD" value="${esc(partial(r?.started, r?.startedPrecision))}" inputmode="numeric"></label>
+    <label>Finished <input id="rf-ended" placeholder="YYYY, YYYY-MM or YYYY-MM-DD" value="${esc(partial(r?.ended, r?.endedPrecision))}" inputmode="numeric"></label>
+    <label class="full">Read in<select id="rf-lang">${langOptions(r?.lang)}</select></label>
+    <label class="full">Note <input id="rf-note" value="${esc(r?.note || "")}" maxlength="2000"></label>
+    <div class="row-actions full">${r ? `<button type="button" class="btn small danger" id="rf-delete">Delete</button>` : ""}<span style="flex:1"></span><button type="button" class="btn small" id="rf-cancel">Cancel</button><button type="submit" class="btn small primary">Save</button></div>
+  </form>`;
+}
+function detailsHtml(d) {
+  const e = d.edition, it = d.item;
+  const row = (label, value, group, col) => value ? `<dt>${label}</dt><dd>${value}${group ? srcTag(group, col) : ""}</dd>` : "";
+  return `<dl class="kv">
+    ${row("Authors", esc(d.authorsList.map(a => a.name).join(", ")))}
+    ${row("Original", esc([it.originalTitle, langName(it.originalLang), it.firstPublished ? fmtDate(it.firstPublished, it.firstPublishedPrecision) : null].filter(Boolean).join(" · ")), "item", "original_language")}
+    ${e ? row("Edition", esc(e.title + (e.subtitle ? ": " + e.subtitle : "")), "edition", "title") : ""}
+    ${e ? row("Language", esc(langName(e.lang)), "edition", "language") : ""}
+    ${e ? row("Publisher", esc(e.publisher), "edition", "publisher") : ""}
+    ${e ? row("Published", esc(fmtDate(e.published, e.publishedPrecision)), "edition", "published_on") : ""}
+    ${e ? row("Pages", e.pages, "edition", "pages") : ""}
+    ${e?.format ? row("Format", esc(e.format)) : ""}
+    ${d.genreList.length ? `<dt>Genres</dt><dd class="tags">${d.genreList.map(g => `<span class="tag genre">${esc(g)}</span>`).join("")}</dd>` : ""}
+    ${d.tagList.length ? `<dt>Tags</dt><dd class="tags">${d.tagList.map(g => `<span class="tag">${esc(g)}</span>`).join("")}</dd>` : ""}
+    ${row("Added", esc(d.added))}
+    ${d.otherEditions.length ? `<dt>Other editions</dt><dd>${d.otherEditions.map(o => esc(o.title) + (o.pages ? `, ${o.pages} p.` : "") + (o.published ? `, ${o.published}` : "")).join("<br>")}</dd>` : ""}
+  </dl>${(e?.description || it.description) ? `<details class="more" style="margin-top:8px"><summary>Description</summary><p class="desc">${esc(e?.description || it.description)}</p></details>` : ""}`;
+}
+function editForm(d) {
+  const e = d.edition || {}, it = d.item;
+  const inp = (id, label, value, attrs = "") => `<label for="${id}">${label}</label><input id="${id}" value="${esc(value ?? "")}" ${attrs}>`;
+  return `<form class="form" id="edform">
+    ${inp("ef-title", "Title", it.title, 'required maxlength="1000"')}
+    <label for="ef-authors">Authors</label><input id="ef-authors" value="${esc(d.authorsList.map(a => a.name).join("; "))}" placeholder="Separate with ;">
+    ${inp("ef-otitle", "Original title", it.originalTitle)}
+    <label for="ef-olang">Original lang.</label><select id="ef-olang">${langOptions(it.originalLang)}</select>
+    ${inp("ef-first", "First published", partial(it.firstPublished, it.firstPublishedPrecision), 'placeholder="YYYY" inputmode="numeric"')}
+    ${d.edition ? `${inp("ef-etitle", "Edition title", e.title)}
+    ${inp("ef-sub", "Subtitle", e.subtitle)}
+    <label for="ef-lang">Language</label><select id="ef-lang">${langOptions(e.lang)}</select>
+    ${inp("ef-pub", "Publisher", e.publisher)}
+    ${inp("ef-pdate", "Published", partial(e.published, e.publishedPrecision), 'placeholder="YYYY, YYYY-MM or YYYY-MM-DD" inputmode="numeric"')}
+    ${inp("ef-pages", "Pages", e.pages, 'inputmode="numeric"')}
+    <label for="ef-format">Format</label><select id="ef-format"><option value="">—</option>${["ebook", "print", "paperback", "hardcover", "audiobook"].map(f => `<option ${e.format === f ? "selected" : ""}>${f}</option>`).join("")}</select>` : ""}
+    ${inp("ef-genres", "Genres", d.genreList.join(", "), 'placeholder="Separate with commas"')}
+    ${inp("ef-tags", "Tags", d.tagList.join(", "), 'placeholder="Separate with commas"')}
+    <div class="row-actions full"><button type="button" class="btn small" id="ef-cancel">Cancel</button><button type="submit" class="btn small primary">Save details</button></div>
+  </form>`;
+}
+function historyHtml(h) {
+  if (!h.length) return `<span class="muted">No changes recorded.</span>`;
+  const show = v => v == null || v === "" ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v).length > 60 ? String(v).slice(0, 60) + "…" : String(v);
+  return h.map(x => {
+    const who = x.client?.startsWith("console:") ? "you" : x.imported ? "importer" : x.client;
+    const what = x.op === "I" ? `Added ${x.what}` : x.op === "D" ? `Removed ${x.what}` : Object.entries(x.changes).map(([k, [a, b]]) => `${k.replace(/_/g, " ")}: ${show(a)} → ${show(b)}`).join("; ") || `Changed ${x.what}`;
+    return `<div><span class="when">${esc((x.at || "").slice(0, 16).replace("T", " "))} · ${esc(who)}${x.source ? " · from " + esc(SRC[x.source] || x.source) : ""}${x.external ? " (Yamtrack history)" : ""}</span><br>${esc(what)}</div>`;
+  }).join("");
+}
+
+// --------------------------------------------------------------- actions
+async function act(fn, okMsg) {
+  if (!canEdit()) { st.unlockMsg = "Unlock to edit."; st.showPw = true; renderKeybar(); $("key-input")?.focus(); return false; }
+  try { await fn(); if (okMsg) toast(okMsg); st.err = ""; return true; }
+  catch (e) { st.err = e.message; toast(e.message, true); renderDetail(); return false; }
+}
+async function afterItemChange(detail) {
+  if (detail && detail.id) st.detail = detail; else st.detail = await api.detail(st.selected);
+  LIB = await api.library();
+  renderDatabase();
+}
+const splitList = (s, sep) => s.split(sep).map(x => x.trim()).filter(Boolean);
+document.addEventListener("click", async e => {
+  const t = e.target.closest("button, [data-id], input[type=checkbox]"); if (!t) return;
+  if (t.matches(".seg button")) { st.sec = t.dataset.sec; save("sec", st.sec); if (st.sec === "visuals") { try { STATS = await api.stats(); } catch (er) { STATS = null; } } render(); return; }
+  if (t.dataset.kind) { st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; save("kind", st.kind); render(); return; }
+  if (t.dataset.shelf) { st.shelf = t.dataset.shelf; st.filter = "all"; st.selected = null; st.listSort = null; save("shelf", st.shelf); render(); return; }
+  if (t.dataset.filter) { st.filter = t.dataset.filter; renderDatabase(); return; }
+  if (t.dataset.size) return setPref("size", t.dataset.size);
+  if (t.dataset.layout) { st.listSort = null; return setPref("layout", t.dataset.layout); }
+  if (t.id === "sortdir") { const shelf = LIB.shelves.find(s => s.id === st.shelf), p = shelfPrefs(shelf); if (st.listSort) { st.listSort.desc = !st.listSort.desc; renderDatabase(); } else setPref("desc", !p.desc); return; }
+  if (t.dataset.col) { const shelf = LIB.shelves.find(s => s.id === st.shelf), p = shelfPrefs(shelf), cur = st.listSort?.key || p.sort;
+    st.listSort = {key: t.dataset.col, desc: cur === t.dataset.col ? !(st.listSort ? st.listSort.desc : p.desc) : DESC_FIRST.includes(t.dataset.col)}; renderDatabase(); return; }
+  if (t.id === "shelf-menu") return shelfMenu();
+  if (t.dataset.addtab) return addTab(t.dataset.addtab);
+  if (t.id === "add-book") { if (!canEdit()) return act(() => 0); return addPanel(); }
+  if (t.dataset.addidx !== undefined) { const status = $("ad-status").value;
+    await act(async () => { const r = await api.add(addState.token, +t.dataset.addidx, status); LIB = await api.library();
+      toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }); return; }
+  if (t.id === "ed-fill") { await act(async () => { const r = await api.fill(st.selected);
+    toast(r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know")); await afterItemChange(r.item); }); return; }
+  if (t.matches(".book") || t.matches("tr[data-id]")) { if (drag.suppressClick) { drag.suppressClick = false; return; } return openDetail(t.dataset.id); }
+  if (t.id === "d-close") return closeDetail();
+  const id = st.selected;
+  if (t.dataset.status) { if (await act(async () => afterItemChange(await api.status(id, t.dataset.status)), "Status saved")) {} return; }
+  if (t.dataset.rating !== undefined && t.closest(".rating")) { const v = t.dataset.rating === "" ? null : +t.dataset.rating; await act(async () => afterItemChange(await api.patch(id, {entry: {rating: v}})), "Rating saved"); return; }
+  if (t.id === "cv-upload") { $("cv-file").click(); return; }
+  if (t.id === "fl-upload") { $("fl-file").click(); return; }
+  if (t.id === "rv-edit") { st.editReview = true; renderDetail(); $("rv-text")?.focus(); return; }
+  if (t.id === "rv-cancel") { st.editReview = false; renderDetail(); return; }
+  if (t.id === "rv-save") { const v = $("rv-text").value; if (await act(async () => afterItemChange(await api.patch(id, {entry: {review: v}})), "Review saved")) st.editReview = false; renderDetail(); return; }
+  if (t.id === "rd-add") { if (!canEdit()) return act(() => 0); st.readingEdit = "new"; renderDetail(); return; }
+  if (t.dataset.redit) { st.readingEdit = t.dataset.redit; renderDetail(); return; }
+  if (t.id === "rf-cancel") { st.readingEdit = null; renderDetail(); return; }
+  if (t.id === "rf-delete") { const rid = st.readingEdit; if (await act(async () => { await api.deleteReading(rid); await afterItemChange(); }, "Reading deleted")) st.readingEdit = null; renderDetail(); return; }
+  if (t.id === "ed-edit") { if (!canEdit()) return act(() => 0); st.editing = true; renderDetail(); return; }
+  if (t.id === "ef-cancel") { st.editing = false; renderDetail(); return; }
+  if (t.dataset.cover) { if (t.getAttribute("aria-pressed") === "true") return; await act(async () => afterItemChange(await api.cover(id, +t.dataset.cover)), "Cover changed"); return; }
+  if (t.dataset.shelfcheck) { const sid = t.dataset.shelfcheck, on = t.checked;
+    await act(async () => { await api.shelfItems(sid, on ? {add: [id]} : {remove: [id]}); await afterItemChange(); }, on ? "Added to the collection" : "Removed from the collection"); return; }
+  if (t.id === "key-save") return unlock();
+  if (t.id === "key-showpw") { st.showPw = true; renderKeybar(); $("key-input").focus(); return; }
+  if (t.id === "key-passkey") return passkeyUnlock();
+  if (t.id === "key-lock") { try { await api.lock(); } catch (er) {} SESSION.unlockedUntil = null; st.editing = false; render(); return; }
+  if (t.id === "preview-reset") { try { localStorage.removeItem("ml-preview-state"); } catch (er) {} location.reload(); return; }
+});
+document.addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target, id = st.selected;
+  if (f.id === "addform") {
+    const body = {title: $("ad-title").value.trim(), author: $("ad-author").value.trim(), isbn: $("ad-isbn").value.trim()};
+    const box = $("ad-results"); box.innerHTML = `<p class="muted">Looking up Apple Books and Open Library…</p>`;
+    try { const r = await api.lookup(body); addState.token = r.token; box.innerHTML = candidatesHtml(r.candidates); }
+    catch (er) { box.innerHTML = `<p class="err">${esc(er.message)}</p>`; }
+    return;
+  }
+  if (f.id === "handform") {
+    const body = {title: $("mh-title").value, authors: $("mh-authors").value, language: $("mh-lang").value, published: $("mh-pub").value.trim(),
+      pages: $("mh-pages").value.trim(), publisher: $("mh-publisher").value, isbn: $("mh-isbn").value.trim(), status: $("mh-status").value};
+    await act(async () => { const r = await api.addManual(body); LIB = await api.library(); toast(r.existing ? "Already in your library (same ISBN)" : "Added"); await openDetail(r.id); });
+    return;
+  }
+  if (f.id === "newshelf") { const name = $("newshelf-name").value.trim(); if (!name) return;
+    await act(async () => { const r = await api.newShelf(name, st.kind); LIB = await api.library(); st.shelf = r.id; render(); }, "Collection created"); return; }
+  if (f.id === "rform") {
+    const body = {state: $("rf-state").value, started: $("rf-started").value.trim(), ended: $("rf-ended").value.trim(), lang: $("rf-lang").value, note: $("rf-note").value.trim()};
+    const rid = f.dataset.rid;
+    if (await act(async () => { if (rid === "new") await api.addReading(id, body); else await api.editReading(rid, body); await afterItemChange(); }, "Reading saved")) st.readingEdit = null;
+    renderDetail(); return;
+  }
+  if (f.id === "edform") {
+    const val = x => $(x) ? $(x).value : undefined;
+    const body = {item: {title: val("ef-title"), originalTitle: val("ef-otitle"), originalLang: val("ef-olang"), firstPublished: val("ef-first")},
+      authors: splitList(val("ef-authors"), /;|\n/), genres: splitList(val("ef-genres"), ","), tags: splitList(val("ef-tags"), ",")};
+    if (st.detail.edition) body.edition = {title: val("ef-etitle"), subtitle: val("ef-sub"), lang: val("ef-lang"), publisher: val("ef-pub"), published: val("ef-pdate"), pages: val("ef-pages"), format: val("ef-format")};
+    if (await act(async () => afterItemChange(await api.patch(id, body)), "Details saved")) { st.editing = false; renderDetail(); }
+    return;
+  }
+});
+document.addEventListener("input", e => {
+  if (e.target.id === "filter-q") { st.q = e.target.value; const pos = e.target.selectionStart; renderDatabase(); const n = $("filter-q"); n.focus(); n.setSelectionRange(pos, pos); }
+  if (e.target.id === "search") runSearch(e.target.value);
+});
+document.addEventListener("change", async e => {
+  if (e.target.id === "cv-file" && e.target.files[0]) {
+    const file = e.target.files[0], id = st.selected;
+    if (file.size > 15 * 1024 * 1024) { toast("Too large: covers can be up to 15 MB.", true); return; }
+    await act(async () => afterItemChange(await api.uploadCover(id, file)), "Cover uploaded"); return;
+  }
+  if (e.target.id === "fl-file" && e.target.files[0]) {
+    const file = e.target.files[0], id = st.selected, p = $("fl-progress");
+    if (!/\.epub$/i.test(file.name)) { toast("Choose an .epub file.", true); return; }
+    if (file.size > 500 * 1024 * 1024) { toast("Too large: ebooks can be up to 500 MB.", true); return; }
+    p.hidden = false; p.textContent = "Uploading " + file.name + "…";
+    await act(async () => afterItemChange(await api.uploadFile(id, file, f => { const el = $("fl-progress"); if (el) el.textContent = "Uploading " + file.name + ": " + Math.round(f * 100) + "%"; })), "EPUB stored");
+    return;
+  }
+  if (e.target.id === "sort") { st.listSort = null; const v = e.target.value; setPref("sort", v); setPref("desc", DESC_FIRST.includes(v)); }
+});
+async function shelfMenu() {
+  const shelf = LIB.shelves.find(s => s.id === st.shelf);
+  const el = $("detail"); st.selected = "__shelf"; renderDatabase();
+  const d = $("detail"); d.hidden = false; $("lib").classList.add("withdetail");
+  d.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button><h2>Collection</h2>
+    <form class="form" id="shelfform"><label for="sf-name">Name</label><input id="sf-name" value="${esc(shelf.name)}" maxlength="100">
+    <div class="row-actions full"><button type="button" class="btn small danger" id="sf-delete">Delete collection</button><span style="flex:1"></span><button class="btn small primary" type="submit">Rename</button></div></form>
+    <p class="muted" style="font-size:12.5px">Deleting a collection keeps the books in your library.</p>`;
+  $("shelfform").addEventListener("submit", async ev => { ev.preventDefault(); ev.stopPropagation(); await act(async () => { await api.editShelf(shelf.id, {name: $("sf-name").value}); LIB = await api.library(); st.selected = null; render(); }, "Renamed"); }, true);
+  $("sf-delete").addEventListener("click", async ev => { ev.stopPropagation(); await act(async () => { await api.deleteShelf(shelf.id); LIB = await api.library(); st.shelf = allShelf(st.kind).id; st.selected = null; render(); }, "Collection deleted"); });
+}
+
+// ------------------------------------------------------------- add a book
+const addState = {token: null};
+function addPanel() {
+  st.selected = "__add"; renderDatabase();
+  const d = $("detail"); d.hidden = false; $("lib").classList.add("withdetail");
+  d.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button><h2>Add a book</h2>
+    <span class="segsmall" role="group" aria-label="How to add" style="margin:8px 0 10px"><button id="ad-tab-search" data-addtab="search" aria-pressed="true">Search</button><button id="ad-tab-hand" data-addtab="hand" aria-pressed="false">By hand</button></span>
+    <div id="ad-search">
+    <p class="muted" style="font-size:12.5px;margin:0 0 12px">Searches Apple Books (cover, basics) and Open Library (ISBN, pages, publisher). Pick the right edition; every value remembers where it came from.</p>
+    <form class="form" id="addform">
+      <label for="ad-title">Title</label><input id="ad-title" autocomplete="off">
+      <label for="ad-author">Author</label><input id="ad-author" autocomplete="off" placeholder="helps to find the right one">
+      <label for="ad-isbn">or ISBN</label><input id="ad-isbn" inputmode="numeric" autocomplete="off">
+      <div class="row-actions full"><button type="submit" class="btn small primary">Search</button></div>
+    </form>
+    <div class="form" style="margin-top:10px"><label for="ad-status">Add as</label><select id="ad-status"><option value="planned">To read</option><option value="in_progress">Reading (from today)</option><option value="completed">Read (today)</option></select></div>
+    <div id="ad-results" style="margin-top:12px"></div>
+    </div>
+    <div id="ad-hand" hidden>
+    <p class="muted" style="font-size:12.5px;margin:0 0 12px">For a book the sources don't know: type what you have. Only the title is needed; the cover and the EPUB can be uploaded afterwards.</p>
+    <form class="form" id="handform">
+      <label for="mh-title">Title</label><input id="mh-title" required maxlength="1000" autocomplete="off">
+      <label for="mh-authors">Authors</label><input id="mh-authors" placeholder="Separate with ;" autocomplete="off">
+      <label for="mh-lang">Language</label><select id="mh-lang">${langOptions(null)}</select>
+      <label for="mh-pub">Published</label><input id="mh-pub" placeholder="YYYY, YYYY-MM or YYYY-MM-DD" inputmode="numeric">
+      <label for="mh-pages">Pages</label><input id="mh-pages" inputmode="numeric">
+      <label for="mh-publisher">Publisher</label><input id="mh-publisher">
+      <label for="mh-isbn">ISBN</label><input id="mh-isbn" inputmode="numeric">
+      <label for="mh-status">Add as</label><select id="mh-status"><option value="planned">To read</option><option value="in_progress">Reading (from today)</option><option value="completed">Read (today)</option></select>
+      <div class="row-actions full"><button type="submit" class="btn small primary">Add to library</button></div>
+    </form>
+    </div>`;
+  $("ad-title").focus();
+}
+function addTab(tab) {
+  $("ad-search").hidden = tab !== "search"; $("ad-hand").hidden = tab !== "hand";
+  $("ad-tab-search").setAttribute("aria-pressed", String(tab === "search")); $("ad-tab-hand").setAttribute("aria-pressed", String(tab === "hand"));
+  if (tab === "hand") { if (!$("mh-title").value) $("mh-title").value = $("ad-title").value; if (!$("mh-authors").value) $("mh-authors").value = $("ad-author").value; $("mh-title").focus(); }
+}
+function candidatesHtml(cands) {
+  if (!cands.length) return `<p class="muted">No confident match. Try the original title, add the author's last name, or use the ISBN.</p><button class="btn small" id="ad-to-hand" data-addtab="hand">Add it by hand</button>`;
+  return `<p class="muted" style="font-size:12.5px;margin:0 0 6px">Not the right one? <button class="btn small" id="ad-to-hand2" data-addtab="hand">Add it by hand</button></p>` + cands.map(c => `<div class="reading" style="grid-template-columns:48px minmax(0,1fr) auto">
+    <div style="grid-row:span 2">${c.cover_url ? `<img src="${esc(c.cover_url)}" alt="" style="width:48px;height:72px;object-fit:cover;border-radius:2px 4px 4px 2px" loading="lazy" referrerpolicy="no-referrer">` : `<span class="noimg" style="display:block;width:48px;height:72px;background:var(--sunk)"></span>`}</div>
+    <span><b>${esc(c.title)}</b><br>${esc(c.authors.join(", ") || "author unknown")}</span>
+    <span class="acts" style="grid-row:span 2;grid-column:3"><button class="btn small primary" id="ad-pick-${c.index}" data-addidx="${c.index}">Add</button></span>
+    <span class="sub" style="grid-column:2">${[SRC[c.provider] || c.provider, c.published, c.pages ? c.pages + " p." : null, langName(c.language), c.publisher].filter(Boolean).map(esc).join(" · ")}</span>
+  </div>`).join("");
+}
+
+// ----------------------------------------------------------- drag reorder
+const drag = {active: false, suppressClick: false};
+function enableDrag(shelf) {
+  const grid = $("grid"); if (!grid) return;
+  grid.addEventListener("pointerdown", e => {
+    const book = e.target.closest(".book"); if (!book || e.button > 0) return;
+    const start = {x: e.clientX, y: e.clientY, t: Date.now(), id: book.dataset.id, pointer: e.pointerId, touch: e.pointerType === "touch"};
+    let timer = null, ghost = null, target = null;
+    const begin = () => {
+      drag.active = true; book.classList.add("dragging"); if (navigator.vibrate) navigator.vibrate(10);
+      ghost = document.createElement("div"); ghost.className = "ghost";
+      const img = book.querySelector("img"); if (img) { const g = document.createElement("img"); g.src = img.src; ghost.appendChild(g); }
+      document.body.appendChild(ghost); move(start.x, start.y);
+      try { book.setPointerCapture(start.pointer); } catch (er) {}
+    };
+    const move = (x, y) => {
+      if (ghost) { ghost.style.left = (x - 45) + "px"; ghost.style.top = (y - 60) + "px"; }
+      const over = document.elementFromPoint(x, y)?.closest?.(".book");
+      for (const b of grid.querySelectorAll(".drop-before")) b.classList.remove("drop-before");
+      target = over && over !== book ? over : null;
+      if (target) target.classList.add("drop-before");
+    };
+    const onMove = ev => {
+      if (ev.pointerId !== start.pointer) return;
+      const dist = Math.hypot(ev.clientX - start.x, ev.clientY - start.y);
+      if (!drag.active) { if (!start.touch && dist > 6) begin(); else if (start.touch && dist > 10) cleanup(); return; }
+      ev.preventDefault(); move(ev.clientX, ev.clientY);
+    };
+    const onUp = async ev => {
+      if (ev.pointerId !== start.pointer) return;
+      const was = drag.active, tgt = target; cleanup();
+      if (!was) return;
+      drag.suppressClick = true; setTimeout(() => { drag.suppressClick = false; }, 300);
+      if (!tgt) return;
+      const order = shelf.items, from = order.indexOf(start.id), to0 = order.indexOf(tgt.dataset.id);
+      if (from < 0 || to0 < 0) return;
+      const to = from < to0 ? to0 : to0 + 1;   // 1-based: before the target
+      const optimistic = [...order]; optimistic.splice(from, 1); optimistic.splice(optimistic.indexOf(tgt.dataset.id), 0, start.id);
+      shelf.items = optimistic; renderDatabase();
+      try { await api.move(shelf.id, start.id, to); } catch (er) { toast(er.message, true); LIB = await api.library(); renderDatabase(); }
+    };
+    const cleanup = () => {
+      clearTimeout(timer); drag.active = false; book.classList.remove("dragging"); if (ghost) ghost.remove(); ghost = null;
+      for (const b of grid.querySelectorAll(".drop-before")) b.classList.remove("drop-before");
+      document.removeEventListener("pointermove", onMove); document.removeEventListener("pointerup", onUp); document.removeEventListener("pointercancel", cleanup);
+    };
+    if (start.touch) timer = setTimeout(begin, 380);
+    document.addEventListener("pointermove", onMove, {passive: false}); document.addEventListener("pointerup", onUp); document.addEventListener("pointercancel", cleanup);
+  });
+  grid.addEventListener("contextmenu", e => { if (drag.active || e.pointerType === "touch") e.preventDefault(); });
+  // iOS: a touch drag would scroll the page; stop that while a cover is being dragged
+  grid.addEventListener("touchmove", e => { if (drag.active) e.preventDefault(); }, {passive: false});
+}
+
+// ---------------------------------------------------------------- search
+let hits = [], active = 0;
+function mark(text, terms) {
+  let html = esc(text);
+  for (const t of terms) { if (!t) continue; const re = new RegExp("(" + esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig"); html = html.replace(re, "<mark>$1</mark>"); }
+  return html;
+}
+function runSearch(q) {
+  const pop = $("search-pop"), terms = fold(q).split(/\s+/).filter(Boolean);
+  if (!terms.length) { pop.hidden = true; hits = []; return; }
+  hits = LIB.items.map(i => ({i, hay: fold([i.title, i.authors, i.genres.join(" "), statusLabel(i.kind, i.status), i.year].join(" "))}))
+    .filter(x => terms.every(t => x.hay.includes(t)))
+    .map(x => ({...x, score: fold(x.i.title).startsWith(terms.join(" ")) ? 3 : fold(x.i.title).includes(terms[0]) ? 2 : 1}))
+    .sort((a, b) => b.score - a.score || a.i.sort.localeCompare(b.i.sort)).slice(0, 20).map(x => x.i);
+  active = 0;
+  if (!hits.length) { pop.innerHTML = `<p class="pop-empty">Nothing matches “${esc(q)}”.</p>`; pop.hidden = false; return; }
+  const groups = KINDS.filter(([k]) => hits.some(h => h.kind === k));
+  hits = groups.flatMap(([k]) => hits.filter(h => h.kind === k));
+  const rawTerms = q.split(/\s+/).filter(Boolean);
+  pop.innerHTML = groups.map(([k, label]) => `<div class="sr-group">${label}</div>` + hits.filter(h => h.kind === k).map(h => {
+    const idx = hits.indexOf(h);
+    return `<button class="pop-item${idx === active ? " active" : ""}" role="option" id="hit-${idx}" data-hit="${idx}" aria-selected="${idx === active}">
+      ${coverSrc(h.cover) ? `<img src="${coverSrc(h.cover)}" alt="">` : `<span class="noimg"></span>`}<span class="pop-name">${mark(h.title, rawTerms)}</span>
+      <span class="pop-sub">${mark(h.authors || "—", rawTerms)} · ${esc(statusLabel(h.kind, h.status))}${h.year ? " " + h.year : ""}</span></button>`;
+  }).join("")).join("");
+  pop.hidden = false;
+}
+function goHit(h) {
+  if (!h) return;
+  $("search-pop").hidden = true; $("search").value = ""; $("search").blur();
+  st.sec = "database"; st.kind = h.kind; st.shelf = allShelf(h.kind).id; st.filter = "all"; st.q = "";
+  render(); openDetail(h.id);
+  setTimeout(() => document.getElementById("b-" + h.id)?.scrollIntoView({block: "center", behavior: "smooth"}), 50);
+}
+document.addEventListener("keydown", e => {
+  const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName || "");
+  if (e.key === "/" && !typing) { e.preventDefault(); $("search").focus(); return; }
+  if (e.key === "Escape" && !typing && st.selected) { closeDetail(); return; }
+  if (e.target.matches?.("tr[data-id]") && e.key === "Enter") { openDetail(e.target.dataset.id); return; }
+  if (e.target.id === "key-input" && e.key === "Enter") { unlock(); return; }
+  if (e.target.id !== "search") return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (!hits.length) return; active = (active + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;
+    document.querySelectorAll("#search-pop .pop-item").forEach(b => { const on = +b.dataset.hit === active; b.classList.toggle("active", on); b.setAttribute("aria-selected", String(on)); if (on) b.scrollIntoView({block: "nearest"}); }); }
+  else if (e.key === "Enter") { e.preventDefault(); goHit(hits[active]); }
+  else if (e.key === "Escape") { $("search-pop").hidden = true; e.target.value = ""; e.target.blur(); }
+});
+document.addEventListener("click", e => {
+  const h = e.target.closest?.("[data-hit]"); if (h) { goHit(hits[+h.dataset.hit]); return; }
+  if (!e.target.closest?.(".search")) $("search-pop").hidden = true;
+}, true);
+
+// ---------------------------------------------------------------- unlock
+function renderKeybar() {
+  const bar = $("keybar");
+  if (PREVIEW) { bar.innerHTML = `<span class="pill warn" title="This page runs in your browser only. On the server every edit is saved and audited.">Preview · edits stay in this browser</span><button class="btn small" id="preview-reset">Reset</button>`; return; }
+  if (!SESSION.owner) { bar.innerHTML = `<span class="muted">Read-only${SESSION.login ? " for " + esc(SESSION.login) : ""}: editing needs the owner's Tailscale login.</span>`; return; }
+  if (canEdit()) {
+    const mins = Math.max(1, Math.round((SESSION.unlockedUntil * 1000 - Date.now()) / 60000));
+    bar.innerHTML = `<span class="unlocked">Unlocked · locks in ${mins} min</span><button class="btn small" id="key-lock">Lock</button>`;
+  } else {
+    const pk = SESSION.passkeys?.available && window.PublicKeyCredential;
+    bar.innerHTML = (pk ? `<button class="btn primary" id="key-passkey" title="Unlock for 30 minutes with the passkey you added in the agent console">Touch ID / Face ID</button>` : "") +
+      (st.showPw ? `<input id="key-input" type="password" autocomplete="current-password" placeholder="Password" aria-label="Console password (the agent console's)"><button class="btn" id="key-save">Unlock</button>`
+        : `<button class="btn" id="key-showpw" title="The same password as the agent console. Unlocks editing for 30 minutes.">${pk ? "Password" : "Unlock to edit"}</button>`) +
+      (st.unlockMsg ? `<span class="key-msg" role="status">${esc(st.unlockMsg)}</span>` : "");
+  }
+}
+async function unlock() {
+  const pw = $("key-input")?.value || ""; if (!pw) return;
+  try { const r = await api.unlock(pw); SESSION.unlockedUntil = r.expiresAt; st.unlockMsg = ""; st.showPw = false; render(); }
+  catch (e) { st.unlockMsg = e.message; renderKeybar(); }
+}
+const toBuf = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0)).buffer;
+const toB64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function passkeyUnlock() {
+  try {
+    const pk = (await api.passkeyOptions()).publicKey;
+    pk.challenge = toBuf(pk.challenge); for (const c of pk.allowCredentials || []) c.id = toBuf(c.id);
+    const cred = await navigator.credentials.get({publicKey: pk});
+    const res = cred.response;
+    const r = await api.passkeyLogin({id: cred.id, clientDataJSON: toB64u(res.clientDataJSON), authenticatorData: toB64u(res.authenticatorData), signature: toB64u(res.signature)});
+    SESSION.unlockedUntil = r.expiresAt; st.unlockMsg = ""; render();
+  } catch (e) { st.unlockMsg = e && e.name === "NotAllowedError" ? "Touch ID / Face ID was cancelled or timed out." : (e.message || String(e)); renderKeybar(); }
+}
+setInterval(() => { if (!PREVIEW && SESSION.unlockedUntil) { if (SESSION.unlockedUntil * 1000 < Date.now()) { SESSION.unlockedUntil = null; render(); } else renderKeybar(); } }, 30000);
+
+// --------------------------------------------------------------- visuals
+const tip = $("tip");
+function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + "px"; tip.style.top = (e.clientY - tip.offsetHeight - 12) + "px"; }
+function hideTip() { tip.hidden = true; }
+function columnChart(id, rows, opts) {
+  // rows: [{label, value, tip}] — one series, one baseline, labels on the max and the last column
+  const W = 520, H = 190, padL = 30, padB = 22, padT = 16, n = rows.length;
+  if (!n) return `<p class="muted">No data yet.</p>`;
+  const max = Math.max(1, ...rows.map(r => r.value)), step = niceStep(max), top = Math.ceil(max / step) * step;
+  const bw = Math.min(24, (W - padL) / n * 0.62), band = (W - padL) / n;
+  const y = v => padT + (H - padT - padB) * (1 - v / top);
+  let ticks = ""; for (let v = 0; v <= top; v += step) ticks += `<line class="gl" x1="${padL}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end">${fmtTick(v)}</text>`;
+  const maxIdx = rows.reduce((m, r, i) => r.value > rows[m].value ? i : m, 0), labelEvery = Math.ceil(n / 12);
+  const bars = rows.map((r, i) => {
+    const x = padL + band * i + (band - bw) / 2, h = Math.max(0, y(0) - y(r.value)), rad = Math.min(4, h / 2, bw / 2);
+    const path = h > 0 ? `M${x},${y(0)} V${y(r.value) + rad} Q${x},${y(r.value)} ${x + rad},${y(r.value)} H${x + bw - rad} Q${x + bw},${y(r.value)} ${x + bw},${y(r.value) + rad} V${y(0)} Z` : "";
+    const showV = r.value > 0 && (i === maxIdx || i === n - 1);
+    return `<g class="barg" tabindex="0" data-tip="${esc(r.tip)}"><rect class="hit" x="${padL + band * i}" y="${padT}" width="${band}" height="${H - padT - padB}"/>${path ? `<path class="bar" d="${path}"/>` : ""}
+      ${showV ? `<text class="v" x="${x + bw / 2}" y="${y(r.value) - 5}" text-anchor="middle">${fmtNum(r.value)}</text>` : ""}
+      ${i % labelEvery === 0 || i === n - 1 ? `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${esc(r.label)}</text>` : ""}</g>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.aria)}" id="${id}">${ticks}<line class="gl" x1="${padL}" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>${bars}</svg>`;
+}
+function niceStep(max) { const raw = max / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p; return Math.max(1, (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p); }
+function fmtTick(v) { return v >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0) + "K" : String(v); }
+function fmtNum(v) { return Math.round(v).toLocaleString("en"); }
+function hbars(rows) {
+  if (!rows.length) return `<p class="muted">No data yet.</p>`;
+  const max = Math.max(1, ...rows.map(r => r.value));
+  return `<div class="hbars">${rows.map(r => `<span class="name" title="${esc(r.label)}">${esc(r.label)}</span><span class="track"><div class="fill" style="width:${(r.value / max * 100).toFixed(1)}%"></div></span><span class="num">${fmtNum(r.value)}</span>`).join("")}</div>`;
+}
+function tableView(cols, rows) {
+  return `<table class="tv"><tr>${cols.map((c, i) => `<th class="${i ? "num" : ""}">${esc(c)}</th>`).join("")}</tr>${rows.map(r => `<tr>${r.map((v, i) => `<td class="${i ? "num" : ""}">${esc(v ?? "")}</td>`).join("")}</tr>`).join("")}</table>`;
+}
+function card(id, title, note, body, table, wide) {
+  const tv = load("tv-" + id, false);
+  return `<div class="card${wide ? " wide" : ""}" id="card-${id}"><h3>${esc(title)}${table ? `<button class="btn small" data-tv="${id}" aria-pressed="${tv}">${tv ? "Chart" : "Table"}</button>` : ""}</h3>${note ? `<p class="note">${note}</p>` : ""}${tv && table ? table : body}</div>`;
+}
+function heatmap(activity) {
+  const days = new Map(activity.map(a => [a.day, a.events])), today = new Date(), cells = [];
+  const start = new Date(today); start.setDate(start.getDate() - 364 - ((start.getDay() + 6) % 7));
+  const cw = 10, gap = 2, W = 53 * (cw + gap) + 30, H = 7 * (cw + gap) + 22;
+  let months = "";
+  for (let i = 0, d = new Date(start); d <= today; i++, d.setDate(d.getDate() + 1)) {
+    const w = Math.floor(i / 7), wd = i % 7, key = d.toISOString().slice(0, 10), n = days.get(key) || 0;
+    const lvl = n === 0 ? 0 : n === 1 ? 2 : n === 2 ? 3 : 4;
+    cells.push(`<rect class="heat${lvl}" x="${30 + w * (cw + gap)}" y="${16 + wd * (cw + gap)}" width="${cw}" height="${cw}" rx="2" data-tip="${esc(key + (n ? " · " + n + " event" + (n > 1 ? "s" : "") : " · nothing"))}"/>`);
+    if (d.getDate() === 1) months += `<text x="${30 + w * (cw + gap)}" y="10">${d.toLocaleString("en", {month: "short"})}</text>`;
+  }
+  return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:${W}px;max-width:none" role="img" aria-label="Reading calendar, last 12 months">${months}
+    <text x="0" y="${16 + 0 * 12 + 9}">Mon</text><text x="0" y="${16 + 4 * 12 + 9}">Fri</text>${cells.join("")}</svg></div>`;
+}
+function renderVisuals() {
+  const v = $("v-visuals"), kindLabel = KINDS.find(k => k[0] === st.kind)[1];
+  if (st.kind !== "book") {
+    const n = LIB.items.filter(i => i.kind === st.kind).length;
+    v.innerHTML = `<div class="toolbar"><h2>${kindLabel}</h2></div><div class="card"><h3>Nothing to chart yet</h3><p class="note">${n} ${kindLabel.toLowerCase()} in the library, none watched yet. Statistics appear here once you log a watch.</p></div>`;
+    return;
+  }
+  const S = STATS;
+  if (!S) { v.innerHTML = `<p class="empty">Loading statistics…</p>`; return; }
+  const T = S.tiles, years = [];
+  if (S.byYear.length) for (let y = S.byYear[0].year; y <= Math.max(S.year, S.byYear[S.byYear.length - 1].year); y++) years.push(S.byYear.find(r => r.year === y) || {year: y, books: 0, pages: 0});
+  const ratingRows = Array.from({length: 11}, (_, b) => ({label: String(b), value: (S.ratings.find(r => r.bucket === b) || {}).books || 0}));
+  const tile = (label, value, sub) => `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>`;
+  v.innerHTML = `<div class="toolbar"><h2>${kindLabel}</h2></div>
+    <div class="tiles">${tile("Read in " + S.year, T.readThisYear, "books")}${tile("Pages in " + S.year, T.pagesThisYear.toLocaleString("en"), "")}
+      ${tile("Average rating " + S.year, T.avgRatingThisYear != null ? T.avgRatingThisYear + "/10" : "—", "of the books rated")}${tile("Read in total", T.readTotal, "since " + (S.byYear[0]?.year || "—"))}
+      ${tile("To read", T.toRead, "")}${tile("Reading now", T.reading, "")}</div>
+    <div class="charts">
+      ${card("year", "Books read per year", "", columnChart("ch-year", years.map(r => ({label: String(r.year), value: r.books, tip: `<b>${r.books}</b> books · ${r.year}`})), {aria: "Books read per year"}),
+        tableView(["Year", "Books", "Pages"], years.map(r => [r.year, r.books, r.pages || 0])))}
+      ${card("pages", "Pages read per year", "Pages of the edition read, where known.", columnChart("ch-pages", years.map(r => ({label: String(r.year), value: r.pages || 0, tip: `<b>${(r.pages || 0).toLocaleString("en")}</b> pages · ${r.year}`})), {aria: "Pages read per year"}),
+        tableView(["Year", "Pages"], years.map(r => [r.year, r.pages || 0])))}
+      ${card("ratings", "Ratings", "Your 0–10 ratings, one per book.", columnChart("ch-ratings", ratingRows.map(r => ({...r, tip: `<b>${r.value}</b> books rated ${r.label}`})), {aria: "Rating distribution"}),
+        tableView(["Rating", "Books"], ratingRows.map(r => [r.label, r.value])))}
+      ${card("months", "Books per month", S.yearPrecisionOnly ? "Your imported readings have a year only, so no month is known yet. Add the month when you edit a reading, and new readings get their day." : "Months known; the rest is counted per year.",
+        monthChart(S.byMonth), null)}
+      ${card("authors", "Most read authors", "", hbars(S.authors.map(a => ({label: a.name, value: a.books}))), null)}
+      ${card("genres", "Genres", "Books read with each genre.", hbars(S.genres.filter(g => g.read).map(g => ({label: g.name, value: g.read}))), null)}
+      ${card("readin", "Language you read in", "", hbars(S.readIn.map(r => ({label: r.lang ? langName(r.lang) : "not recorded", value: r.books}))), null)}
+      ${card("original", "Original language", "", hbars(S.original.map(r => ({label: r.lang ? langName(r.lang) : "not recorded", value: r.books}))), null)}
+      ${card("calendar", "Reading calendar", S.activity.length ? "Days you started, finished or made progress." : "Fills in from now on: dated starts, finishes and Readest progress. The imported readings have no days.", heatmap(S.activity), null, true)}
+      ${card("current", "Reading now", "", S.current.length ? S.current.map(c => `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.title)}</b><span class="muted">${c.pct != null ? Math.round(c.pct) + "%" : c.progressPages ? c.progressPages + " p." : ""}</span></div><div class="muted" style="font-size:12px">${esc(c.authors || "")}</div>${c.pct != null ? `<div class="meter"><div style="width:${c.pct}%"></div></div>` : ""}</div>`).join("") : `<p class="muted">Nothing in progress. Mark a book as Reading to see it here.</p>`, null)}
+    </div>`;
+}
+function monthChart(byMonth) {
+  const known = byMonth.filter(r => r.month);
+  if (!known.length) return `<p class="muted" style="margin:0">—</p>`;
+  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const rows = known.slice(-24).map(r => ({label: names[r.month - 1] + (r.month === 1 ? " " + r.year : ""), value: r.books, tip: `<b>${r.books}</b> books · ${names[r.month - 1]} ${r.year}`}));
+  return columnChart("ch-month", rows, {aria: "Books per month"});
+}
+document.addEventListener("pointermove", e => { const g = e.target.closest?.("[data-tip]"); if (g && g.closest(".card")) showTip(e, g.dataset.tip); else hideTip(); });
+document.addEventListener("focusin", e => { const g = e.target.closest?.("[data-tip]"); if (g) { const r = g.getBoundingClientRect(); showTip({clientX: r.left + r.width / 2, clientY: r.top}, g.dataset.tip); } });
+document.addEventListener("focusout", hideTip);
+document.addEventListener("click", e => { const b = e.target.closest?.("[data-tv]"); if (b) { save("tv-" + b.dataset.tv, !load("tv-" + b.dataset.tv, false)); renderVisuals(); } });
+
+// --------------------------------------------------------- preview store
+function makePreviewApi(P) {
+  // The same API, answered in the browser from the data embedded in the page. Edits are kept in localStorage only.
+  let S;
+  try { S = JSON.parse(localStorage.getItem("ml-preview-state") || "null"); } catch (e) { S = null; }
+  if (!S || S.version !== P.version) S = {version: P.version, library: P.library, details: P.details, stats: P.stats};
+  const persist = () => { try { localStorage.setItem("ml-preview-state", JSON.stringify(S)); } catch (e) {} };
+  const clone = x => JSON.parse(JSON.stringify(x));
+  const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx".replace(/x/g, () => Math.floor(Math.random() * 16).toString(16));
+  const today = () => new Date().toISOString().slice(0, 10);
+  const parseDate = (v, field) => { if (!v) return [null, null]; const m = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(v); if (!m) throw new Error(field + ": use YYYY, YYYY-MM or YYYY-MM-DD");
+    return m[3] ? [v, "day"] : m[2] ? [v + "-01", "month"] : [v + "-01-01", "year"]; };
+  const stamp = (d, group, cols) => { d.prov[group] = d.prov[group] || {}; for (const c of cols) d.prov[group][c] = "owner"; };
+  const hist = (d, what, changes) => d.history.unshift({at: new Date().toISOString(), what, op: "U", changes, client: "console:preview", source: "owner"});
+  const sum = id => S.library.items.find(i => i.id === id);
+  const syncSummary = d => {
+    const s = sum(d.id); if (!s) return;
+    const done = d.readings.filter(r => r.state === "completed" && r.ended).map(r => +r.ended.slice(0, 4));
+    Object.assign(s, {title: d.item.title, status: d.status, rating: d.rating, authors: d.authorsList.map(a => a.name).join(", "), authorSort: d.authorsList[0]?.sort || d.authorsList[0]?.name || "",
+      genres: d.genreList, pages: d.edition?.pages ?? null, lang: d.edition?.lang ?? null, year: done.length ? Math.max(...done) : null, hasReview: !!d.review,
+      cover: (d.covers.find(c => c.chosen) || {}).thumb || null});
+    d.title = d.item.title; d.authors = s.authors; d.year = s.year; d.cover = s.cover;
+  };
+  const syncStatus = d => {
+    const open = d.readings.find(r => ["in_progress", "paused"].includes(r.state));
+    if (open) d.status = open.state;
+    else if (["in_progress", "paused"].includes(d.status)) d.status = d.readings.some(r => r.state === "completed") ? "completed" : "planned";
+    else if (d.status === "completed" && !d.readings.some(r => r.state === "completed")) d.status = "planned";
+  };
+  const done = (d, what, changes) => { if (what) hist(d, what, changes || {}); syncSummary(d); persist(); return clone(d); };
+  return {
+    async session() { return {owner: true, login: "preview", unlockedUntil: null, passkeys: {available: false}}; },
+    async library() { return clone(S.library); },
+    async stats() { return clone(S.stats); },
+    async detail(id) { const d = S.details[id]; if (!d) throw new Error("No such item."); return clone(d); },
+    async patch(id, body) {
+      const d = S.details[id], ch = {};
+      if (body.entry && "rating" in body.entry) { const v = body.entry.rating; if (v != null && (v < 0 || v > 10)) throw new Error("rating must be from 0 to 10"); ch.rating = [d.rating, v]; d.rating = v; stamp(d, "entry", ["rating"]); }
+      if (body.entry && "review" in body.entry) { ch.review = [d.review, body.entry.review]; d.review = body.entry.review || null; stamp(d, "entry", ["review"]); }
+      if (body.item) { if (!String(body.item.title || "").trim()) throw new Error("title cannot be empty");
+        const [fp, fpp] = parseDate(body.item.firstPublished, "first published");
+        Object.assign(d.item, {title: body.item.title.trim(), originalTitle: body.item.originalTitle || null, originalLang: body.item.originalLang || null, firstPublished: fp, firstPublishedPrecision: fpp});
+        stamp(d, "item", ["title", "original_title", "original_language"]); ch.title = [null, d.item.title]; }
+      if (body.edition && d.edition) { const [pd, pp] = parseDate(body.edition.published, "published"); const pages = body.edition.pages ? +body.edition.pages : null;
+        if (pages != null && !(pages >= 1 && pages <= 20000)) throw new Error("pages must be between 1 and 20000");
+        Object.assign(d.edition, {title: body.edition.title, subtitle: body.edition.subtitle || null, lang: body.edition.lang || null, publisher: body.edition.publisher || null, published: pd, publishedPrecision: pp, pages, format: body.edition.format || null});
+        stamp(d, "edition", ["title", "language", "publisher", "published_on", "pages"]); }
+      if (body.authors) d.authorsList = body.authors.map(n => ({name: n, sort: n.split(" ").slice(-1)[0] + ", " + n.split(" ").slice(0, -1).join(" ")}));
+      if (body.genres) d.genreList = body.genres; if (body.tags) d.tagList = body.tags;
+      return done(d, "your entry", ch);
+    },
+    async status(id, status) {
+      const d = S.details[id], open = d.readings.find(r => ["in_progress", "paused"].includes(r.state));
+      if (status === d.status) return clone(d);
+      if (["in_progress", "paused"].includes(status)) { if (open) open.state = status; else d.readings.unshift({id: newId(), state: status, started: today(), startedPrecision: "day", source: "owner"}); }
+      else if (["completed", "dropped"].includes(status)) { if (open) Object.assign(open, {state: status, ended: today(), endedPrecision: "day"}); else d.readings.unshift({id: newId(), state: status, ended: today(), endedPrecision: "day", source: "owner"}); }
+      else if (open) d.readings = d.readings.filter(r => r !== open);
+      const old = d.status; d.status = status; stamp(d, "entry", ["status"]);
+      return done(d, "your entry", {status: [old, status]});
+    },
+    async addReading(id, body) { const d = S.details[id]; const r = {id: newId(), source: "owner"}; this._applyReading(r, body); d.readings.unshift(r); syncStatus(d); return done(d, "reading", {}); },
+    async editReading(rid, body) { const d = Object.values(S.details).find(x => x.readings.some(r => r.id === rid)); this._applyReading(d.readings.find(r => r.id === rid), body); syncStatus(d); return done(d, "reading", {}); },
+    async deleteReading(rid) { const d = Object.values(S.details).find(x => x.readings.some(r => r.id === rid)); d.readings = d.readings.filter(r => r.id !== rid); syncStatus(d); return done(d, "reading", {}); },
+    _applyReading(r, b) { const [s, sp] = parseDate(b.started, "started"), [e, ep] = parseDate(b.ended, "finished");
+      if (s && e && s > e) throw new Error("the reading cannot finish before it started");
+      const open = ["in_progress", "paused"].includes(b.state);
+      Object.assign(r, {state: b.state, started: s, startedPrecision: sp, ended: open ? null : e, endedPrecision: open ? null : ep, lang: b.lang || null, note: b.note || null}); },
+    async cover(id, cover) { const d = S.details[id]; const c = d.covers.find(x => x.id === cover); if (!c.thumb) throw new Error("This preview has only the stored covers; the server downloads the others."); for (const x of d.covers) x.chosen = x.id === cover; return done(d, "cover", {}); },
+    async newShelf(name, mediaKind) { const id = newId(); S.library.shelves.push({id, name, kind: "manual", media_kind: mediaKind, position: S.library.shelves.length + 1, sort_key: "manual", sort_desc: false, cover_size: "m", layout: "grid", sort_locale: "und", items: []});
+      for (const d of Object.values(S.details)) if (d.kind === mediaKind) d.shelves.push({id, name, kind: "manual", member: false}); persist(); return {id}; },
+    async editShelf(sid, body) { const s = S.library.shelves.find(x => x.id === sid); if (body.name) { s.name = body.name; for (const d of Object.values(S.details)) for (const x of d.shelves) if (x.id === sid) x.name = body.name; }
+      const map = {sortKey: "sort_key", sortDesc: "sort_desc", coverSize: "cover_size", layout: "layout"}; for (const [k, v] of Object.entries(body)) if (map[k]) s[map[k]] = v; persist(); return {ok: true}; },
+    async deleteShelf(sid) { S.library.shelves = S.library.shelves.filter(x => x.id !== sid); for (const d of Object.values(S.details)) d.shelves = d.shelves.filter(x => x.id !== sid); persist(); return {ok: true}; },
+    async shelfItems(sid, body) { const s = S.library.shelves.find(x => x.id === sid);
+      for (const id of body.add || []) if (!s.items.includes(id)) { s.items.push(id); const m = S.details[id]?.shelves.find(x => x.id === sid); if (m) m.member = true; }
+      for (const id of body.remove || []) { s.items = s.items.filter(x => x !== id); const m = S.details[id]?.shelves.find(x => x.id === sid); if (m) m.member = false; }
+      persist(); return {ok: true}; },
+    async addManual(body) {
+      if (!String(body.title || "").trim()) throw new Error("title cannot be empty");
+      const id = newId(), [pd, pp] = parseDate(body.published, "published"), names = String(body.authors || "").split(/\s*;\s*/).filter(Boolean);
+      const allBooks = S.library.shelves.find(x => x.kind === "all" && x.media_kind === "book");
+      const status = body.status || "planned", t = today();
+      const readings = status === "planned" ? [] : [{id: newId(), state: status, started: status === "in_progress" ? t : null, startedPrecision: status === "in_progress" ? "day" : null,
+        ended: status === "completed" ? t : null, endedPrecision: status === "completed" ? "day" : null, source: "owner"}];
+      S.details[id] = {id, kind: "book", title: body.title.trim(), status, rating: null, review: null, locked: false, added: t, cover: null,
+        item: {title: body.title.trim(), originalTitle: null, originalLang: null, firstPublished: null, firstPublishedPrecision: null},
+        edition: {title: body.title.trim(), subtitle: null, lang: body.language || null, publisher: body.publisher || null, published: pd, publishedPrecision: pp, pages: body.pages ? +body.pages : null, format: null},
+        otherEditions: [], authorsList: names.map(n => ({name: n, sort: n})), genreList: [], tagList: [], readings, ids: body.isbn ? [{p: "isbn13", v: body.isbn, url: null, src: "owner"}] : [],
+        covers: [], files: [], prov: {item: {title: "owner"}, entry: {status: "owner"}, edition: {}}, history: [], shelves: S.library.shelves.filter(x => x.media_kind === "book").map(x => ({id: x.id, name: x.name, kind: x.kind, member: x.kind === "all"}))};
+      S.library.items.push({id, kind: "book", title: body.title.trim(), sort: body.title.trim(), locked: false, status, rating: null, authors: names.join(", "), authorSort: names[0] || "",
+        genres: [], year: status === "completed" ? +t.slice(0, 4) : null, timesRead: status === "completed" ? 1 : 0, progress: null, pages: body.pages ? +body.pages : null, lang: body.language || null,
+        origLang: null, published: pd ? +pd.slice(0, 4) : null, added: t, hasReview: false, cover: null});
+      allBooks.items.push(id); persist(); return {id, existing: false};
+    },
+    async uploadCover(id, file) {
+      const url = await new Promise((resolve, reject) => { const fr = new FileReader(); fr.onload = () => resolve(fr.result); fr.onerror = () => reject(new Error("Could not read the file.")); fr.readAsDataURL(file); });
+      const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => reject(new Error("That is not an image.")); i.src = url; });
+      const c = document.createElement("canvas"); c.width = 320; c.height = Math.round(img.height * 320 / img.width); c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      const small = c.toDataURL("image/jpeg", 0.8), d = S.details[id];
+      for (const x of d.covers) x.chosen = false;
+      d.covers.unshift({id: Date.now(), source: "owner", chosen: true, note: "uploaded by you", thumb: small, url: null, size: img.width + "×" + img.height});
+      return done(d, "cover", {});
+    },
+    async uploadFile() { throw new Error("Uploading an ebook stores it on the server. This preview can't keep files."); },
+    async lookup() { throw new Error("Adding a book looks it up at Apple Books and Open Library. That runs on the server; this preview can't reach them."); },
+    async fill() { throw new Error("Filling missing details looks them up at Apple Books and Open Library. That runs on the server, not in this preview."); },
+    async move(sid, item, to) { const s = S.library.shelves.find(x => x.id === sid); const order = s.items.filter(x => x !== item); order.splice(to - 1, 0, item); s.items = order; persist(); return {ok: true}; },
+  };
+}
+
+// ------------------------------------------------------------------ start
+st.sec = load("sec", "database"); st.kind = load("kind", "book"); st.shelf = load("shelf", null);
+const hashSec = location.hash.slice(1); if (["database", "visuals"].includes(hashSec)) st.sec = hashSec;
+refresh();
+</script>
+</body>
+</html>

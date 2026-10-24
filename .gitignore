@@ -1,0 +1,13 @@
+/data
+.venv/
+__pycache__/
+.devdb/
+out/
+media/
+*.pyc
+.pytest_cache/
+private/
+*.local.toml
+.ruff_cache/
+.ci-secrets/
+.ci-media/
