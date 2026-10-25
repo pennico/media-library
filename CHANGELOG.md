@@ -2,6 +2,19 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-10-25
+
+- **Bookcase**: the book area is a wooden case (light wood, walnut in dark
+  mode) with a board under every row across the case; pointing at a cover
+  lifts and enlarges it; clicking flies the cover to the info panel and opens
+  it on its spine (not with Reduce motion).
+- **Find link**: the address can be changed from a book's panel (Change
+  address), kept over `.env`; the search words go in form-style (`+` for
+  spaces).
+- Deploy script: on a tagged Tailscale node the owner login is taken from
+  the untagged devices, not the node itself (which made the console
+  read-only for the owner).
+
 ## [0.3.0] - 2026-10-25
 
 - **Trash**: deleting a book moves it to the Trash for 30 days (restore or

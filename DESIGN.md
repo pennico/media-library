@@ -1181,9 +1181,14 @@ toolbar, and the editor offers it grouped.
   sections in blob: iframes that inherit it, and `frame-ancestors 'self'`,
   which Safari needs. **Download** still serves the file; on iPhone and Mac it
   opens in Books.
-- **Find** (D41): a book with no file shows a search link, set by
-  `BOOK_FIND_URL` (`{q}` = title + first author) and `BOOK_FIND_LABEL`. It
-  is empty by default, so the public code links nowhere until you configure it.
+- **Find** (D41, D43): a book with no file shows a search link, set by
+  `BOOK_FIND_URL` (`{q}` = title + first author, sent as a search form sends
+  it, spaces as `+`) and `BOOK_FIND_LABEL`. It is empty by default, so the
+  public code links nowhere until you configure it. Search sites move
+  domains, so the owner can change the address from the book's panel
+  (**Change address**, unlocked): it is kept in `state/find-link.json` and
+  wins over `.env` until **Back to the server's**. Only `https://` addresses
+  with `{q}` once, outside the host name, are accepted.
 
 ### 14.5 Visuals: My reading | The library
 
@@ -1193,8 +1198,18 @@ counts the books themselves, all of them, the read ones or the unread ones:
 categories, original language, authors and release decade (first
 published, else the edition's year).
 
-### 14.6 The shelf
+### 14.6 The bookcase (0.3.1)
 
-The grid stands on light wooden shelves: each cover sits on a board, and the
-boards of one row meet across the gaps (walnut in dark mode). It is CSS only,
-with no images.
+After the old iBooks, lighter (D44). The whole book area is a wooden case
+(light wood by day, walnut in dark mode; the grain is SVG noise in a
+`data:` image, nothing downloaded), and each row of covers stands on a board
+that runs across the case; `layoutShelves()` places the boards under the rows
+it measures, plus empty ones down to the bottom of the case, and redoes it
+when the grid changes size. The covers keep their spacing (closer than in
+iBooks), with a spine shadow on the left edge.
+
+Pointing at a cover lifts it off the board, a little larger, with a glint.
+Clicking one opens it: a copy of the cover flies to the info panel (a
+transform, so the compositor runs it), swings open on its spine, and the
+panel shows through as the page fades; the book's place on the shelf stays
+empty until the copy is gone. With "Reduce motion" the panel just opens.

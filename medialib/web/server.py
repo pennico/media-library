@@ -81,8 +81,12 @@ class App:
                                       name="readonly")
         self.auth = auth_mod.Auth(owner_login, origin, password_file, passkeys_file, state_dir)
         self.reader = reader.Reader(reader_user, reader_password_file)
-        # "find this book" link for books without a file: a URL template with {q}, e.g. a search page
-        self.find = {"url": find_url, "label": find_label or "Search"} if "{q}" in (find_url or "") else None
+        # "find this book" link for books without a file: a URL template with {q}, e.g. a search page.
+        # .env gives the default; the owner can change it in the console, since search sites move domains.
+        self.find_default = find_link(find_url, find_label)
+        self.find_file = os.path.join(state_dir, "find-link.json") if state_dir else None
+        self.find_lock = threading.Lock()
+        self.find = self.saved_find() or self.find_default
         self.store = CoverStore(cfg.media_dir, log=lambda *_: None)
         self.fill = fill_service.make(cfg.media_dir, self.store)
         self.cookie_secure = cookie_secure
@@ -96,6 +100,57 @@ class App:
     def close(self):
         self.pool.close()
         self.ro_pool.close()
+
+    def saved_find(self):
+        try:
+            with open(self.find_file, encoding="utf-8") as fh:
+                d = json.load(fh)
+            return find_link(d.get("url"), d.get("label"))
+        except (OSError, TypeError, ValueError, AttributeError):
+            return None
+
+    def find_payload(self):
+        return {"find": self.find, "findCustom": self.find != self.find_default, "findDefault": self.find_default}
+
+    def set_find(self, req, login):
+        """The owner's own "find this book" address ({"url", "label"}), or {"reset": true} for .env's."""
+        if not self.find_file:
+            raise writes.BadRequest("this console has no state folder to keep the setting in")
+        with self.find_lock:
+            if req.get("reset"):
+                if os.path.exists(self.find_file):
+                    os.remove(self.find_file)
+                self.find = self.find_default
+            else:
+                link = check_find(req)
+                os.makedirs(os.path.dirname(self.find_file), exist_ok=True)
+                tmp = self.find_file + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as fh:
+                    json.dump(dict(link, by=login, at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())), fh)
+                os.replace(tmp, self.find_file)
+                self.find = link
+        return self.find_payload()
+
+
+def find_link(url, label):
+    url = (url or "").strip()
+    return {"url": url, "label": (label or "").strip() or "Search"} if "{q}" in url else None
+
+
+def check_find(req):
+    """An https address with {q} once, where the search words go (outside the host name)."""
+    url, label = str(req.get("url") or "").strip(), str(req.get("label") or "").strip()
+    try:
+        host = urllib.parse.urlsplit(url).hostname or ""
+    except ValueError:
+        host = ""
+    if not url.startswith("https://") or len(url) > 500 or re.search(r"[\s\"'<>\\]", url) or "." not in host:
+        raise writes.BadRequest("the address must be a web address starting with https://, without spaces")
+    if url.count("{q}") != 1 or "{q}" in host:
+        raise writes.BadRequest("put {q} once in the address, where the search words go")
+    if len(label) > 40:
+        raise writes.BadRequest("the name on the link is too long (40 characters at most)")
+    return find_link(url, label)
 
 
 def make_handler(app):
@@ -177,7 +232,7 @@ def make_handler(app):
                     return self.session()
                 if path == "/api/library":
                     with app.pool.connection() as conn:
-                        return self.send(200, dict(queries.library(conn), find=app.find, google=app.fill.google.available))
+                        return self.send(200, dict(queries.library(conn), google=app.fill.google.available, **app.find_payload()))
                 if path == "/api/trash":
                     with app.pool.connection() as conn:
                         return self.send(200, {"items": queries.trash(conn, writes.TRASH_DAYS), "days": writes.TRASH_DAYS})
@@ -588,6 +643,8 @@ def make_handler(app):
 
         def route_write(self, method, path, req):
             login = self.login()
+            if path == "/api/settings/find" and method == "POST":
+                return self.send(200, app.set_find(req, login))
             with app.pool.connection() as conn:
                 m = re.fullmatch(r"/api/items/" + UUID, path)
                 if m and method == "PATCH":

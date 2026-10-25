@@ -32,7 +32,9 @@ cp app/deploy/docker-compose.yml docker-compose.yml
 ```
 
 In `.env`, set `OWNER_LOGIN` to your Tailscale login (`tailscale status
---json` shows it under `User`) and `MEDIALIB_ORIGIN` to the address you will
+--json` shows it under `User`; if the server is a tagged device, its own
+entry says `tagged-devices`: use the login of the device you browse from) and
+`MEDIALIB_ORIGIN` to the address you will
 publish in step 4. If you use
 [agent-console](https://github.com/pennico/agent-console), you can point
 `CONSOLE_PASSWORD_FILE` at its password file and `AGENT_CONSOLE_STATE` at its
@@ -147,7 +149,9 @@ Deleted books stay in the Trash 30 days. Add the daily purge:
 
 **Read** in a book's panel opens the built-in reader (`/read`). For books with
 no file, `BOOK_FIND_URL` in `.env` (with `{q}` for title + author) and
-`BOOK_FIND_LABEL` add a search link; leave them empty for none.
+`BOOK_FIND_LABEL` add a search link; leave them empty for none. When the site
+moves, change the address in any such book's panel (**Change address**, after
+unlocking); that wins over `.env` until **Back to the server's**.
 
 ## 7. Backups
 

@@ -40,7 +40,7 @@ def site(cfg, tmp_path_factory):
             item, _ = new_book(conn, "Web test book " + uuid.uuid4().hex[:6])
             add_entry(conn, item, "planned")
         pid = str(conn.execute("SELECT public_id FROM catalog.media_item WHERE id = %s", (item,)).fetchone()["public_id"])
-    yield {"base": origin + "/", "origin": origin, "item": pid, "item_id": item}
+    yield {"base": origin + "/", "origin": origin, "item": pid, "item_id": item, "state": str(tmp / "state")}
     httpd.shutdown()
     app.close()
 
@@ -196,6 +196,47 @@ def test_page_and_security_headers(site):
         assert "frame-ancestors 'none'" in r.headers["Content-Security-Policy"]
         assert r.headers["X-Frame-Options"] == "DENY"
         assert b"Media library" in r.read()
+
+
+def test_find_link_address_is_the_owners_to_change(site):
+    """The "find this book" address: none from the environment here; the owner sets one, it survives a restart
+    (state folder), bad addresses are refused, and reset goes back to the environment's."""
+    assert Client(site).call("POST", "api/settings/find", {"url": "https://a.example/s?q={q}"})[0] == 401
+    assert Client(site, login="someone@example.test").call("POST", "api/settings/find", {"reset": True})[0] == 403
+    c = Client(site).unlock()
+    for bad in ["http://a.example/?q={q}", "https://a.example/search", "https://a.example/?q={q}&x={q}",
+                "https://{q}.example/", "https://a.example/?q={q} x", "javascript:alert(1)//{q}", "https://localhost/{q}"]:
+        s, r = c.call("POST", "api/settings/find", {"url": bad, "label": "X"})
+        assert s == 400, bad
+    s, r = c.call("POST", "api/settings/find", {"url": " https://books.example/search?q={q}&check=1 ", "label": "Books"})
+    assert s == 200 and r["find"] == {"url": "https://books.example/search?q={q}&check=1", "label": "Books"} and r["findCustom"]
+    lib = c.call("GET", "api/library")[1]
+    assert lib["find"]["url"].startswith("https://books.example/") and lib["findCustom"] and lib["findDefault"] is None
+    saved = json.loads(open(site["state"] + "/find-link.json").read())
+    assert saved["by"] == OWNER and saved["url"] == "https://books.example/search?q={q}&check=1"
+    s, r = c.call("POST", "api/settings/find", {"reset": True})
+    assert s == 200 and r["find"] is None and not r["findCustom"]
+
+
+def test_find_link_survives_a_restart(cfg, tmp_path):
+    state = tmp_path / "state"
+    kw = dict(owner_login=OWNER, origin="http://127.0.0.1", password_file=str(tmp_path / "pw"),
+              passkeys_file=str(tmp_path / "pk.json"), state_dir=str(state), cookie_secure=False,
+              find_url="https://default.example/?q={q}", find_label="Default")
+    app = server.App(cfg, **kw)
+    try:
+        assert app.find == {"url": "https://default.example/?q={q}", "label": "Default"}
+        app.set_find({"url": "https://moved.example/search?q={q}", "label": ""}, OWNER)
+    finally:
+        app.close()
+    app = server.App(cfg, **kw)
+    try:
+        assert app.find == {"url": "https://moved.example/search?q={q}", "label": "Search"}
+        assert app.find_payload()["findCustom"] and app.find_payload()["findDefault"]["label"] == "Default"
+        app.set_find({"reset": True}, OWNER)
+        assert app.find["url"] == "https://default.example/?q={q}" and not (state / "find-link.json").exists()
+    finally:
+        app.close()
 
 
 def raw_post(site, client, path, data, ctype):

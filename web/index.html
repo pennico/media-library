@@ -15,7 +15,12 @@
   --chart: #16805a; --grid: #e3e6e0; --shadow: rgb(0 0 0 / 0.14);
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --wood-top: #f3e7d1; --wood: #e4cfaa; --wood-dark: #cfb185; --wood-edge: rgb(120 84 40 / 0.22); --shelf-bg: #faf6ee;
+  /* the bookcase: light wood by day, walnut at night; the grain is SVG noise stretched along the boards */
+  --wall: #f0e3c9; --wall-side: rgb(150 105 50 / 0.12); --wood-edge: rgb(120 84 40 / 0.22);
+  --board-top: #f7ebd2; --board-lip: rgb(255 255 255 / 0.55); --board: #dcbc8c; --board-dark: #c39f6b; --board-shadow: rgb(95 60 20 / 0.5);
+  --wood-ink: #33261a; --wood-muted: #6b5236; --book-shadow: rgb(70 45 15 / 0.35); --blank: #f7f0e2; --page-a: #e2d4b8; --page-b: #fbf7ee;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0022 0.07' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.29 0 0 0 0 0.12 0.9 0 0 0 -0.37'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --grain-fine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='120'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.35' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.29 0 0 0 0 0.12 0.8 0 0 0 -0.33'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
@@ -23,13 +28,21 @@
   --sel: #26322c; --accent: #7cc4a9; --accent-soft: #23362f; --on-accent: #10201a;
   --ok: #5cc28f; --ok-soft: #1f3529; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
   --chart: #3aa877; --grid: #2a312d; --shadow: rgb(0 0 0 / 0.5);
-  --wood-top: #6b5440; --wood: #54412f; --wood-dark: #3f3023; --wood-edge: rgb(0 0 0 / 0.45); --shelf-bg: #171a18; color-scheme: dark; } }
+  --wall: #402e20; --wall-side: rgb(0 0 0 / 0.3); --wood-edge: rgb(0 0 0 / 0.5);
+  --board-top: #80603f; --board-lip: rgb(255 220 180 / 0.22); --board: #5f4430; --board-dark: #44301f; --board-shadow: rgb(0 0 0 / 0.75);
+  --wood-ink: #f1e6d6; --wood-muted: #c9b498; --book-shadow: rgb(0 0 0 / 0.6); --blank: #2f2620; --page-a: #2a221b; --page-b: #3a3027;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0022 0.07' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.03 0 0 0 0 0.015 0 0 0 0 0.0 1.15 0 0 0 -0.44'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0016 0.09' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.6 0 0 0 0 0.42 0 0 0 0 0.26 0.55 0 0 0 -0.24'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --grain-fine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='120'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.35' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.02 0 0 0 0 0.01 0 0 0 0 0.0 1.2 0 0 0 -0.45'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"); color-scheme: dark; } }
 :root[data-theme="dark"] {
   --bg: #121614; --panel: #1a1f1c; --sunk: #222824; --fg: #e2e7e4; --muted: #98a29c; --line: #303833;
   --sel: #26322c; --accent: #7cc4a9; --accent-soft: #23362f; --on-accent: #10201a;
   --ok: #5cc28f; --ok-soft: #1f3529; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
   --chart: #3aa877; --grid: #2a312d; --shadow: rgb(0 0 0 / 0.5);
-  --wood-top: #6b5440; --wood: #54412f; --wood-dark: #3f3023; --wood-edge: rgb(0 0 0 / 0.45); --shelf-bg: #171a18; color-scheme: dark; }
+  --wall: #402e20; --wall-side: rgb(0 0 0 / 0.3); --wood-edge: rgb(0 0 0 / 0.5);
+  --board-top: #80603f; --board-lip: rgb(255 220 180 / 0.22); --board: #5f4430; --board-dark: #44301f; --board-shadow: rgb(0 0 0 / 0.75);
+  --wood-ink: #f1e6d6; --wood-muted: #c9b498; --book-shadow: rgb(0 0 0 / 0.6); --blank: #2f2620; --page-a: #2a221b; --page-b: #3a3027;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0022 0.07' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.03 0 0 0 0 0.015 0 0 0 0 0.0 1.15 0 0 0 -0.44'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0016 0.09' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.6 0 0 0 0 0.42 0 0 0 0 0.26 0.55 0 0 0 -0.24'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --grain-fine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='120'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.35' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.02 0 0 0 0 0.01 0 0 0 0 0.0 1.2 0 0 0 -0.45'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"); color-scheme: dark; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
@@ -99,7 +112,7 @@ aside.side { border-right: 1px solid var(--line); background: var(--panel); padd
 .trashrow .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .confirm { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
 .catpick select { width: 100%; }
-.findlink { display: inline-flex; gap: 6px; align-items: center; }
+.findlink { display: inline-flex; gap: 6px; align-items: center; color: var(--accent); }
 .side-foot { margin-top: auto; font-size: 12px; color: var(--muted); padding: 0 6px; }
 
 main { min-width: 0; padding-block: 16px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -133,13 +146,20 @@ select, .toolbar input[type=search] { padding: 4px 8px; border: 1px solid var(--
 .lib { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
 .lib.withdetail { grid-template-columns: minmax(0, 1fr) 400px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--cw, 124px), 1fr)); gap: 22px 18px; padding: 4px 9px 0; }
-/* a light wooden shelf: each cover stands on a board; the boards of one row meet across the gap */
-.shelfwrap { background: var(--shelf-bg); border-radius: 12px; padding: 18px 8px 12px; }
-.book .stand { position: relative; padding-bottom: 11px; }
-.book .stand::after { content: ""; position: absolute; left: -9px; right: -9px; bottom: 0; height: 11px; pointer-events: none;
-  background: linear-gradient(to bottom, var(--wood-top) 0 3px, var(--wood) 3px, var(--wood-dark) 100%);
-  box-shadow: 0 5px 7px -3px var(--wood-edge), inset 0 -1px 0 var(--wood-edge); }
-.book .stand .cov { box-shadow: 0 1px 2px var(--shadow), 3px 0 6px -2px var(--shadow); }
+/* the bookcase (old iBooks, lighter): the whole book area is wood, and every row of covers stands on a board across
+   the case; layoutShelves() puts the boards under the rows, and empty ones down to the bottom of the case */
+.shelfwrap { position: relative; overflow: hidden; border-radius: 12px; padding: 22px 0 14px; min-height: calc(100vh - 150px);
+  background-color: var(--wall); background-image: var(--grain), linear-gradient(to right, var(--wall-side), transparent 8%, transparent 92%, var(--wall-side));
+  box-shadow: inset 0 0 0 1px var(--wood-edge), inset 0 12px 18px -12px var(--wood-edge); }
+.shelfwrap .grid { position: relative; z-index: 1; padding: 0 22px; }
+.boards { position: absolute; inset: 0; pointer-events: none; }
+.board { position: absolute; left: 0; right: 0; height: 18px; box-shadow: 0 10px 14px -8px var(--board-shadow);
+  background: var(--grain-fine), linear-gradient(to bottom, var(--board-top) 0 5px, var(--board-lip) 5px 6px, var(--board) 6px, var(--board-dark) 17px, rgb(0 0 0 / 0.25) 17px); }
+.book .stand { position: relative; padding-bottom: 18px; }
+.shelfwrap .cov { background: var(--blank); box-shadow: 0 1px 1px var(--book-shadow), 2px 0 5px -1px var(--book-shadow), -1px 0 3px -1px var(--book-shadow); }
+.shelfwrap .cov::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 9px; z-index: 1; pointer-events: none;   /* the spine */
+  background: linear-gradient(to right, rgb(0 0 0 / 0.22), rgb(255 255 255 / 0.18) 2px, rgb(0 0 0 / 0.08) 5px, transparent); }
+.shelfwrap .book .t { color: var(--wood-ink); } .shelfwrap .book .a, .shelfwrap .book .s, .shelfwrap .cov .ph { color: var(--wood-muted); }
 .grid.s { --cw: 92px; } .grid.l { --cw: 168px; }
 .book { border: 0; background: none; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; touch-action: manipulation; }
 .cov { aspect-ratio: 2 / 3; width: 100%; max-width: 100%; border-radius: 3px 6px 6px 3px; overflow: hidden; background: var(--sunk); box-shadow: 0 2px 6px var(--shadow);
@@ -231,6 +251,7 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; 
   .detail { position: fixed; inset: auto 0 0 0; top: auto; max-height: 86vh; border-radius: 14px 14px 0 0; z-index: 40; box-shadow: 0 -8px 30px var(--shadow);
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
   .grid { --cw: 100px; gap: 16px 10px; } .grid.s { --cw: 76px; } .grid.l { --cw: 136px; }
+  .shelfwrap { padding-top: 16px; } .shelfwrap .grid { padding: 0 12px; }
 }
 
 /* visuals */
@@ -278,7 +299,27 @@ table.tv td.num, table.tv th.num { text-align: right; font-variant-numeric: tabu
 .tip b { font-size: 14px; }
 .toast { position: fixed; z-index: 80; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 10px; font-size: 13px; box-shadow: 0 6px 18px var(--shadow); }
 .toast.bad { background: var(--bad); color: #fff; }
-@media (prefers-reduced-motion: no-preference) { .book .cov { transition: transform .12s ease; } .book:hover .cov { transform: translateY(-2px); } }
+/* pointing at a book lifts it off the shelf, a little larger, with a glint across the cover */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .book .cov { transition: transform .22s cubic-bezier(.2, .8, .3, 1), box-shadow .22s; transform-origin: 50% 100%; }
+  .book:hover, .book:focus-visible { position: relative; z-index: 2; }
+  .book:hover .cov, .book:focus-visible .cov { transform: translateY(-8px) scale(1.07); box-shadow: 0 16px 24px -8px rgb(0 0 0 / 0.5), 0 4px 10px rgb(0 0 0 / 0.2); }
+  .shelfwrap .cov::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity .25s, background-position .6s ease;
+    background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.3) 46%, transparent 60%) 120% 0 / 260% 100% no-repeat; }
+  .book:hover .cov::after { opacity: 1; background-position: -20% 0; }
+}
+/* opening a book: a copy of its cover flies to the info panel and swings open on its spine (openBook) */
+.flybook { position: fixed; z-index: 60; pointer-events: none; perspective: 1800px; }
+.flybook > div { position: absolute; inset: 0; border-radius: 3px 6px 6px 3px; }
+.fb-page { background: linear-gradient(to right, var(--page-a), var(--page-b) 7%); box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.45); }
+.fb-cover { transform-origin: 0 50%; transform-style: preserve-3d; }
+.fb-cover > div { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+.fb-front { display: grid; place-items: end start; background: var(--blank); box-shadow: inset 6px 0 6px -4px rgb(0 0 0 / 0.3); }
+.fb-front img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.fb-front .ph { position: relative; padding: 14px; font-weight: 600; color: var(--wood-muted); }
+.fb-back { transform: rotateY(180deg); background: linear-gradient(to left, var(--page-a), var(--page-b) 10%); }
+body.fb-slot .book[aria-current="true"] .cov { visibility: hidden; }
+body.fb-pane .detail { visibility: hidden; }
 </style>
 </head>
 <body>
@@ -409,6 +450,7 @@ const serverApi = {
   libraryStats(scope) { return this.get("api/stats?view=library&scope=" + encodeURIComponent(scope || "all")); },
   readerPassword() { return this.send("POST", "api/reading-apps/password", {}); },
   linkDocument(doc, item) { return this.send("POST", "api/kosync/" + doc + "/link", {item}); },
+  setFind(body) { return this.send("POST", "api/settings/find", body); },
 };
 const api = PREVIEW ? makePreviewApi(PREVIEW) : serverApi;
 const coverSrc = url => !url ? null : url.startsWith("data:") ? url : PREVIEW ? (PREVIEW.covers[(url.match(/[0-9a-f]{64}/) || [""])[0]] || null) : url;
@@ -497,8 +539,18 @@ function inCat(i) {
   const ids = [st.cat, ...(LIB.categories || []).filter(c => c.parent === st.cat).map(c => c.id)];
   return (i.cats || []).some(c => ids.includes(c));
 }
+// the "find it" link: {q} in the address gets the title and first author, as a search form sends them (spaces as +)
 function findUrl(title, authors) {
-  return LIB.find ? LIB.find.url.replace("{q}", encodeURIComponent([title, (authors || "").split(",")[0]].filter(Boolean).join(" ").trim())) : null;
+  if (!LIB.find) return null;
+  const q = [title, (authors || "").split(",")[0]].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  return LIB.find.url.replace("{q}", encodeURIComponent(q).replace(/%20/g, "+"));
+}
+function findFormHtml() {
+  const f = LIB.find || {url: "", label: ""};
+  return `<div class="rform" id="find-form">
+    <label class="full">Search address, with {q} where the title and author go<input id="fd-url" value="${esc(f.url)}" placeholder="https://example.org/search?q={q}" spellcheck="false" autocomplete="off" autocapitalize="off" inputmode="url"></label>
+    <label class="full">Name on the link<input id="fd-label" value="${esc(f.label)}" maxlength="40" autocomplete="off"></label>
+    <div class="full row-actions">${LIB.findCustom && LIB.findDefault ? `<button class="btn small" id="fd-reset" title="${esc(LIB.findDefault.url)}">Back to the server's</button>` : ""}<button class="btn small" id="fd-cancel">Cancel</button><button class="btn small primary" id="fd-save">Save</button></div></div>`;
 }
 function visibleItems() {
   const shelf = LIB.shelves.find(s => s.id === st.shelf), byId = itemsById();
@@ -558,9 +610,28 @@ function renderDatabase() {
     </div>`;
   if (st.selected) renderDetail();
   if (canDrag) enableDrag(shelf);
+  watchShelves();
+}
+// The boards: one under each row of covers (rows found from where the covers end), then empty ones at the same
+// spacing down to the bottom of the case. Redone whenever the grid or the case changes size.
+const BOARD = 18;
+const shelfWatch = window.ResizeObserver ? new ResizeObserver(() => layoutShelves()) : null;
+function watchShelves() {
+  if (shelfWatch) { shelfWatch.disconnect(); for (const id of ["grid", "shelfwrap"]) if ($(id)) shelfWatch.observe($(id)); }
+  layoutShelves();
+}
+function layoutShelves() {
+  const wrap = $("shelfwrap"), grid = $("grid"), boards = $("boards"); if (!wrap || !grid || !boards) return;
+  const top = wrap.getBoundingClientRect().top, rows = [];
+  for (const s of grid.querySelectorAll(".stand")) { const y = Math.round(s.getBoundingClientRect().bottom - top); if (!rows.some(r => Math.abs(r - y) < 3)) rows.push(y); }
+  if (!rows.length) { boards.innerHTML = ""; return; }
+  rows.sort((a, b) => a - b);
+  const first = grid.firstElementChild, pitch = rows.length > 1 ? rows[1] - rows[0] : first.offsetHeight + (parseFloat(getComputedStyle(grid).rowGap) || 0);
+  if (pitch > 60) for (let y = rows[rows.length - 1] + pitch; y < wrap.clientHeight - 4; y += pitch) rows.push(y);
+  boards.innerHTML = rows.map(y => `<div class="board" style="top:${y - BOARD}px"></div>`).join("");
 }
 function gridHtml(list, prefs) {
-  return `<div class="shelfwrap"><div class="grid ${prefs.size}" id="grid">${list.map(i => `<button class="book" id="b-${i.id}" data-id="${i.id}" aria-current="${st.selected === i.id}">
+  return `<div class="shelfwrap" id="shelfwrap"><div class="boards" id="boards"></div><div class="grid ${prefs.size}" id="grid">${list.map(i => `<button class="book" id="b-${i.id}" data-id="${i.id}" aria-current="${st.selected === i.id}">
     <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}</div></div>
     <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span>
     <span class="s"><span class="dot ${i.status}"></span>${esc(statusLine(i))}${i.rating != null ? " · " + i.rating + "/10" : ""}</span></button>`).join("")}</div></div>`;
@@ -594,12 +665,43 @@ function listHtml(list, prefs) {
 
 // ---------------------------------------------------------------- detail
 async function openDetail(id, quiet) {
-  st.selected = id; st.editing = false; st.editReview = false; st.readingEdit = null; st.err = ""; st.confirmTrash = false;
+  st.selected = id; st.editing = false; st.editReview = false; st.readingEdit = null; st.err = ""; st.confirmTrash = false; st.findEdit = false;
   if (!quiet) { st.detail = null; renderDatabase(); }
   try { st.detail = await api.detail(id); } catch (e) { st.detail = {error: e.message}; }
   if (!quiet) renderDetail();
 }
 function closeDetail() { st.selected = null; st.detail = null; st.editing = false; renderDatabase(); }
+// Opening a book from the shelf, as in the old iBooks: a copy of its cover lifts off, flies to the info panel and
+// swings open on its spine; the panel shows through as the page fades. Without animation under "Reduce motion".
+async function openBook(btn) {
+  const cov = btn.querySelector(".cov");
+  if (!cov || !Element.prototype.animate || matchMedia("(prefers-reduced-motion: reduce)").matches) return openDetail(btn.dataset.id);
+  const run = openBook.run = (openBook.run || 0) + 1, a = cov.getBoundingClientRect(), px = r => ({left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px"});
+  document.querySelector(".flybook")?.remove();
+  const fly = document.createElement("div");
+  fly.className = "flybook";
+  fly.innerHTML = `<div class="fb-page"></div><div class="fb-cover"><div class="fb-front">${cov.innerHTML}</div><div class="fb-back"></div></div>`;
+  Object.assign(fly.style, px(a));
+  document.body.append(fly); document.body.classList.add("fb-slot", "fb-pane");
+  const done = () => { fly.remove(); if (openBook.run === run) document.body.classList.remove("fb-slot", "fb-pane"); };
+  await openDetail(btn.dataset.id);                  // the panel, with the book's details, is in place (but hidden)
+  const pane = $("detail");
+  if (!pane || pane.hidden || !fly.isConnected) return done();
+  // the copy moves to its landing place at once and is drawn back over the shelf by a transform, which then
+  // runs to none: a compositor animation, smooth on phones while the panel renders
+  const p = pane.getBoundingClientRect(), w = Math.min(p.width, 420), h = Math.max(120, Math.min(w * 1.5, innerHeight - p.top - 8));
+  const from = `translate(${a.left - p.left}px, ${a.top - p.top}px) scale(${a.width / w}, ${a.height / h})`;
+  Object.assign(fly.style, px({left: p.left, top: p.top, width: w, height: h}), {transformOrigin: "0 0", transform: from});
+  const anims = [
+    fly.animate([{transform: from}, {transform: "none"}], {duration: 420, easing: "cubic-bezier(.3, .7, .2, 1)", fill: "forwards"}),
+    fly.querySelector(".fb-cover").animate([{transform: "rotateY(0deg)"}, {transform: "rotateY(-180deg)"}], {delay: 260, duration: 560, easing: "cubic-bezier(.45, 0, .25, 1)", fill: "forwards"}),
+    fly.querySelector(".fb-page").animate([{opacity: 1}, {opacity: 0}], {delay: 500, duration: 320, fill: "forwards"}),
+    fly.animate([{opacity: 1}, {opacity: 0}], {delay: 740, duration: 160, fill: "forwards"}),
+  ];
+  setTimeout(() => { if (openBook.run !== run) return; document.body.classList.remove("fb-pane"); $("detail")?.animate([{opacity: 0}, {opacity: 1}], {duration: 320, easing: "ease-out"}); }, 420);
+  await Promise.allSettled(anims.map(x => x.finished));
+  done();
+}
 function srcTag(group, col) { const s = st.detail?.prov?.[group]?.[col]; return s ? `<span class="src" title="where this value came from">${esc(SRC[s] || s)}</span>` : ""; }
 function renderDetail() {
   const el = $("detail"); if (!el) return;
@@ -638,7 +740,7 @@ function renderDetail() {
       ${d.files.length ? d.files.map(f => `<div class="reading"><span>${esc(f.format.toUpperCase())} · ${f.mb} MB${f.storage === "cwa" ? ` <span class="src">in CWA</span>` : ""}</span>
         <span class="sub">Readest/kosync id <span class="mono">${esc(f.kosync || "—")}</span></span>
         <span class="acts">${f.download && f.format === "epub" && !PREVIEW ? `<a class="btn small primary" href="read?file=${esc(f.id)}" target="_blank" rel="noopener" id="fl-read-${f.id}" title="Read it here in the browser">Read</a>` : ""}${f.download ? `<a class="btn small" href="${esc(f.download)}" id="fl-dl-${f.id}" title="On iPhone and Mac this opens in Books">Download</a>` : ""}</span></div>`).join("")
-        : `<p class="muted" style="margin:0">No file yet.${findUrl(d.title, d.authors) ? ` <a class="findlink" href="${esc(findUrl(d.title, d.authors))}" target="_blank" rel="noopener noreferrer" id="fl-find">Find it on ${esc(LIB.find.label)} ↗</a>` : ""}</p>`}
+        : `<p class="muted" style="margin:0">No file yet.${findUrl(d.title, d.authors) ? ` <a class="findlink" href="${esc(findUrl(d.title, d.authors))}" target="_blank" rel="noopener noreferrer" id="fl-find">Find it on ${esc(LIB.find.label)} ↗</a>` : ""}${edit && !PREVIEW ? ` <button class="btn small" id="fl-findset" aria-expanded="${!!st.findEdit}" title="Change where this link searches">${LIB.find ? "Change address" : "Add a search link"}</button>` : ""}</p>${st.findEdit && edit ? findFormHtml() : ""}`}
       <p class="muted" id="fl-progress" style="font-size:12.5px;margin:6px 0 0" hidden></p>
       <input type="file" id="fl-file" accept=".epub,application/epub+zip" hidden></div>` : ""}
     <div class="d-sec"><h3>Identifiers</h3><div class="ids">${d.ids.map(x => x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.p.replace(/_/g, " "))} ${esc(x.v)}</a>` : `<span>${esc(x.p.replace(/_/g, " "))} ${esc(x.v)}</span>`).join("") || `<span class="muted">none</span>`}</div></div>
@@ -758,6 +860,10 @@ document.addEventListener("click", async e => {
   if (t.dataset.purge) { await act(async () => { await api.purgeItem(t.dataset.purge); st.trash = null; st.confirmPurge = null; LIB = await api.library(); render(); }, "Deleted for good"); return; }
   if (t.id === "d-trash") { if (!canEdit()) return act(() => 0); st.confirmTrash = true; renderDetail(); return; }
   if (t.id === "d-trash-no") { st.confirmTrash = false; renderDetail(); return; }
+  if (t.id === "fl-findset") { if (!canEdit()) return act(() => 0); st.findEdit = !st.findEdit; renderDetail(); if (st.findEdit) $("fd-url")?.focus(); return; }
+  if (t.id === "fd-cancel") { st.findEdit = false; renderDetail(); return; }
+  if (t.id === "fd-save" || t.id === "fd-reset") { const body = t.id === "fd-reset" ? {reset: true} : {url: $("fd-url").value, label: $("fd-label").value};
+    await act(async () => { Object.assign(LIB, await api.setFind(body)); st.findEdit = false; renderDetail(); }, t.id === "fd-reset" ? "Back to the server's search link" : "Search link saved"); return; }
   if (t.id === "d-trash-yes") { await act(async () => { await api.trashItem(st.selected); st.selected = null; st.detail = null; st.confirmTrash = false; LIB = await api.library(); render(); }, "Moved to the trash"); return; }
   if (t.dataset.filter) { st.filter = t.dataset.filter; renderDatabase(); return; }
   if (t.dataset.size) return setPref("size", t.dataset.size);
@@ -773,7 +879,7 @@ document.addEventListener("click", async e => {
       toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }); return; }
   if (t.id === "ed-fill") { await act(async () => { const r = await api.fill(st.selected);
     toast(r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know")); await afterItemChange(r.item); }); return; }
-  if (t.matches(".book") || t.matches("tr[data-id]")) { if (drag.suppressClick) { drag.suppressClick = false; return; } return openDetail(t.dataset.id); }
+  if (t.matches(".book") || t.matches("tr[data-id]")) { if (drag.suppressClick) { drag.suppressClick = false; return; } return t.matches(".book") ? openBook(t) : openDetail(t.dataset.id); }
   if (t.id === "d-close") return closeDetail();
   const id = st.selected;
   if (t.dataset.status) { if (await act(async () => afterItemChange(await api.status(id, t.dataset.status)), "Status saved")) {} return; }
