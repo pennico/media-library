@@ -131,7 +131,8 @@ def _status_source(it):
 def entry_and_watches(conn, item, it, res):
     entry = conn.execute("SELECT * FROM library.entry WHERE item_id = %s", (item,)).fetchone()
     added = it.get("added")
-    if entry is None:
+    created = entry is None
+    if created:
         db.set_source(conn, _status_source(it))
         # status first as planned: the watches below make it what the file says (checked at commit)
         conn.execute("INSERT INTO library.entry (item_id, added_at) VALUES (%s, coalesce(%s::timestamptz, now()))",
@@ -149,7 +150,7 @@ def entry_and_watches(conn, item, it, res):
     if n:
         res["changes"].append("{} watch{}".format(n, "es" if n > 1 else ""))
     status = it["status"]
-    if status != entry["status"] and labels.get("status") != "owner":
+    if status != entry["status"] and (created or labels.get("status") != "owner" or only_imported(conn, item)):
         states = {r["state"] for r in conn.execute("SELECT state FROM library.consumption WHERE item_id = %s"
                                                      " AND deleted_at IS NULL", (item,)).fetchall()}
         # only a status the watches allow (completed needs a completed watch…); never back to planned
@@ -176,6 +177,16 @@ def entry_and_watches(conn, item, it, res):
     for name in it.get("collections") or []:
         if add_to_collection(conn, item, it["kind"], name):
             res["changes"].append("collection " + name)
+
+
+def only_imported(conn, item):
+    """True when this importer is the only writer the entry ever had: an owner-labelled status it
+    wrote itself (from the owner's own lists) may be corrected by a later run; one the owner set
+    in the console, or a Joplin note set, stays."""
+    row = conn.execute("""SELECT count(*) AS n, bool_and(client = 'import-watch') AS mine FROM audit.change
+                           WHERE table_name = 'library.entry' AND row_key = jsonb_build_object('item_id', %s::bigint)""",
+                       (item,)).fetchone()
+    return bool(row["n"] and row["mine"])
 
 
 def add_to_collection(conn, item, kind, name):

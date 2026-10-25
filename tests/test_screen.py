@@ -236,3 +236,24 @@ def test_series_watches_through_the_api(web, cfg, app, tmp_path):
     assert s == 400 and "TMDB is off" in e["error"]
     s, d = c.call("PATCH", "api/items/" + it["id"], {"authors": ["Adam Price", "Jeppe Gjervig Gram"]})
     assert s == 200 and [a["name"] for a in d["authorsList"]] == ["Adam Price", "Jeppe Gjervig Gram"]
+
+
+def test_import_watch_an_owner_seen_list_is_watched(cfg, app, tmp_path):
+    """A title from the owner's own "seen" list (an undated watch, source owner) is Watched, not To watch."""
+    title = uniq("Casablanca")
+    item = {"kind": "movie", "tmdb": movie_details(title, 550_000 + 6, 1942), "status": "completed",
+            "watches": [{"state": "completed", "source": "owner"}]}
+    run_import(cfg, app, [item], tmp_path)
+    row = app.execute("SELECT e.item_id, e.status FROM library.entry e JOIN catalog.media_item i ON i.id = e.item_id"
+                      " WHERE i.title = %s", (title,)).fetchone()
+    assert row["status"] == "completed"
+    # an entry the 0.6.0 importer left To watch (its own owner-labelled status) is corrected by a rerun ...
+    with tx(app, client="import-watch"):
+        app.execute("UPDATE library.entry SET status = 'planned' WHERE item_id = %s", (row["item_id"],))
+    again = run_import(cfg, app, [item], tmp_path)
+    assert again["results"][0]["changes"] == ["status completed"]
+    # ... but once the owner sets it in the console, a rerun leaves it
+    with tx(app, client="console:owner"):
+        app.execute("UPDATE library.entry SET status = 'planned' WHERE item_id = %s", (row["item_id"],))
+    run_import(cfg, app, [item], tmp_path)
+    assert app.execute("SELECT status FROM library.entry WHERE item_id = %s", (row["item_id"],)).fetchone()["status"] == "planned"
