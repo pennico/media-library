@@ -11,8 +11,8 @@ looks like a bookshelf.
   and a detail panel for metadata, rating (0–10), review and readings,
   including re-reads and dates as precise as you know them (year, month or day).
 - **Visuals**: statistics per year, month or day, pages, ratings, authors,
-  genres, languages, versions and a reading calendar; click a bar to see its
-  books.
+  genres, languages, versions and a reading calendar, under one page filter;
+  pies or bars, cumulative or per period; click a bar or slice to see its books.
 - **Versions**: paper, ebook or audiobook for each book, and for each reading.
 - **Add a book** from Apple Books (cover and basics), Open Library (ISBN,
   pages, publisher) and Google Books (with a key), from an EPUB file (its own
@@ -40,7 +40,7 @@ looks like a bookshelf.
   (shared with [agent-console](https://github.com/pennico/agent-console) if
   you use it).
 
-Status: 0.4.0, used daily by its author. Movies and series have their schema
+Status: 0.5.0, used daily by its author. Movies and series have their schema
 and views (Joplin notes add them; no TMDB lookup yet).
 
 ## Docs

@@ -2,6 +2,26 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-10-25
+
+- **Page filter on Visuals**: one filter for every chart and tile on the page
+  (status, version, language, category, read and added dates, published,
+  rating, pages, EPUB, review), kept apart from the Database filter. The
+  per-chart pickers (the time chart's year/month, the library's All / Read /
+  Not read chips) are gone. A Read date in the filter also limits which
+  readings count. All charts are now counted in the browser from the library
+  list, so they follow the filter.
+- **Books read over time**: an X-axis range slider at each level (year,
+  month, day keep their own range), and Per period / Cumulative.
+- **Pies**: authors, genres, languages (and the library's categories,
+  languages, versions, authors) as pies by default, 8 colours + Other, with a
+  Pie / Bars switch per chart (remembered) and the table view. A value keeps
+  its colour while you filter. Slices and legend rows pick their books.
+- **Reading calendar**: last 12 months, any single year or all years stacked;
+  follows the page filter; click a day for its books.
+- The library list carries each book's activity days (dated starts,
+  finishes, progress).
+
 ## [0.4.0] - 2026-10-25
 
 - **Version of a book**: Paper, Ebook or Audiobook, one click in the book's

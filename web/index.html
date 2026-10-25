@@ -14,7 +14,9 @@
   --bg: #f6efe2; --panel: #fcf8f0; --sunk: #f2e9d9; --fg: #2b2118; --muted: #6e5a43; --line: #e2d5bf;
   --sel: #f0e3c8; --accent: #2f6f5b; --accent-soft: #dfeadf; --on-accent: #ffffff;
   --ok: #2f8a5f; --ok-soft: #e1f0e2; --warn: #9a6514; --warn-soft: #f6ead4; --bad: #c2412d; --bad-soft: #f6dfda;
-  --chart: #16805a; --grid: #ebe1cf; --shadow: rgb(60 35 10 / 0.16);
+  --chart: #16805a;
+  /* categorical slots for the pies (validated: adjacent pairs apart for colour-blind eyes too); Other is grey */
+  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4; --c6: #008300; --c7: #6250d6; --c8: #e34948; --c-other: #b3a690; --grid: #ebe1cf; --shadow: rgb(60 35 10 / 0.16);
   --head-a: #f8eed9; --head-b: #efe0c2; --head-edge: #cdb081; --nav-sel: rgb(255 250 240 / 0.75); --nav-hover: rgb(255 250 240 / 0.4);
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -30,7 +32,8 @@
   --bg: #1f1812; --panel: #2a2119; --sunk: #33281e; --fg: #efe5d6; --muted: #c0aa8f; --line: #47392b;
   --sel: #3e3024; --accent: #7cc4a9; --accent-soft: #2b3a30; --on-accent: #10201a;
   --ok: #5cc28f; --ok-soft: #233528; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
-  --chart: #3aa877; --grid: #3a2e23; --shadow: rgb(0 0 0 / 0.5);
+  --chart: #3aa877;
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767; --c-other: #6f604f; --grid: #3a2e23; --shadow: rgb(0 0 0 / 0.5);
   --head-a: #4e3a29; --head-b: #3f2e20; --head-edge: #24180f; --nav-sel: rgb(255 235 210 / 0.11); --nav-hover: rgb(255 235 210 / 0.06);
   --wall: #402e20; --wood-edge: rgb(0 0 0 / 0.5);
   --board-top: #80603f; --board-lip: rgb(255 220 180 / 0.22); --board: #5f4430; --board-dark: #44301f; --board-shadow: rgb(0 0 0 / 0.75);
@@ -41,7 +44,8 @@
   --bg: #1f1812; --panel: #2a2119; --sunk: #33281e; --fg: #efe5d6; --muted: #c0aa8f; --line: #47392b;
   --sel: #3e3024; --accent: #7cc4a9; --accent-soft: #2b3a30; --on-accent: #10201a;
   --ok: #5cc28f; --ok-soft: #233528; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
-  --chart: #3aa877; --grid: #3a2e23; --shadow: rgb(0 0 0 / 0.5);
+  --chart: #3aa877;
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767; --c-other: #6f604f; --grid: #3a2e23; --shadow: rgb(0 0 0 / 0.5);
   --head-a: #4e3a29; --head-b: #3f2e20; --head-edge: #24180f; --nav-sel: rgb(255 235 210 / 0.11); --nav-hover: rgb(255 235 210 / 0.06);
   --wall: #402e20; --wood-edge: rgb(0 0 0 / 0.5);
   --board-top: #80603f; --board-lip: rgb(255 220 180 / 0.22); --board: #5f4430; --board-dark: #44301f; --board-shadow: rgb(0 0 0 / 0.75);
@@ -405,6 +409,24 @@ body.fb-pane .detail { visibility: hidden; }
 .pickshelf .pb .t { font-size: 11.5px; font-weight: 600; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pickshelf .pb .a { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pickshelf .pb:hover .t { color: var(--accent); }
+.pie { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; }
+.pie svg { flex: none; width: 180px; height: 180px; overflow: visible; }
+.pie .slice { stroke: var(--panel); stroke-width: 2; stroke-linejoin: round; cursor: pointer; transition: opacity .15s; }
+.pie .slice:hover, .pie .slice:focus-visible { opacity: .82; outline: none; }
+.pie.picking .slice:not(.on) { opacity: .3; }
+.pie .legend { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.pie .lg { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto 2.6em; gap: 8px; align-items: center; cursor: pointer; border-radius: 5px; padding: 1px 4px; }
+.pie .lg:hover, .pie .lg:focus-visible { background: var(--sunk); outline: none; }
+.pie.picking .lg:not(.on) { opacity: .5; } .pie .lg.on .name { font-weight: 650; }
+.pie .sw { width: 12px; height: 12px; border-radius: 3px; }
+.pie .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pie .num { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.pie .pct { color: var(--muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.axisctl { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 12.5px; flex-wrap: wrap; }
+.calrow { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 6px; } .calrow .chartscroll { min-width: 0; flex: 1; }
+.calyear { font-size: 12px; font-weight: 600; color: var(--muted); width: 34px; padding-top: 14px; font-variant-numeric: tabular-nums; }
+.card svg rect[data-pick] { cursor: pointer; } .card svg rect.on { stroke: var(--fg); stroke-width: 1.5; }
+.card h3 select { font-family: var(--sans); padding: 2px 6px; font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -474,7 +496,7 @@ let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, STATS = null, R
 const st = {sec: "database", kind: "book", shelf: null, filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
   listSort: null, err: "", unlockMsg: "", syncTab: "readest", readerPw: null, view: "shelf", trash: null,
   confirmTrash: false, vtab: "me", vscope: "all", LSTATS: null, side: true, f: null, fpane: false, pick: null,
-  time: {metric: "books", g: "year", year: "", month: ""}};
+  time: {metric: "books", g: "year", cum: false, axis: {}}, cal: "last"};
 function load(key, dflt) { try { const v = localStorage.getItem("ml-" + key); return v == null ? dflt : JSON.parse(v); } catch (e) { return dflt; } }
 function save(key, v) { try { localStorage.setItem("ml-" + key, JSON.stringify(v)); } catch (e) {} }
 const langName = c => c ? (LIB.languages[c] || c) : "";
@@ -644,7 +666,7 @@ const catIds = ids => ids.flatMap(id => [id, ...(LIB.categories || []).filter(c 
 // --------------------------------------------------------------- filters
 // The Filter pane: each facet narrows the list; values inside one facet add up (Italian or French). Dates compare
 // as text keys at the chosen detail: "2024", "2024-03" or "2024-03-12"; a reading known to the year only has no month.
-const NOF = () => ({langs: [], olangs: [], versions: [], cats: [], read: null, added: null, pub: null, rating: null, pages: null, file: null, review: null});
+const NOF = () => ({status: [], langs: [], olangs: [], versions: [], cats: [], read: null, added: null, pub: null, rating: null, pages: null, file: null, review: null});
 const G_LEN = {year: 4, month: 7, day: 10}, G_RANK = {year: 0, month: 1, day: 2};
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const readKeys = (i, g) => (i.reads || []).filter(r => r[0] && G_RANK[r[1]] >= G_RANK[g]).map(r => r[0].slice(0, G_LEN[g]));
@@ -656,8 +678,9 @@ function fmtKey(k) {
   return d ? `${+d} ${MONTHS[m - 1]} ${y}` : m ? `${MONTHS[m - 1]} ${y}` : y;
 }
 const fmtYear = y => y < 0 ? -y + " BC" : String(y);
-function fMatch(i, skip) {
-  const f = st.f, has = (k, xs) => skip === k || !xs.length;
+function fMatch(i, skip, f = st.f) {
+  const has = (k, xs) => skip === k || !xs.length;
+  if (!has("status", f.status) && !f.status.includes(i.status)) return false;
   if (!has("langs", f.langs) && !f.langs.includes(i.lang || "")) return false;
   if (!has("olangs", f.olangs) && !f.olangs.includes(i.origLang || "")) return false;
   if (!has("versions", f.versions) && !f.versions.includes(versionOf(i) || "")) return false;
@@ -674,8 +697,9 @@ function fMatch(i, skip) {
   return true;
 }
 // the active filters, each with a label and how to take it off (the chips under the toolbar)
-function activeFilters() {
-  const f = st.f, out = [], range = (a, b, fmt) => a === b ? fmt(a) : fmt(a) + "–" + fmt(b);
+function activeFilters(f = st.f) {
+  const out = [], range = (a, b, fmt) => a === b ? fmt(a) : fmt(a) + "–" + fmt(b);
+  for (const v of f.status) out.push(["status:" + v, statusLabel("book", v)]);
   for (const v of f.versions) out.push(["versions:" + v, versionLabel(v || null)]);
   for (const c of f.langs) out.push(["langs:" + c, (c ? langName(c) : "Language not recorded")]);
   for (const c of f.olangs) out.push(["olangs:" + c, "Original: " + (c ? langName(c) : "not recorded")]);
@@ -690,11 +714,17 @@ function activeFilters() {
   return out;
 }
 function clearFilter(key) {
-  const [k, v] = key.split(/:(.*)/s);
-  if (v !== undefined) st.f[k] = st.f[k].filter(x => String(x) !== v); else st.f[k] = null;
-  saveF();
+  const C = FC(), [k, v] = key.split(/:(.*)/s);
+  if (key === "*") { for (const [x, val] of Object.entries(NOF())) C.f[x] = val; }
+  else if (v !== undefined) C.f[k] = C.f[k].filter(x => String(x) !== v); else C.f[k] = null;
+  C.save();
 }
 const saveF = () => save("filter", st.f);
+// The pane filters the shelf in the Database, and every chart on the Visuals page (its own filter, kept apart)
+const FC = () => st.sec === "visuals"
+  ? {f: st.vf, win: st.vfwin, items: () => LIB.items.filter(i => i.kind === "book"), pre: () => true, save: () => save("vfilter", st.vf),
+     redraw: () => renderVisuals(), page: true}
+  : {f: st.f, win: st.fwin, items: shelfItems, pre: statusQ, save: saveF, redraw: () => renderDatabase(), page: false};
 // the "find it" link: {q} in the address gets the title and first author, as a search form sends them (spaces as +)
 function findUrl(title, authors) {
   if (!LIB.find) return null;
@@ -831,7 +861,7 @@ function listHtml(list, prefs) {
 const FDOM = {};
 let fLang = "langs", fDrag = false;
 function dateDom(k) {
-  const w = st.fwin[k], keys = [...new Set(shelfItems().flatMap(i => DATE_KEYS[k](i, w.g)))].sort();
+  const C = FC(), w = C.win[k], keys = [...new Set(C.items().flatMap(i => DATE_KEYS[k](i, w.g)))].sort();
   const years = [...new Set(keys.map(x => x.slice(0, 4)))];
   if (w.year && !years.includes(w.year)) w.year = "";
   let dom = w.year ? keys.filter(x => x.startsWith(w.year)) : keys;
@@ -853,21 +883,21 @@ function dualHtml(key, label, cur) {
 const dualVals = (D, lo, hi, any) => `<b>${esc(D.fmt(D.dom[lo]))}</b><span class="muted">${any ? "any" : ""}</span><b>${esc(D.fmt(D.dom[hi]))}</b>`;
 function renderFilterPane() {
   let p = $("fpane");
-  const btn = $("filter-btn");
-  if (!st.fpane || st.sec !== "database" || st.view === "trash" || !btn) { p?.remove(); st.fpane = false; btn?.setAttribute("aria-expanded", "false"); return; }
+  const btn = $(st.sec === "visuals" ? "vfilter-btn" : "filter-btn");
+  if (!st.fpane || !["database", "visuals"].includes(st.sec) || st.sec === "database" && st.view === "trash" || !btn) { p?.remove(); st.fpane = false; btn?.setAttribute("aria-expanded", "false"); return; }
   if (!p) { p = document.createElement("div"); p.id = "fpane"; p.className = "fpane"; p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Filter"); document.body.append(p); }
-  const keep = p.querySelector(".fp-body")?.scrollTop || 0, f = st.f, items = shelfItems(), all = items.filter(statusQ);
-  const count = (skip, test) => all.filter(i => fMatch(i, skip) && test(i)).length;
+  const C = FC(), keep = p.querySelector(".fp-body")?.scrollTop || 0, f = C.f, items = C.items(), all = items.filter(C.pre);
+  const count = (skip, test) => all.filter(i => fMatch(i, skip, f) && test(i)).length;
   const tog = (facet, val, label, n, cls = "") => { const on = f[facet].includes(val);
     return `<button class="ftog ${cls}" data-ftog="${facet}" data-fval="${esc(val)}" aria-pressed="${on}" ${!n && !on ? "disabled" : ""}>${label}<span class="n">${n}</span></button>`; };
-  const isBook = st.kind === "book", noun = isBook ? "book" : st.kind === "movie" ? "movie" : "series";
+  const isBook = C.page || st.kind === "book", noun = isBook ? "book" : st.kind === "movie" ? "movie" : "series";
   const vers = [...VERSIONS.map(([v, l]) => [v, `<span class="vico">${VICON[v]}</span>${l}`]), ["", "Not set"]];
   const field = fLang === "langs" ? "lang" : "origLang";
   const langs = [...new Set(items.map(i => i[field] || ""))].map(c => [c, count(fLang, i => (i[field] || "") === c)])
     .sort((a, b) => b[1] - a[1] || langName(a[0]).localeCompare(langName(b[0])));
   const tree = catTree(st.kind);
   const dateSec = (k, title) => {
-    const w = st.fwin[k], {dom, years, months} = dateDom(k), r = f[k];
+    const w = C.win[k], {dom, years, months} = dateDom(k), r = f[k];
     FDOM[k] = {dom, fmt: fmtKey, set: (lo, hi) => { f[k] = !w.year && lo === 0 && hi === dom.length - 1 ? null : {g: w.g, from: dom[lo], to: dom[hi]}; }};
     return `<div class="fsec"><h4>${title}<span class="segsmall" role="group" aria-label="${title}: detail">${["year", "month", "day"].map(g =>
         `<button data-fg="${k}:${g}" aria-pressed="${w.g === g}">${g[0].toUpperCase() + g.slice(1)}</button>`).join("")}</span></h4>
@@ -882,9 +912,10 @@ function renderFilterPane() {
   FDOM.pages = {dom: pages, fmt: n => n + " p.", set: full("pages", pages)};
   FDOM.rating = {dom: rating, fmt: n => n + "/10", set: full("rating", rating)};
   const flag = (k, v, label, n) => `<button class="ftog" data-fflag="${k}:${v}" aria-pressed="${f[k] === (k === "review" ? true : v === "1")}" ${!n && f[k] == null ? "disabled" : ""}>${label}<span class="n">${n}</span></button>`;
-  const shown = all.filter(i => fMatch(i)).length;
-  p.innerHTML = `<div class="fp-head">Filter<button class="xbtn" id="fp-close" aria-label="Close the filter">✕</button></div>
+  const shown = all.filter(i => fMatch(i, null, f)).length;
+  p.innerHTML = `<div class="fp-head">${C.page ? "Page filter <span class=\"muted\" style=\"font-weight:400;font-size:12.5px\">all charts</span>" : "Filter"}<button class="xbtn" id="fp-close" aria-label="Close the filter">✕</button></div>
     <div class="fp-body">
+      ${C.page ? `<div class="fsec"><h4>Status</h4><div class="ftoggles">${STATUS_ORDER.map(v => tog("status", v, esc(statusLabel("book", v)), count("status", i => i.status === v))).join("")}</div></div>` : ""}
       ${isBook ? `<div class="fsec"><h4>Version</h4><div class="ftoggles">${vers.map(([v, l]) => tog("versions", v, l, count("versions", i => (versionOf(i) || "") === v))).join("")}</div></div>` : ""}
       <div class="fsec"><h4>Language<span class="segsmall" role="group" aria-label="Which language"><button data-flang="langs" aria-pressed="${fLang === "langs"}">${isBook ? "Of the book" : "Audio"}</button><button data-flang="olangs" aria-pressed="${fLang === "olangs"}">Original</button></span></h4>
         <div class="ftoggles">${langs.map(([c, n]) => tog(fLang, c, esc(c ? langName(c) : "Not recorded"), n)).join("") || `<span class="muted">—</span>`}</div></div>
@@ -896,7 +927,7 @@ function renderFilterPane() {
       ${dateSec("added", "Added")}
       ${isBook ? `<div class="fsec"><h4>Other</h4><div class="ftoggles">${flag("file", "1", "Has an EPUB", count("file", i => i.hasFile))}${flag("file", "0", "No EPUB", count("file", i => !i.hasFile))}${flag("review", "1", "Has a review", count("review", i => i.hasReview))}</div></div>` : ""}
     </div>
-    <div class="fp-foot"><span><b>${shown}</b> ${noun}${shown === 1 || noun === "series" ? "" : "s"}</span><button class="btn small" data-fclear="*" ${activeFilters().length ? "" : "disabled"}>Clear all</button></div>`;
+    <div class="fp-foot"><span><b>${shown}</b> ${noun}${shown === 1 || noun === "series" ? "" : "s"}</span><button class="btn small" data-fclear="*" ${activeFilters(f).length ? "" : "disabled"}>Clear all</button></div>`;
   p.querySelector(".fp-body").scrollTop = keep;
   btn.setAttribute("aria-expanded", "true");
   if (matchMedia("(max-width: 760px)").matches) { p.style.left = p.style.top = p.style.maxHeight = ""; return; }
@@ -905,17 +936,18 @@ function renderFilterPane() {
   p.style.top = r.bottom + scrollY + 6 + "px";
   p.style.maxHeight = Math.max(320, innerHeight - r.bottom - 16) + "px";
 }
+const filterBtn = () => $(st.sec === "visuals" ? "vfilter-btn" : "filter-btn");
 function closeFilterPane() { if (!st.fpane) return; st.fpane = false; renderFilterPane(); }
 let listFrame = 0;
-const redrawList = () => { if (!listFrame) listFrame = requestAnimationFrame(() => { listFrame = 0; renderDatabase(); }); };
+const redrawList = () => { if (!listFrame) listFrame = requestAnimationFrame(() => { listFrame = 0; FC().redraw(); }); };
 function setDateDetail(k, g) {
-  const w = st.fwin[k], r = st.f[k], L = G_LEN[g];
+  const C = FC(), w = C.win[k], r = C.f[k], L = G_LEN[g];
   w.g = g;
   if (!r || r.g === g) return;
-  if (L <= r.from.length) { st.f[k] = {g, from: r.from.slice(0, L), to: r.to.slice(0, L)}; return; }
-  const keys = [...new Set(shelfItems().flatMap(i => DATE_KEYS[k](i, g)))].sort();
+  if (L <= r.from.length) { C.f[k] = {g, from: r.from.slice(0, L), to: r.to.slice(0, L)}; return; }
+  const keys = [...new Set(C.items().flatMap(i => DATE_KEYS[k](i, g)))].sort();
   const from = keys.find(x => x.slice(0, r.from.length) >= r.from), to = keys.findLast(x => x.slice(0, r.to.length) <= r.to);
-  st.f[k] = from && to && from <= to ? {g, from, to} : null;
+  C.f[k] = from && to && from <= to ? {g, from, to} : null;
   if (r.from.slice(0, 4) === r.to.slice(0, 4)) w.year = r.from.slice(0, 4);   // one year: look inside it
 }
 document.addEventListener("input", e => {
@@ -924,12 +956,14 @@ document.addEventListener("input", e => {
   let lo = +a.value, hi = +b.value;
   if (lo > hi) { if (e.target === a) a.value = lo = hi; else b.value = hi = lo; }
   dual.style.setProperty("--lo", lo / (n - 1)); dual.style.setProperty("--hi", hi / (n - 1)); a.style.zIndex = lo > (n - 1) / 2 ? 2 : 1;
-  D.set(lo, hi); saveF();
+  if (D.live) { D.live(lo, hi); dual.nextElementSibling.innerHTML = dualVals(D, lo, hi, false); return; }   // a chart's own slider
+  D.set(lo, hi); FC().save();
   dual.nextElementSibling.innerHTML = dualVals(D, lo, hi, false);
   fDrag = true; redrawList();
 });
 document.addEventListener("change", e => {
   const dual = e.target.closest?.(".dual");
+  if (dual && FDOM[dual.dataset.dual]?.live) { FDOM[dual.dataset.dual].done?.(); return; }
   if (dual) {                                        // redraw the counts; keep the keyboard on the same handle
     const key = dual.dataset.dual, n = [...dual.querySelectorAll("input")].indexOf(e.target), had = document.activeElement === e.target;
     fDrag = false; renderFilterPane();
@@ -937,11 +971,11 @@ document.addEventListener("change", e => {
     return;
   }
   const win = e.target.dataset?.fwin; if (!win) return;
-  const [k, part] = win.split(":"), w = st.fwin[k];
+  const C = FC(), [k, part] = win.split(":"), w = C.win[k];
   w[part] = e.target.value; if (part === "year") w.month = "";
   const {dom} = dateDom(k);
-  st.f[k] = w.year && dom.length ? {g: w.g, from: dom[0], to: dom[dom.length - 1]} : null; saveF();
-  renderDatabase();
+  C.f[k] = w.year && dom.length ? {g: w.g, from: dom[0], to: dom[dom.length - 1]} : null; C.save();
+  C.redraw();
 });
 addEventListener("resize", () => { if (st.fpane) renderFilterPane(); });
 
@@ -1165,15 +1199,15 @@ const splitList = (s, sep) => s.split(sep).map(x => x.trim()).filter(Boolean);
 document.addEventListener("click", async e => {
   const t = e.target.closest("button, [data-id], input[type=checkbox]"); if (!t) return;
   if (t.id === "side-toggle") { st.side = !st.side; save("side", st.side); applySide(); return; }
-  if (t.id === "filter-btn") { st.fpane = !st.fpane; renderFilterPane(); return; }
-  if (t.id === "fp-close") { closeFilterPane(); $("filter-btn")?.focus(); return; }
-  if (t.dataset.ftog) { const k = t.dataset.ftog, v = k === "cats" ? +t.dataset.fval : t.dataset.fval;
-    st.f[k] = st.f[k].includes(v) ? st.f[k].filter(x => x !== v) : [...st.f[k], v]; saveF(); renderDatabase(); return; }
+  if (t.id === "filter-btn" || t.id === "vfilter-btn") { st.fpane = !st.fpane; renderFilterPane(); return; }
+  if (t.id === "fp-close") { closeFilterPane(); filterBtn()?.focus(); return; }
+  if (t.dataset.ftog) { const C = FC(), k = t.dataset.ftog, v = k === "cats" ? +t.dataset.fval : t.dataset.fval;
+    C.f[k] = C.f[k].includes(v) ? C.f[k].filter(x => x !== v) : [...C.f[k], v]; C.save(); C.redraw(); return; }
   if (t.dataset.flang) { fLang = t.dataset.flang; renderFilterPane(); return; }
-  if (t.dataset.fg) { const [k, g] = t.dataset.fg.split(":"); setDateDetail(k, g); saveF(); renderDatabase(); return; }
-  if (t.dataset.fflag) { const [k, v] = t.dataset.fflag.split(":"), want = k === "review" ? true : v === "1";
-    st.f[k] = st.f[k] === want ? null : want; saveF(); renderDatabase(); return; }
-  if (t.dataset.fclear) { if (t.dataset.fclear === "*") { st.f = NOF(); saveF(); } else clearFilter(t.dataset.fclear); renderDatabase(); return; }
+  if (t.dataset.fg) { const [k, g] = t.dataset.fg.split(":"); setDateDetail(k, g); FC().save(); FC().redraw(); return; }
+  if (t.dataset.fflag) { const C = FC(), [k, v] = t.dataset.fflag.split(":"), want = k === "review" ? true : v === "1";
+    C.f[k] = C.f[k] === want ? null : want; C.save(); C.redraw(); return; }
+  if (t.dataset.fclear) { clearFilter(t.dataset.fclear); FC().redraw(); return; }
   if (t.matches(".seg button")) { st.sec = t.dataset.sec; save("sec", st.sec); if (st.sec === "visuals") { try { STATS = await api.stats(); } catch (er) { STATS = null; } }
     if (st.sec === "sync") { READING = null; render(); await loadReading(); } render(); return; }
   if (t.dataset.vtab) { st.vtab = t.dataset.vtab; save("vtab", st.vtab); renderVisuals(); return; }
@@ -1484,7 +1518,7 @@ function goHit(h) {
 document.addEventListener("keydown", e => {
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName || "");
   if (e.key === "/" && !typing) { e.preventDefault(); $("search").focus(); return; }
-  if (e.key === "Escape" && st.fpane) { closeFilterPane(); $("filter-btn")?.focus(); return; }
+  if (e.key === "Escape" && st.fpane) { closeFilterPane(); filterBtn()?.focus(); return; }
   if (e.key === "Escape" && !typing && st.selected) { closeDetail(); return; }
   if (e.target.matches?.("tr[data-id]") && e.key === "Enter") { openDetail(e.target.dataset.id); return; }
   if (e.target.id === "key-input" && e.key === "Enter") { unlock(); return; }
@@ -1497,7 +1531,7 @@ document.addEventListener("keydown", e => {
 document.addEventListener("click", e => {
   const h = e.target.closest?.("[data-hit]"); if (h) { goHit(hits[+h.dataset.hit]); return; }
   if (!e.target.closest?.(".search")) $("search-pop").hidden = true;
-  if (st.fpane && !e.target.closest?.("#fpane, #filter-btn, [data-fclear]")) closeFilterPane();
+  if (st.fpane && !e.target.closest?.("#fpane, #filter-btn, #vfilter-btn, [data-fclear]")) closeFilterPane();
 }, true);
 
 // ---------------------------------------------------------------- unlock
@@ -1539,26 +1573,27 @@ setInterval(() => { if (!PREVIEW && SESSION.unlockedUntil) { if (SESSION.unlocke
 const tip = $("tip");
 function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + "px"; tip.style.top = (e.clientY - tip.offsetHeight - 12) + "px"; }
 function hideTip() { tip.hidden = true; }
-// A chart's rows can carry a pick ({dim, val, label}): clicking the bar or the row lists its books in a card under
-// the chart (pickCard); clicking again, or ✕, clears it.
+// A chart's rows can carry a pick ({dim, val, label}; "Other" carries vals): clicking the bar, slice or row lists its
+// books in a card under the chart (pickCard); clicking again, or ✕, clears it.
 const pickKey = p => p ? p.dim + "|" + p.val : "";
 const pickAttr = p => p ? ` role="button" aria-pressed="${pickKey(p) === pickKey(st.pick)}" data-pick="${esc(JSON.stringify(p))}"` : "";
+const isPicked = p => !!p && pickKey(p) === pickKey(st.pick);
 function columnChart(id, rows, opts) {
   // rows: [{label, value, tip, pick}] — one series, one baseline, labels on the max and the last column;
-  // opts.width makes it wider than the card (the card then scrolls sideways)
-  const W = opts.width || 520, H = 190, padL = 30, padB = 22, padT = 16, n = rows.length;
+  // opts.width draws it at that size (the card scrolls sideways when it is wider)
+  const W = opts.width || 520, H = 190, padL = 34, padB = 22, padT = 16, n = rows.length;
   if (!n) return `<p class="muted">No data yet.</p>`;
   const max = Math.max(1, ...rows.map(r => r.value)), step = niceStep(max), top = Math.ceil(max / step) * step;
   const bw = Math.min(24, (W - padL) / n * 0.62), band = (W - padL) / n;
   const y = v => padT + (H - padT - padB) * (1 - v / top);
   let ticks = ""; for (let v = 0; v <= top; v += step) ticks += `<line class="gl" x1="${padL}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end">${fmtTick(v)}</text>`;
   const maxIdx = rows.reduce((m, r, i) => r.value > rows[m].value ? i : m, 0), labelEvery = Math.ceil(n / Math.max(4, Math.floor((W - padL) / 46)));
-  const picked = rows.some(r => r.pick && pickKey(r.pick) === pickKey(st.pick));
+  const picked = rows.some(r => isPicked(r.pick));
   const bars = rows.map((r, i) => {
     const x = padL + band * i + (band - bw) / 2, h = Math.max(0, y(0) - y(r.value)), rad = Math.min(4, h / 2, bw / 2);
     const path = h > 0 ? `M${x},${y(0)} V${y(r.value) + rad} Q${x},${y(r.value)} ${x + rad},${y(r.value)} H${x + bw - rad} Q${x + bw},${y(r.value)} ${x + bw},${y(r.value) + rad} V${y(0)} Z` : "";
-    const showV = r.value > 0 && (i === maxIdx || i === n - 1 || (r.pick && pickKey(r.pick) === pickKey(st.pick)));
-    return `<g class="barg${r.pick && pickKey(r.pick) === pickKey(st.pick) ? " on" : ""}" tabindex="0" data-tip="${esc(r.tip)}"${r.value ? pickAttr(r.pick) : ""}><rect class="hit" x="${padL + band * i}" y="${padT}" width="${band}" height="${H - padT - padB}"/>${path ? `<path class="bar" d="${path}"/>` : ""}
+    const showV = r.value > 0 && (i === maxIdx || i === n - 1 || isPicked(r.pick));
+    return `<g class="barg${isPicked(r.pick) ? " on" : ""}" tabindex="0" data-tip="${esc(r.tip)}"${r.value ? pickAttr(r.pick) : ""}><rect class="hit" x="${padL + band * i}" y="${padT}" width="${band}" height="${H - padT - padB}"/>${path ? `<path class="bar" d="${path}"/>` : ""}
       ${showV ? `<text class="v" x="${x + bw / 2}" y="${y(r.value) - 5}" text-anchor="middle">${fmtNum(r.value)}</text>` : ""}
       ${i % labelEvery === 0 || i === n - 1 ? `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${esc(r.label)}</text>` : ""}</g>`;
   }).join("");
@@ -1570,122 +1605,217 @@ function fmtTick(v) { return v >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0) + 
 function fmtNum(v) { return Math.round(v).toLocaleString("en"); }
 function hbars(rows) {
   if (!rows.length) return `<p class="muted">No data yet.</p>`;
-  const max = Math.max(1, ...rows.map(r => r.value)), picked = rows.some(r => r.pick && pickKey(r.pick) === pickKey(st.pick));
-  return `<div class="hbars${picked ? " picking" : ""}">${rows.map(r => `<div class="row${r.pick && pickKey(r.pick) === pickKey(st.pick) ? " on" : ""}"${r.pick ? ` tabindex="0"${pickAttr(r.pick)}` : ""}><span class="name" title="${esc(r.label)}">${esc(r.label)}</span><span class="track"><div class="fill" style="width:${(r.value / max * 100).toFixed(1)}%"></div></span><span class="num">${fmtNum(r.value)}</span></div>`).join("")}</div>`;
+  const max = Math.max(1, ...rows.map(r => r.value)), picked = rows.some(r => isPicked(r.pick));
+  return `<div class="hbars${picked ? " picking" : ""}">${rows.map(r => `<div class="row${isPicked(r.pick) ? " on" : ""}"${r.pick ? ` tabindex="0"${pickAttr(r.pick)}` : ""}><span class="name" title="${esc(r.label)}">${esc(r.label)}</span><span class="track"><div class="fill" style="width:${(r.value / max * 100).toFixed(1)}%"></div></span><span class="num">${fmtNum(r.value)}</span></div>`).join("")}</div>`;
+}
+// Pies: the 8 largest values in their own colour and the rest as Other. A value keeps its colour while you filter
+// (colour follows the value, not its rank); a newcomer takes a free colour.
+const PIE_SLOTS = {}, PIE_MAX = 8;
+function pieColors(id, keys) {
+  const map = PIE_SLOTS[id] || (PIE_SLOTS[id] = new Map()), used = new Set(), out = new Map();
+  for (const k of keys) { const s = map.get(k); if (s != null && !used.has(s)) { out.set(k, s); used.add(s); } }
+  for (const k of keys) if (!out.has(k)) { let s = 0; while (used.has(s)) s++; out.set(k, s); used.add(s); map.set(k, s); }
+  return out;
+}
+function pieChart(id, rows) {
+  if (!rows.length) return `<p class="muted">No data yet.</p>`;
+  const top = rows.slice(0, PIE_MAX), rest = rows.slice(PIE_MAX), total = rows.reduce((a, r) => a + r.value, 0) || 1;
+  const slots = pieColors(id, top.map(r => r.pick?.val ?? r.label));
+  const parts = top.map(r => ({...r, color: `var(--c${slots.get(r.pick?.val ?? r.label) + 1})`}));
+  if (rest.length) {
+    const p0 = rest[0].pick;
+    parts.push({label: `Other (${rest.length})`, value: rest.reduce((a, r) => a + r.value, 0), color: "var(--c-other)",
+      pick: p0 ? {...p0, val: "__other", vals: rest.map(r => r.pick.val),
+        label: "Other: " + rest.slice(0, 3).map(r => r.label).join(", ") + (rest.length > 3 ? ` and ${rest.length - 3} more` : "")} : null});
+  }
+  const R = 92, C = 100, picked = parts.some(r => isPicked(r.pick));
+  let a0 = -Math.PI / 2;
+  const slices = parts.map(r => {
+    const frac = r.value / total, a1 = a0 + frac * Math.PI * 2, big = frac > 0.5 ? 1 : 0;
+    const pt = a => `${(C + R * Math.cos(a)).toFixed(2)},${(C + R * Math.sin(a)).toFixed(2)}`;
+    const d = frac >= 0.9999 ? `M${C - R},${C} a${R},${R} 0 1,0 ${R * 2},0 a${R},${R} 0 1,0 ${-R * 2},0` : `M${C},${C} L${pt(a0)} A${R},${R} 0 ${big},1 ${pt(a1)} Z`;
+    a0 = a1;
+    const pct = Math.round(frac * 100);
+    return `<path class="slice${isPicked(r.pick) ? " on" : ""}" d="${d}" style="fill:${r.color}" tabindex="0" data-tip="${esc(`<b>${fmtNum(r.value)}</b> · ${esc(r.label)} (${pct}%)`)}"${pickAttr(r.pick)}/>`;
+  }).join("");
+  const legend = parts.map(r => `<div class="lg${isPicked(r.pick) ? " on" : ""}"${r.pick ? ` tabindex="0"${pickAttr(r.pick)}` : ""}><span class="sw" style="background:${r.color}"></span><span class="name" title="${esc(r.label)}">${esc(r.label)}</span><span class="num">${fmtNum(r.value)}</span><span class="pct">${Math.round(r.value / total * 100)}%</span></div>`).join("");
+  return `<div class="pie${picked ? " picking" : ""}"><svg viewBox="0 0 200 200" width="180" height="180" role="img" aria-label="Pie chart">${slices}</svg><div class="legend">${legend}</div></div>`;
 }
 function tableView(cols, rows) {
   return `<table class="tv"><tr>${cols.map((c, i) => `<th class="${i ? "num" : ""}">${esc(c)}</th>`).join("")}</tr>${rows.map(r => `<tr>${r.map((v, i) => `<td class="${i ? "num" : ""}">${esc(v ?? "")}</td>`).join("")}</tr>`).join("")}</table>`;
 }
-function card(id, title, note, body, table, wide) {
+function card(id, title, note, body, table, wide, tools = "") {
   const tv = load("tv-" + id, false);
-  return `<div class="card${wide ? " wide" : ""}" id="card-${id}"><h3>${esc(title)}${table ? `<button class="btn small" data-tv="${id}" aria-pressed="${tv}">${tv ? "Chart" : "Table"}</button>` : ""}</h3>${note ? `<p class="note">${note}</p>` : ""}${tv && table ? table : body}</div>`;
+  return `<div class="card${wide ? " wide" : ""}" id="card-${id}"><h3>${esc(title)}${tools}${table ? `<button class="btn small" data-tv="${id}" aria-pressed="${tv}" ${tools ? `style="margin-left:6px"` : ""}>${tv ? "Chart" : "Table"}</button>` : ""}</h3>${note ? `<p class="note">${note}</p>` : ""}${tv && table ? table : body}</div>`;
 }
-// the picked bar's books: a little shelf under its chart
+// a share card: pie by default, bars on request (per card, remembered), the table always one click away
+function shareCard(id, title, note, rows, colName) {
+  const kind = load("chart-" + id, "pie");
+  const tools = `<span class="segsmall" role="group" aria-label="Chart type" style="margin-left:auto"><button data-ctype="${id}:pie" aria-pressed="${kind === "pie"}">Pie</button><button data-ctype="${id}:bars" aria-pressed="${kind === "bars"}">Bars</button></span>`;
+  return card(id, title, note, kind === "pie" ? pieChart(id, rows) : hbars(rows), tableView([colName, "Books"], rows.map(r => [r.label, r.value])), false, tools);
+}
+
+// ---------------------------------------------------- what the charts count
+// Every chart counts the books the page filter leaves (VB); a Read date in the filter also limits which readings
+// count. A reading: [ended, precision, read in, pages, medium].
+const VB = () => LIB.items.filter(i => i.kind === "book" && fMatch(i, null, st.vf));
+function readsIn(i) {
+  const r = st.vf.read; if (!r) return i.reads || [];
+  return (i.reads || []).filter(x => x[0] && G_RANK[x[1]] >= G_RANK[r.g] && x[0].slice(0, G_LEN[r.g]) >= r.from && x[0].slice(0, G_LEN[r.g]) <= r.to);
+}
+const wasRead = i => st.vf.read ? readsIn(i).length > 0 : i.timesRead > 0;
+const daysIn = i => { const r = st.vf.read; return r ? (i.days || []).filter(d => d.slice(0, G_LEN[r.g]) >= r.from && d.slice(0, G_LEN[r.g]) <= r.to) : (i.days || []); };
+function tally(pairs) {           // [[key, label], ...] → rows by count, largest first
+  const m = new Map();
+  for (const [k, label] of pairs) { const e = m.get(k) || {key: k, label, value: 0}; e.value++; m.set(k, e); }
+  return [...m.values()].sort((a, b) => b.value - a.value || String(a.label).localeCompare(String(b.label)));
+}
 const releaseBucket = y => y < 500 ? "Antiquity" : y < 1700 ? "Before 1700" : y < 1900 ? Math.floor(y / 100) + "00s" : Math.floor(y / 10) * 10 + "s";
 const authorsOf = i => i.authors ? i.authors.split(", ") : [];
+const PICK_TEST = {
+  period: (i, v) => { const [g, key] = v.split("@"); return readsIn(i).some(r => G_RANK[r[1]] >= G_RANK[g] && r[0].slice(0, G_LEN[g]) === key); },
+  upto: (i, v) => { const [g, key] = v.split("@"); return readsIn(i).some(r => G_RANK[r[1]] >= G_RANK[g] && r[0].slice(0, G_LEN[g]) <= key); },
+  day: (i, v) => daysIn(i).includes(v),
+  rating: (i, v) => i.rating != null && Math.floor(i.rating) === +v,
+  author: (i, v) => wasRead(i) && authorsOf(i).includes(v),
+  genre: (i, v) => wasRead(i) && i.genres.includes(v),
+  readin: (i, v) => readsIn(i).some(r => (r[2] || "") === v),
+  original: (i, v) => wasRead(i) && (i.origLang || "") === v,
+  lcat: (i, v) => (i.cats || []).some(c => catName(c) === v),
+  llang: (i, v) => (i.origLang || "") === v,
+  lauthor: (i, v) => authorsOf(i).includes(v),
+  lreleased: (i, v) => i.published != null && releaseBucket(i.published) === v,
+  lversion: (i, v) => (versionOf(i) || "") === v,
+};
 function pickList(p) {
-  const v = p.val, books = LIB.items.filter(i => i.kind === "book")
-    .filter(i => !p.scope || p.scope === "all" || (p.scope === "read") === (i.status === "completed"));
-  const test = {
-    period: i => { const [g, key] = v.split("@"); return readKeys(i, g).includes(key); },
-    rating: i => i.rating != null && Math.floor(i.rating) === +v,
-    author: i => i.timesRead > 0 && authorsOf(i).includes(v),
-    genre: i => i.status === "completed" && i.genres.includes(v),
-    readin: i => (i.reads || []).some(r => (r[2] || "") === v),
-    original: i => i.timesRead > 0 && (i.origLang || "") === v,
-    lcat: i => (i.cats || []).some(c => catName(c) === v),
-    llang: i => (i.origLang || "") === v,
-    lauthor: i => authorsOf(i).includes(v),
-    lreleased: i => i.published != null && releaseBucket(i.published) === v,
-    lversion: i => (versionOf(i) || "") === v,
-  }[p.dim] || (() => false);
-  return books.filter(test).sort((a, b) => a.sort.localeCompare(b.sort));
+  const test = PICK_TEST[p.dim] || (() => false), vals = p.vals || [p.val];
+  return VB().filter(i => vals.some(v => test(i, v))).sort((a, b) => a.sort.localeCompare(b.sort));
 }
 function pickCard() {
   const p = st.pick, list = pickList(p);
   return `<div class="card wide pick" id="card-pick" aria-live="polite"><h3>${esc(p.label)} <span class="muted">${list.length} book${list.length === 1 ? "" : "s"}</span>
-      <button class="btn small" id="pick-db" title="Open the Database with these books filtered">Show in Database</button><button class="xbtn" id="pick-x" aria-label="Clear the selection">✕</button></h3>
+      ${p.dim !== "day" ? `<button class="btn small" id="pick-db" title="Open the Database with these books filtered">Show in Database</button>` : `<span style="margin-left:auto"></span>`}<button class="xbtn" id="pick-x" aria-label="Clear the selection">✕</button></h3>
     ${list.length ? `<div class="pickshelf">${list.map(i => `<button class="pb" data-gobook="${i.id}" title="${esc(i.title)}${i.authors ? " — " + esc(i.authors) : ""}">
       <div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}</div>
       <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span></button>`).join("")}</div>`
       : `<p class="muted" style="margin:0">No book with a date or value to match here.</p>`}</div>`;
 }
-// the same books in the Database: the pick becomes filters
+// the same books in the Database: the page filter and the pick become the shelf's filters
 function pickToDatabase(p) {
-  const f = NOF(), v = p.val, catsNamed = n => (LIB.categories || []).filter(c => c.name === n).map(c => c.id);
-  let q = "", filter = p.scope === "read" ? "completed" : "all";
-  if (p.dim === "period") { const [g, key] = v.split("@"); f.read = {g, from: key, to: key}; st.fwin.read = {g, year: g === "year" ? "" : key.slice(0, 4), month: ""}; }
-  else if (p.dim === "rating") f.rating = [+v, +v];
-  else if (p.dim === "author" || p.dim === "lauthor") { q = v; if (p.dim === "author") filter = "completed"; }
-  else if (p.dim === "genre" || p.dim === "lcat") { f.cats = catsNamed(v); if (p.dim === "genre") filter = "completed"; }
-  else if (p.dim === "readin") { f.langs = [v]; filter = "completed"; }
-  else if (p.dim === "original") { f.olangs = [v]; filter = "completed"; }
-  else if (p.dim === "llang") f.olangs = [v];
-  else if (p.dim === "lversion") f.versions = [v];
-  else if (p.dim === "lreleased") f.pub = v === "Antiquity" ? [-5000, 499] : v === "Before 1700" ? [500, 1699] : v.endsWith("00s") && +v.slice(0, 4) < 1900 ? [+v.slice(0, 4), +v.slice(0, 4) + 99] : [+v.slice(0, 4), +v.slice(0, 4) + 9];
+  const f = Object.assign(NOF(), JSON.parse(JSON.stringify(st.vf))), v = p.val, catsNamed = n => (LIB.categories || []).filter(c => c.name === n).map(c => c.id);
+  let q = "", filter = "all";
+  const many = (k, xs) => { f[k] = [...new Set([...(f[k].length ? f[k].filter(x => xs.includes(x)) : xs)])]; };
+  if (p.dim === "period" || p.dim === "upto") {
+    const [g, key] = v.split("@"), first = LIB.items.flatMap(i => readKeys(i, g)).sort()[0] || key;
+    f.read = {g, from: p.dim === "upto" ? first : key, to: key}; st.fwin.read = {g, year: g !== "year" && p.dim === "period" ? key.slice(0, 4) : "", month: ""};
+  } else if (p.dim === "rating") f.rating = [+v, +v];
+  else if (p.dim === "author" || p.dim === "lauthor") q = v === "__other" ? "" : v;
+  else if (p.dim === "genre" || p.dim === "lcat") many("cats", (p.vals || [v]).flatMap(catsNamed));
+  else if (p.dim === "readin") many("langs", p.vals || [v]);
+  else if (p.dim === "original" || p.dim === "llang") many("olangs", p.vals || [v]);
+  else if (p.dim === "lversion") many("versions", p.vals || [v]);
+  else if (p.dim === "lreleased") f.pub = v === "Antiquity" ? [-5000, 499] : v === "Before 1700" ? [500, 1699] : +v.slice(0, 4) < 1900 ? [+v.slice(0, 4), +v.slice(0, 4) + 99] : [+v.slice(0, 4), +v.slice(0, 4) + 9];
+  if (["author", "genre", "original"].includes(p.dim) && !f.status.length && !f.read) f.status = ["completed"];
+  if (f.status.length === 1) { filter = f.status[0]; f.status = []; }
   Object.assign(st, {f, q, filter, sec: "database", kind: "book", shelf: allShelf("book")?.id, view: "shelf", selected: null, listSort: null});
   saveF(); save("sec", st.sec); render(); scrollTo({top: 0});
 }
-function heatmap(activity) {
-  const days = new Map(activity.map(a => [a.day, a.events])), today = new Date(), cells = [];
-  const start = new Date(today); start.setDate(start.getDate() - 364 - ((start.getDay() + 6) % 7));
-  const cw = 10, gap = 2, W = 53 * (cw + gap) + 30, H = 7 * (cw + gap) + 22;
+
+// ------------------------------------------------------- reading calendar
+function heatmap(counts, start, end, label) {
+  const cells = [], cw = 10, gap = 2, s = new Date(start + "T00:00:00Z"), e = new Date(end + "T00:00:00Z");
+  s.setUTCDate(s.getUTCDate() - ((s.getUTCDay() + 6) % 7));                    // weeks start on Monday
+  const weeks = Math.ceil(((e - s) / 864e5 + 1) / 7), W = weeks * (cw + gap) + 30, H = 7 * (cw + gap) + 22;
   let months = "";
-  for (let i = 0, d = new Date(start); d <= today; i++, d.setDate(d.getDate() + 1)) {
-    const w = Math.floor(i / 7), wd = i % 7, key = d.toISOString().slice(0, 10), n = days.get(key) || 0;
-    const lvl = n === 0 ? 0 : n === 1 ? 2 : n === 2 ? 3 : 4;
-    cells.push(`<rect class="heat${lvl}" x="${30 + w * (cw + gap)}" y="${16 + wd * (cw + gap)}" width="${cw}" height="${cw}" rx="2" data-tip="${esc(key + (n ? " · " + n + " event" + (n > 1 ? "s" : "") : " · nothing"))}"/>`);
-    if (d.getDate() === 1) months += `<text x="${30 + w * (cw + gap)}" y="10">${d.toLocaleString("en", {month: "short"})}</text>`;
+  for (let i = 0, d = new Date(s); d <= e; i++, d.setUTCDate(d.getUTCDate() + 1)) {
+    const key = d.toISOString().slice(0, 10); if (key < start) continue;
+    const w = Math.floor(i / 7), wd = i % 7, n = counts.get(key) || 0, lvl = n === 0 ? 0 : n === 1 ? 2 : n === 2 ? 3 : 4;
+    const p = n ? {dim: "day", val: key, label: "Activity on " + fmtKey(key), from: "calendar"} : null;
+    cells.push(`<rect class="heat${lvl}${isPicked(p) ? " on" : ""}" x="${30 + w * (cw + gap)}" y="${16 + wd * (cw + gap)}" width="${cw}" height="${cw}" rx="2" data-tip="${esc(fmtKey(key) + (n ? " · " + n + " event" + (n > 1 ? "s" : "") : " · nothing"))}"${n ? ` tabindex="0"${pickAttr(p)}` : ""}/>`);
+    if (d.getUTCDate() === 1) months += `<text x="${30 + w * (cw + gap)}" y="10">${MONTHS[d.getUTCMonth()]}</text>`;
   }
-  return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:${W}px;max-width:none" role="img" aria-label="Reading calendar, last 12 months">${months}
-    <text x="0" y="${16 + 0 * 12 + 9}">Mon</text><text x="0" y="${16 + 4 * 12 + 9}">Fri</text>${cells.join("")}</svg></div>`;
+  return `<div class="calrow">${label ? `<div class="calyear">${label}</div>` : ""}<div class="chartscroll"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:${W}px;max-width:none" role="img" aria-label="Reading calendar ${esc(label || "")}">${months}
+    <text x="0" y="${16 + 9}">Mon</text><text x="0" y="${16 + 4 * 12 + 9}">Fri</text>${cells.join("")}</svg></div></div>`;
 }
-// Reading over time, from the books' finished readings: per year, month or day, narrowed to one year (and month);
-// a reading known to the year only counts in the year view.
+function calendarCard(books) {
+  const counts = new Map();
+  for (const i of books) for (const d of daysIn(i)) counts.set(d, (counts.get(d) || 0) + 1);
+  const today = new Date().toISOString().slice(0, 10), thisYear = today.slice(0, 4);
+  const years = [...new Set([thisYear, ...[...counts.keys()].map(d => d.slice(0, 4))])].sort().reverse();
+  if (st.cal !== "last" && st.cal !== "all" && !years.includes(st.cal)) st.cal = "last";
+  const ago = new Date(); ago.setUTCDate(ago.getUTCDate() - 364);
+  const body = st.cal === "last" ? heatmap(counts, ago.toISOString().slice(0, 10), today)
+    : st.cal === "all" ? years.map(y => heatmap(counts, y + "-01-01", y === thisYear ? today : y + "-12-31", y)).join("")
+    : heatmap(counts, st.cal + "-01-01", st.cal === thisYear ? today : st.cal + "-12-31");
+  const tools = `<select id="cal-span" aria-label="Calendar span" style="margin-left:auto"><option value="last" ${st.cal === "last" ? "selected" : ""}>Last 12 months</option>${years.map(y => `<option ${st.cal === y ? "selected" : ""}>${y}</option>`).join("")}<option value="all" ${st.cal === "all" ? "selected" : ""}>All years</option></select>`;
+  return card("calendar", "Reading calendar", counts.size ? "Days you started, finished or made progress. Click a day for its books." : "Fills in from now on: dated starts, finishes and Readest progress. The imported readings have no days.", body, null, true, tools);
+}
+
+// ------------------------------------------------------- reading over time
+// Per year, month or day, per period or cumulative; the x axis has its own range at each level (a slider), and
+// the chart scrolls sideways when the range is long. A reading known to the year only counts in the year view.
 function keyRange(a, b, g) {
   const out = [];
   if (g === "year") { for (let y = +a; y <= +b; y++) out.push(String(y)); return out; }
   const d = new Date(Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, g === "day" ? +a.slice(8, 10) : 1));
-  for (let n = 0; n < 5000; n++) {
+  for (let n = 0; n < 20000; n++) {
     const k = d.toISOString().slice(0, G_LEN[g]); if (k > b) break; out.push(k);
     if (g === "day") d.setUTCDate(d.getUTCDate() + 1); else d.setUTCMonth(d.getUTCMonth() + 1);
   }
   return out;
 }
-function timeCard() {
-  const T = st.time, g = T.g, now = new Date().toISOString(), counts = new Map(), years = new Set();
+function timeData(books) {
+  const T = st.time, g = T.g, counts = new Map();
   let hidden = 0;
-  for (const i of LIB.items) if (i.kind === "book") for (const r of i.reads || []) {
+  for (const i of books) for (const r of readsIn(i)) {
     if (!r[0]) continue;
-    if (G_RANK[r[1]] < G_RANK[g]) { if (!T.year || r[0].startsWith(T.year)) hidden++; continue; }
-    const k = r[0].slice(0, G_LEN[g]); years.add(k.slice(0, 4));
-    if (T.year && !k.startsWith(T.year) || g === "day" && T.month && k.slice(5, 7) !== T.month) continue;
-    const e = counts.get(k) || {books: 0, pages: 0}; e.books++; e.pages += r[3] || 0; counts.set(k, e);
+    if (G_RANK[r[1]] < G_RANK[g]) { hidden++; continue; }
+    const k = r[0].slice(0, G_LEN[g]), e = counts.get(k) || {books: 0, pages: 0};
+    e.books++; e.pages += r[3] || 0; counts.set(k, e);
   }
-  if (T.year && !years.has(T.year)) { T.year = ""; T.month = ""; return timeCard(); }
-  const keys = [...counts.keys()].sort(), last = (a, b) => a > b ? a : b;
-  let range = [];
-  if (g === "day" && T.year && T.month) range = keyRange(`${T.year}-${T.month}-01`, `${T.year}-${T.month}-31`, g).filter(k => k.slice(5, 7) === T.month);
-  else if (T.year && g !== "year") range = keyRange(T.year + (g === "month" ? "-01" : "-01-01"), T.year + (g === "month" ? "-12" : "-12-31"), g);
-  else if (keys.length) range = keyRange(keys[0], last(keys[keys.length - 1], now.slice(0, G_LEN[g])), g);
-  const metric = T.metric, unit = metric === "pages" ? "pages" : "books";
-  const label = k => g === "year" ? k : g === "month" ? MONTHS[k.slice(5, 7) - 1] + (T.year ? "" : " ’" + k.slice(2, 4)) : `${+k.slice(8, 10)} ${MONTHS[k.slice(5, 7) - 1]}`;
-  const rows = range.map(k => { const e = counts.get(k) || {books: 0, pages: 0}, v = e[metric];
-    return {label: label(k), value: v, tip: `<b>${fmtNum(v)}</b> ${unit} · ${esc(fmtKey(k))}`, pick: {dim: "period", val: g + "@" + k, label: "Read in " + fmtKey(k), from: "time"}}; });
-  // drawn at its real size (the card is wide: a stretched chart would blow its text up), scrolling when longer
-  const band = {year: 34, month: 26, day: 11}[g], avail = Math.max(300, ($("v-visuals")?.clientWidth || 900) - 34);
-  const width = Math.max(avail, 30 + rows.length * Math.min(band, 60));
-  const seg = (key, opts) => `<span class="segsmall" role="group">${opts.map(([v, l]) => `<button data-tm="${key}:${v}" aria-pressed="${T[key] === v}">${l}</button>`).join("")}</span>`;
-  const yearList = [...years].sort();
-  const ctl = `<div class="ctlrow">${seg("metric", [["books", "Books"], ["pages", "Pages"]])}${seg("g", [["year", "Year"], ["month", "Month"], ["day", "Day"]])}
-    ${g !== "year" ? `<select id="tm-year" aria-label="Year"><option value="">All years</option>${yearList.map(y => `<option ${T.year === y ? "selected" : ""}>${y}</option>`).join("")}</select>` : ""}
-    ${g === "day" && T.year ? `<select id="tm-month" aria-label="Month"><option value="">All months</option>${MONTHS.map((m, n) => { const v = String(n + 1).padStart(2, "0"); return `<option value="${v}" ${T.month === v ? "selected" : ""}>${m}</option>`; }).join("")}</select>` : ""}</div>`;
-  const note = (hidden ? `${hidden} reading${hidden === 1 ? "" : "s"} known to the ${g === "day" ? "year or month" : "year"} only ${hidden === 1 ? "isn't" : "aren't"} in this view. ` : "")
-    + (metric === "pages" ? "Pages of the edition read, where known. " : "") + "Click a bar for its books.";
-  const body = ctl + (rows.length ? columnChart("ch-time", rows, {aria: `${unit} read per ${g}`, width, sig: [g, T.year, T.month, metric].join("|")}) : `<p class="muted">No readings dated to the ${g} yet. Add the month or day when you edit a reading; new readings get their day.</p>`);
-  return card("time", metric === "pages" ? "Pages read over time" : "Books read over time", note, body,
-    ctl + tableView(["Period", "Books", "Pages"], range.filter(k => counts.has(k)).map(k => [fmtKey(k), counts.get(k).books, counts.get(k).pages])), true);
+  const keys = [...counts.keys()].sort(), now = new Date().toISOString().slice(0, G_LEN[g]);
+  const dom = keys.length ? keyRange(keys[0], keys[keys.length - 1] > now ? keys[keys.length - 1] : now, g) : [];
+  let run = 0;
+  const series = dom.map(k => { const e = counts.get(k) || {books: 0, pages: 0}; run += e[T.metric]; return {k, v: e[T.metric], cum: run, e}; });
+  const ax = T.axis[g], lo = ax ? Math.max(0, dom.findIndex(k => k >= ax[0])) : 0, hiF = ax ? dom.findLastIndex(k => k <= ax[1]) : dom.length - 1;
+  return {g, dom, series, hidden, lo, hi: hiF < lo ? dom.length - 1 : hiF, counts};
 }
+function timePlot(D) {
+  const T = st.time, g = D.g, unit = T.metric === "pages" ? "pages" : "books";
+  if (!D.dom.length) return `<p class="muted">No readings dated to the ${g} with this filter. Add the month or day when you edit a reading; new readings get their day.</p>`;
+  const rows = D.series.slice(D.lo, D.hi + 1), short = D.hi - D.lo < 24;
+  const label = k => g === "year" ? k : g === "month" ? MONTHS[k.slice(5, 7) - 1] + " ’" + k.slice(2, 4) : `${+k.slice(8, 10)} ${MONTHS[k.slice(5, 7) - 1]}${short ? "" : " ’" + k.slice(2, 4)}`;
+  const band = {year: 34, month: 26, day: 11}[g], avail = Math.max(300, ($("v-visuals")?.clientWidth || 900) - 34);
+  return columnChart("ch-time", rows.map(r => {
+    const v = T.cum ? r.cum : r.v;
+    return {label: label(r.k), value: v, tip: `<b>${fmtNum(v)}</b> ${unit} ${T.cum ? "up to" : "·"} ${esc(fmtKey(r.k))}`,
+      pick: T.cum ? {dim: "upto", val: g + "@" + r.k, label: "Read up to " + fmtKey(r.k), from: "time"} : {dim: "period", val: g + "@" + r.k, label: "Read in " + fmtKey(r.k), from: "time"}};
+  }), {aria: `${unit} read per ${g}`, width: Math.max(avail, 34 + rows.length * band), sig: [g, T.metric, T.cum, D.lo, D.hi].join("|")});
+}
+function timeCard(books) {
+  const T = st.time, D = timeData(books), g = D.g;
+  const seg = (key, opts) => `<span class="segsmall" role="group">${opts.map(([v, l]) => `<button data-tm="${key}:${v}" aria-pressed="${String(T[key]) === v}">${l}</button>`).join("")}</span>`;
+  FDOM.axis = {dom: D.dom, fmt: fmtKey, live: (lo, hi) => {
+      T.axis[g] = lo === 0 && hi === D.dom.length - 1 ? null : [D.dom[lo], D.dom[hi]];
+      D.lo = lo; D.hi = hi; const el = $("time-plot"); if (el) el.innerHTML = timePlot(D);
+    }, done: () => save("time2", st.time)};
+  const axis = D.dom.length > 1 ? `<div class="axisctl"><span class="muted">X axis</span><div style="flex:1;min-width:180px">${dualHtml("axis", "X axis", T.axis[g])}</div>${T.axis[g] ? `<button class="linkbtn" data-tm="axis:reset">Full range</button>` : ""}</div>` : "";
+  const ctl = `<div class="ctlrow">${seg("metric", [["books", "Books"], ["pages", "Pages"]])}${seg("cum", [["false", "Per period"], ["true", "Cumulative"]])}${seg("g", [["year", "Year"], ["month", "Month"], ["day", "Day"]])}</div>`;
+  const note = (D.hidden ? `${D.hidden} reading${D.hidden === 1 ? "" : "s"} known to the ${g === "day" ? "year or month" : "year"} only ${D.hidden === 1 ? "isn't" : "aren't"} in this view. ` : "")
+    + (T.metric === "pages" ? "Pages of the edition read, where known. " : "") + "Click a bar for its books.";
+  const title = (T.metric === "pages" ? "Pages" : "Books") + " read over time" + (T.cum ? " (cumulative)" : "");
+  return card("time", title, note, ctl + axis + `<div id="time-plot">${timePlot(D)}</div>`,
+    ctl + tableView(["Period", "Books", "Pages"], D.dom.slice(D.lo, D.hi + 1).filter(k => D.counts.has(k)).map(k => [fmtKey(k), D.counts.get(k).books, D.counts.get(k).pages])), true);
+}
+
+// ----------------------------------------------------------------- pages
+function visualsHead(kindLabel, vtabs) {
+  const active = activeFilters(st.vf);
+  return `<div class="toolbar"><h2>${kindLabel}</h2>${vtabs}
+      <button class="btn small" id="vfilter-btn" aria-expanded="${st.fpane}" aria-controls="fpane" title="Filter every chart on this page">Page filter${active.length ? `<span class="fbadge">${active.length}</span>` : ""}</button></div>
+    ${active.length ? `<div class="activef" role="group" aria-label="Page filters">${active.map(([k, label]) => `<button class="chip" data-fclear="${esc(k)}" title="Remove this filter">${esc(label)}<span aria-hidden="true">×</span></button>`).join("")}<button class="linkbtn" data-fclear="*">Clear all</button></div>` : ""}`;
+}
+const vtile = (label, value, sub) => `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>`;
 function renderVisuals() {
   const v = $("v-visuals"), kindLabel = KINDS.find(k => k[0] === st.kind)[1];
   if (st.kind !== "book") {
@@ -1694,70 +1824,63 @@ function renderVisuals() {
     return;
   }
   const vtabs = `<span class="segsmall" role="group" aria-label="Which statistics"><button id="vt-me" data-vtab="me" aria-pressed="${st.vtab !== "library"}">My reading</button><button id="vt-library" data-vtab="library" aria-pressed="${st.vtab === "library"}">The library</button></span>`;
-  if (st.vtab === "library") return renderLibraryStats(v, kindLabel, vtabs);
-  const S = STATS;
-  if (!S) { v.innerHTML = `<p class="empty">Loading statistics…</p>`; return; }
-  const T = S.tiles;
-  const ratingRows = Array.from({length: 11}, (_, b) => ({label: String(b), value: (S.ratings.find(r => r.bucket === b) || {}).books || 0}));
-  const tile = (label, value, sub) => `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>`;
+  const books = VB(), head = visualsHead(kindLabel, vtabs);
+  if (st.vtab === "library") return renderLibraryStats(v, head, books);
+  const year = String(new Date().getFullYear()), reads = books.flatMap(i => readsIn(i).map(r => ({i, r})));
+  const yr = reads.filter(x => x.r[0].startsWith(year)), rated = yr.filter(x => x.i.rating != null);
+  const firstYear = reads.map(x => x.r[0].slice(0, 4)).sort()[0];
   const pk = (dim, val, label, from) => ({dim, val: String(val ?? ""), label, from});
   const lang = c => c ? langName(c) : "not recorded";
+  const ratingRows = Array.from({length: 11}, (_, b) => { const n = books.filter(i => i.rating != null && Math.floor(i.rating) === b).length;
+    return {label: String(b), value: n, tip: `<b>${n}</b> books rated ${b}`, pick: pk("rating", b, "Rated " + b + "/10", "ratings")}; });
+  const readBooks = books.filter(wasRead);
+  const shares = (id, dim, pairs, label) => tally(pairs).map(r => ({label: r.label, value: r.value, pick: pk(dim, r.key, label(r.label), id)}));
+  const current = books.filter(i => ["in_progress", "paused"].includes(i.status));
   const cards = [
-    ["time", timeCard()],
-    ["ratings", card("ratings", "Ratings", "Your 0–10 ratings, one per book.", columnChart("ch-ratings", ratingRows.map(r => ({...r, tip: `<b>${r.value}</b> books rated ${r.label}`, pick: pk("rating", r.label, "Rated " + r.label + "/10", "ratings")})), {aria: "Rating distribution"}),
+    ["time", timeCard(books)],
+    ["ratings", card("ratings", "Ratings", "Your 0–10 ratings, one per book.", columnChart("ch-ratings", ratingRows, {aria: "Rating distribution"}),
       tableView(["Rating", "Books"], ratingRows.map(r => [r.label, r.value])))],
-    ["authors", card("authors", "Most read authors", "", hbars(S.authors.map(a => ({label: a.name, value: a.books, pick: pk("author", a.name, "Read: " + a.name, "authors")}))), null)],
-    ["genres", card("genres", "Genres", "Books read with each genre.", hbars(S.genres.filter(g => g.read).map(g => ({label: g.name, value: g.read, pick: pk("genre", g.name, "Read: " + g.name, "genres")}))), null)],
-    ["readin", card("readin", "Language you read in", "", hbars(S.readIn.map(r => ({label: lang(r.lang), value: r.books, pick: pk("readin", r.lang, "Read in " + lang(r.lang), "readin")}))), null)],
-    ["original", card("original", "Original language", "", hbars(S.original.map(r => ({label: lang(r.lang), value: r.books, pick: pk("original", r.lang, "Read, written in " + lang(r.lang), "original")}))), null)],
-    ["calendar", card("calendar", "Reading calendar", S.activity.length ? "Days you started, finished or made progress." : "Fills in from now on: dated starts, finishes and Readest progress. The imported readings have no days.", heatmap(S.activity), null, true)],
-    ["current", card("current", "Reading now", "", S.current.length ? S.current.map(c => `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.title)}</b><span class="muted">${c.pct != null ? Math.round(c.pct) + "%" : c.progressPages ? c.progressPages + " p." : ""}</span></div><div class="muted" style="font-size:12px">${esc(c.authors || "")}</div>${c.pct != null ? `<div class="meter"><div style="width:${c.pct}%"></div></div>` : ""}</div>`).join("") : `<p class="muted">Nothing in progress. Mark a book as Reading to see it here.</p>`, null)],
+    ["authors", shareCard("authors", "Most read authors", "Books read by each author.", shares("authors", "author", readBooks.flatMap(i => authorsOf(i).map(a => [a, a])), l => "Read: " + l), "Author")],
+    ["genres", shareCard("genres", "Genres", "Books read with each genre.", shares("genres", "genre", readBooks.flatMap(i => i.genres.map(g => [g, g])), l => "Read: " + l), "Genre")],
+    ["readin", shareCard("readin", "Language you read in", "Readings, by the language you read them in.", shares("readin", "readin", reads.map(x => [x.r[2] || "", lang(x.r[2])]), l => "Read in " + l), "Language")],
+    ["original", shareCard("original", "Original language", "Books read, by the language they were written in.", shares("original", "original", readBooks.map(i => [i.origLang || "", lang(i.origLang)]), l => "Read, written in " + l), "Language")],
+    ["calendar", calendarCard(books)],
+    ["current", card("current", "Reading now", "", current.length ? current.map(c => `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.title)}</b><span class="muted">${c.progress != null ? Math.round(c.progress) + "%" : ""}</span></div><div class="muted" style="font-size:12px">${esc(c.authors || "")}</div>${c.progress != null ? `<div class="meter"><div style="width:${c.progress}%"></div></div>` : ""}</div>`).join("") : `<p class="muted">Nothing in progress${activeFilters(st.vf).length ? " among these books" : ". Mark a book as Reading to see it here"}.</p>`, null)],
   ];
-  paintVisuals(v, `<div class="toolbar"><h2>${kindLabel}</h2>${vtabs}</div>
-    <div class="tiles">${tile("Read in " + S.year, T.readThisYear, "books")}${tile("Pages in " + S.year, T.pagesThisYear.toLocaleString("en"), "")}
-      ${tile("Average rating " + S.year, T.avgRatingThisYear != null ? T.avgRatingThisYear + "/10" : "—", "of the books rated")}${tile("Read in total", T.readTotal, "since " + (S.byYear[0]?.year || "—"))}
-      ${tile("To read", T.toRead, "")}${tile("Reading now", T.reading, "")}</div>`, cards);
+  paintVisuals(v, head + `<div class="tiles">${vtile("Read in " + year, yr.length, "books")}${vtile("Pages in " + year, yr.reduce((a, x) => a + (x.r[3] || 0), 0).toLocaleString("en"), "")}
+      ${vtile("Average rating " + year, rated.length ? (Math.round(rated.reduce((a, x) => a + x.i.rating, 0) / rated.length * 100) / 100) + "/10" : "—", "of the books rated")}${vtile("Read in total", reads.length, firstYear ? "since " + firstYear : "")}
+      ${vtile("To read", books.filter(i => i.status === "planned").length, "")}${vtile("Reading now", current.length, "")}</div>`, cards);
 }
 // draws the cards with the picked bar's books after its chart, and keeps the sideways scroll of the time chart
 function paintVisuals(v, head, cards) {
-  if (st.pick && (!cards.some(([id]) => id === st.pick.from) || st.pick.scope && st.pick.scope !== st.vscope)) st.pick = null;
-  const old = v.querySelector(".chartscroll"), was = old ? {sig: old.dataset.sig, left: old.scrollLeft} : null;
+  if (st.pick && !cards.some(([id]) => id === st.pick.from)) st.pick = null;
+  const old = v.querySelector("#card-time .chartscroll"), was = old ? {sig: old.dataset.sig, left: old.scrollLeft} : null, top = scrollY;
   v.innerHTML = head + `<div class="charts">${cards.map(([id, html]) => html + (st.pick?.from === id ? pickCard() : "")).join("")}</div>`;
-  for (const sc of v.querySelectorAll(".chartscroll")) sc.scrollLeft = was && was.sig === sc.dataset.sig ? was.left : sc.scrollWidth;
+  for (const sc of v.querySelectorAll("#card-time .chartscroll")) sc.scrollLeft = was && was.sig === sc.dataset.sig ? was.left : sc.scrollWidth;
+  for (const sc of v.querySelectorAll("#card-calendar .chartscroll")) sc.scrollLeft = sc.scrollWidth;
+  scrollTo({top});
+  if (st.fpane && !fDrag) renderFilterPane();
 }
-async function renderLibraryStats(v, kindLabel, vtabs) {
-  const scopes = [["all", "All books"], ["read", "Read"], ["unread", "Not read yet"]];
-  const head = `<div class="toolbar"><h2>${kindLabel}</h2>${vtabs}<div class="chips" role="group" aria-label="Which books">${scopes.map(([k, l]) =>
-    `<button class="chip" id="vs-${k}" data-vscope="${k}" aria-pressed="${st.vscope === k}">${l}</button>`).join("")}</div></div>`;
-  if (!st.LSTATS || st.LSTATS.scope !== st.vscope) {
-    v.innerHTML = head + `<p class="empty">Loading…</p>`;
-    try { st.LSTATS = await api.libraryStats(st.vscope); } catch (e) { v.innerHTML = head + `<p class="empty">Could not load: ${esc(e.message)}</p>`; return; }
-    if (st.sec !== "visuals" || st.vtab !== "library") return;
-  }
-  const S = st.LSTATS, T = S.tiles, scope = st.vscope;
-  const tile = (label, value, sub) => `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>`;
-  const groupNote = S.groups.map(g => `${g.name} ${g.books}`).join(" · ");
-  const pk = (dim, val, label, from) => ({dim, val: String(val ?? ""), label, from, scope});
+function renderLibraryStats(v, head, books) {
+  const pk = (dim, val, label, from) => ({dim, val: String(val ?? ""), label, from});
   const lang = c => c ? langName(c) : "not recorded";
-  const scoped = LIB.items.filter(i => i.kind === "book" && (scope === "all" || (scope === "read") === (i.status === "completed")));
-  const vers = [...VERSIONS.map(([k, l]) => [k, l]), ["", "Not set"]].map(([k, l]) => ({label: l, value: scoped.filter(i => (versionOf(i) || "") === k).length,
-    pick: pk("lversion", k, l === "Not set" ? "Version not set" : l, "lversion")})).filter(r => r.value);
+  const shares = (id, dim, pairs, label) => tally(pairs).map(r => ({label: r.label, value: r.value, pick: pk(dim, r.key, label(r.label), id)}));
+  const cats = shares("lcats", "lcat", books.flatMap(i => [...new Set((i.cats || []).filter(c => (LIB.categories || []).find(x => x.id === c)?.parent != null).map(catName))].map(n => [n, n])), l => l);
+  const groups = tally(books.flatMap(i => [...new Set((i.cats || []).map(c => { const x = (LIB.categories || []).find(y => y.id === c); return x ? (x.parent != null ? catName(x.parent) : x.name) : null; }).filter(Boolean))].map(n => [n, n])));
+  const authors = new Set(books.flatMap(authorsOf)), years = books.map(i => i.published).filter(y => y != null);
+  const released = tally(books.filter(i => i.published != null).map(i => [releaseBucket(i.published), releaseBucket(i.published)]))
+    .sort((a, b) => ({Antiquity: -1000, "Before 1700": 1000}[a.key] ?? parseInt(a.key)) - ({Antiquity: -1000, "Before 1700": 1000}[b.key] ?? parseInt(b.key)));
   const cards = [
-    ["lcats", card("lcats", "Categories", groupNote || "No categories yet.", hbars(S.categories.map(c => ({label: c.name, value: c.books, pick: pk("lcat", c.name, c.name, "lcats")}))),
-      tableView(["Category", "Books"], S.categories.map(c => [c.name, c.books])))],
-    ["llang", card("llang", "Original language", "The language each book was written in.", hbars(S.languages.map(r => ({label: lang(r.lang), value: r.books, pick: pk("llang", r.lang, "Written in " + lang(r.lang), "llang")}))),
-      tableView(["Language", "Books"], S.languages.map(r => [lang(r.lang), r.books])))],
-    ["lversion", card("lversion", "Version", "Paper, ebook or audiobook: the edition you have, else how you last read it.", hbars(vers),
-      tableView(["Version", "Books"], vers.map(r => [r.label, r.value])))],
-    ["lauthors", card("lauthors", "Authors", "Most books in the library.", hbars(S.authors.map(a => ({label: a.name, value: a.books, pick: pk("lauthor", a.name, a.name, "lauthors")}))),
-      tableView(["Author", "Books"], S.authors.map(a => [a.name, a.books])))],
-    ["lreleased", card("lreleased", "Released", "First published (or this edition's year), by decade.", columnChart("ch-released", S.released.map(r => ({label: r.label, value: r.books, tip: `<b>${r.books}</b> books · ${esc(r.label)}`, pick: pk("lreleased", r.label, "Released: " + r.label, "lreleased")})), {aria: "Books by release decade"}),
-      tableView(["Released", "Books"], S.released.map(r => [r.label, r.books])))],
+    ["lcats", shareCard("lcats", "Categories", groups.map(g => `${esc(g.label)} ${g.value}`).join(" · ") || "No categories yet.", cats, "Category")],
+    ["llang", shareCard("llang", "Original language", "The language each book was written in.", shares("llang", "llang", books.map(i => [i.origLang || "", lang(i.origLang)]), l => "Written in " + l), "Language")],
+    ["lversion", shareCard("lversion", "Version", "Paper, ebook or audiobook: the edition you have, else how you last read it.", shares("lversion", "lversion", books.map(i => [versionOf(i) || "", versionLabel(versionOf(i))]), l => l === "Not set" ? "Version not set" : l), "Version")],
+    ["lauthors", shareCard("lauthors", "Authors", "Books in the library by each author.", shares("lauthors", "lauthor", books.flatMap(i => authorsOf(i).map(a => [a, a])), l => l), "Author")],
+    ["lreleased", card("lreleased", "Released", "First published (or this edition's year), by decade.", columnChart("ch-released", released.map(r => ({label: r.label, value: r.value, tip: `<b>${r.value}</b> books · ${esc(r.label)}`, pick: pk("lreleased", r.key, "Released: " + r.label, "lreleased")})), {aria: "Books by release decade"}),
+      tableView(["Released", "Books"], released.map(r => [r.label, r.value])))],
   ];
-  paintVisuals(v, head + `
-    <div class="tiles">${tile("Books", T.books, scope === "all" ? "in the library" : scope === "read" ? "read" : "not read yet")}${tile("Authors", T.authors, "")}
-      ${tile("Original languages", T.languages, "")}${tile("Categories", T.categories, "")}
-      ${tile("Released", T.oldest != null ? (T.oldest < 0 ? -T.oldest + " BC" : T.oldest) + "–" + T.newest : "—", T.noRelease ? T.noRelease + " without a year" : "oldest to newest")}</div>`, cards);
+  paintVisuals(v, head + `<div class="tiles">${vtile("Books", books.length, activeFilters(st.vf).length ? "with this filter" : "in the library")}${vtile("Authors", authors.size, "")}
+      ${vtile("Original languages", new Set(books.map(i => i.origLang).filter(Boolean)).size, "")}${vtile("Categories", cats.length, "")}
+      ${vtile("Released", years.length ? fmtYear(Math.min(...years)) + "–" + Math.max(...years) : "—", books.length - years.length ? books.length - years.length + " without a year" : "oldest to newest")}</div>`, cards);
 }
 function choosePick(el) {
   const p = JSON.parse(el.dataset.pick);
@@ -1771,19 +1894,21 @@ document.addEventListener("focusin", e => { const g = e.target.closest?.("[data-
 document.addEventListener("focusout", hideTip);
 document.addEventListener("click", e => {
   const b = e.target.closest?.("[data-tv]"); if (b) { save("tv-" + b.dataset.tv, !load("tv-" + b.dataset.tv, false)); renderVisuals(); return; }
+  const ct = e.target.closest?.("[data-ctype]"); if (ct) { const [id, kind] = ct.dataset.ctype.split(":"); save("chart-" + id, kind); save("tv-" + id, false); renderVisuals(); return; }
   const p = e.target.closest?.("#v-visuals [data-pick]"); if (p) { choosePick(p); return; }
   const tm = e.target.closest?.("[data-tm]");
-  if (tm) { const [k, val] = tm.dataset.tm.split(":"); st.time[k] = val; if (k === "g" && val !== "day") st.time.month = ""; save("time", st.time); renderVisuals(); return; }
+  if (tm) { const [k, val] = tm.dataset.tm.split(":");
+    if (k === "axis") st.time.axis[st.time.g] = null; else st.time[k] = k === "cum" ? val === "true" : val;
+    save("time2", st.time); renderVisuals(); return; }
   if (e.target.closest?.("#pick-x")) { st.pick = null; renderVisuals(); return; }
   if (e.target.closest?.("#pick-db") && st.pick) { const p = st.pick; st.pick = null; pickToDatabase(p); }
 });
 document.addEventListener("keydown", e => {
   const p = e.target.closest?.("#v-visuals [data-pick]");
-  if (p && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); choosePick(p); const again = document.querySelector(`#v-visuals [data-pick="${CSS.escape(p.dataset.pick)}"]`); again?.focus(); }
+  if (p && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); choosePick(p); document.querySelector(`#v-visuals [data-pick="${CSS.escape(p.dataset.pick)}"]`)?.focus(); }
 });
 document.addEventListener("change", e => {
-  if (e.target.id === "tm-year") { st.time.year = e.target.value; st.time.month = ""; save("time", st.time); renderVisuals(); }
-  if (e.target.id === "tm-month") { st.time.month = e.target.value; save("time", st.time); renderVisuals(); }
+  if (e.target.id === "cal-span") { st.cal = e.target.value; save("cal", st.cal); renderVisuals(); }
 });
 
 // --------------------------------------------------------- preview store
@@ -1993,8 +2118,10 @@ const hashSec = location.hash.slice(1); if (["database", "visuals", "sync"].incl
 if (!["database", "visuals", "sync"].includes(st.sec)) st.sec = "database";
 st.side = load("side", true) !== false; applySide();
 st.f = Object.assign(NOF(), load("filter", {}));
-Object.assign(st.time, load("time", {}));
+Object.assign(st.time, load("time2", {})); st.cal = load("cal", "last");
 st.fwin = {read: {g: st.f.read?.g || "year", year: "", month: ""}, added: {g: st.f.added?.g || "year", year: "", month: ""}};
+st.vf = Object.assign(NOF(), load("vfilter", {}));
+st.vfwin = {read: {g: st.vf.read?.g || "year", year: "", month: ""}, added: {g: st.vf.added?.g || "year", year: "", month: ""}};
 refresh();
 </script>
 </body>

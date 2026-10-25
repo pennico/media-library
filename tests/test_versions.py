@@ -50,3 +50,4 @@ def test_readings_have_a_medium(site):  # noqa: F811
     assert c.call("PATCH", "api/readings/" + rid, {"medium": ""})[0] == 200
     i = library_item(c, pid)
     assert i["medium"] == "ebook" and i["reads"] == [["2019-01-01", "year", None, None, None]]
+    assert i["days"] == ["2025-03-02"]                                # the start, for the calendar

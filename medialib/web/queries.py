@@ -41,6 +41,14 @@ SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locke
                          ORDER BY c.ended_on, c.id)
           FROM library.consumption c LEFT JOIN catalog.edition ce ON ce.id = c.edition_id AND ce.deleted_at IS NULL
          WHERE c.item_id = i.id AND c.state = 'completed' AND c.ended_on IS NOT NULL AND c.deleted_at IS NULL) AS reads,
+       -- days with dated activity (start, finish, progress), as stats.activity_days counts them, for the calendar
+       (SELECT jsonb_agg(d.day ORDER BY d.day) FROM (
+          SELECT c.started_on AS day FROM library.consumption c
+           WHERE c.item_id = i.id AND c.started_precision = 'day' AND c.deleted_at IS NULL
+          UNION ALL SELECT c.ended_on FROM library.consumption c
+           WHERE c.item_id = i.id AND c.ended_precision = 'day' AND c.deleted_at IS NULL
+          UNION ALL SELECT (c.progress_at AT TIME ZONE 'Europe/Copenhagen')::date FROM library.consumption c
+           WHERE c.item_id = i.id AND c.progress_at IS NOT NULL AND c.deleted_at IS NULL) d) AS days,
        cv.sha256 AS cover_sha
   FROM catalog.media_item i
   JOIN library.entry e ON e.item_id = i.id AND e.deleted_at IS NULL
@@ -81,7 +89,7 @@ def summary(r):
         "published": r["first_published"] or r["published"], "added": r["added_at"].date().isoformat(),
         "hasReview": r["has_review"], "cover": thumb_url(r["cover_sha"], 320),
         "cats": r["cat_ids"] or [], "hasFile": r["has_file"], "format": r["format"], "medium": r["medium"],
-        "reads": r["reads"] or [],
+        "reads": r["reads"] or [], "days": r["days"] or [],
     }
 
 
