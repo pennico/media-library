@@ -2,6 +2,14 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] - 2026-10-25
+
+- Fixed: `import-watch` left a title **To watch** when its only watch came
+  from the owner's own list (an undated watch of source `owner`), though the
+  file said Watched. New entries now get the file's status; a rerun corrects
+  a status this importer wrote itself, never one set in the console or by a
+  Joplin note.
+
 ## [0.6.0] - 2026-10-25
 
 - **Movies and series**: the Database and Visuals pages work for them as they
