@@ -21,6 +21,10 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
   follows the page filter; click a day for its books.
 - The library list carries each book's activity days (dated starts,
   finishes, progress).
+- **List view**: only the cover opens a book's panel (a click elsewhere on
+  the row does nothing); with the console unlocked, ✎ next to the cover edits
+  title, authors, status, rating, pages, language and version in the row
+  (Enter saves, Escape cancels; only changed values are written).
 
 ## [0.4.0] - 2026-10-25
 

@@ -54,6 +54,7 @@
   --grain-fine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='120'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.35' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.02 0 0 0 0 0.01 0 0 0 0 0.0 1.2 0 0 0 -0.45'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"); color-scheme: dark; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 html, body { height: 100%; margin: 0; }
 body { background-color: var(--wall); background-image: var(--grain); color: var(--fg); font: 14px/1.45 var(--sans); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--head-a); }
@@ -198,7 +199,16 @@ table.list td.wrap { white-space: normal; min-width: 180px; }
 table.list th { font-weight: 600; color: var(--muted); font-size: 12px; background: var(--sunk); position: sticky; top: 0; user-select: none; }
 table.list th button { border: 0; background: none; padding: 0; font: inherit; color: inherit; }
 table.list th[aria-sort] button { color: var(--fg); }
-table.list tr { cursor: pointer; }
+/* the list: the cover opens the book's panel; with the console unlocked, ✎ edits the row in place */
+.lcov { border: 0; padding: 0; background: none; display: block; border-radius: 3px; cursor: pointer; }
+.lcov:hover img, .lcov:hover .noimg, .lcov:focus-visible img { outline: 2px solid var(--accent); outline-offset: 1px; }
+table.list td.acts { width: 1%; padding-left: 0; }
+table.list select.le { min-width: 104px; } table.list select.le.num { min-width: 64px; }
+table.list tr.editing { background: var(--sel); }
+table.list tr.editing td { white-space: normal; vertical-align: middle; }
+table.list .le { width: 100%; min-width: 64px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-size: 12.5px; }
+table.list .le.wide { min-width: 170px; } table.list .le.num { min-width: 56px; max-width: 74px; text-align: right; }
+table.list .rowbtns { display: inline-flex; flex-direction: column; gap: 4px; }
 table.list tbody tr:hover { background: var(--sunk); }
 table.list tr[aria-current="true"] { background: var(--sel); }
 table.list img, table.list .noimg { width: 24px; height: 36px; object-fit: cover; border-radius: 2px 3px 3px 2px; display: block; background: var(--sunk); }
@@ -845,14 +855,58 @@ async function renderTrash() {
 const LIST_COLS = [["cover", "", null], ["title", "Title", "title"], ["author", "Author", "author"], ["status", "Status", "status"], ["rating", "Rating", "rating"],
   ["finished", "Read", "finished"], ["pages", "Pages", "pages"], ["language", "Language", "language"], ["version", "Version", "version"], ["genre", "Genre", "genre"], ["added", "Added", "added"]];
 function listHtml(list, prefs) {
-  const key = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc;
-  const head = LIST_COLS.map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : `<th></th>`).join("");
-  return `<div class="listbox"><table class="list"><thead><tr>${head}</tr></thead><tbody>${list.map(i => `<tr data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}" tabindex="0">
-    <td>${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}</td>
+  const key = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc, edit = canEdit();
+  if (!edit) st.rowEdit = null;
+  const head = LIST_COLS.map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : `<th></th>${edit ? `<th><span class="sr-only">Edit</span></th>` : ""}`).join("");
+  return `<div class="listbox"><table class="list"><thead><tr>${head}</tr></thead><tbody>${list.map(i => st.rowEdit === i.id ? rowEditHtml(i) : `<tr data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}">
+    <td>${listCover(i)}</td>
+    ${edit ? `<td class="acts"><button class="btn small" id="le-edit-${i.id}" data-ledit="${i.id}" aria-label="Edit ${esc(i.title)} here" title="Edit this row">✎</button></td>` : ""}
     <td class="wrap"><b>${esc(i.title)}</b></td><td>${esc(i.authors || "—")}</td>
     <td><span class="dot ${i.status}" style="display:inline-block;margin-right:6px"></span>${esc(statusLabel(i.kind, i.status))}</td>
     <td class="num">${i.rating ?? ""}</td><td class="num">${i.year ?? ""}</td><td class="num">${i.pages ?? ""}</td>
     <td>${esc(langName(i.lang))}</td><td>${versionOf(i) ? `<span class="vico">${VICON[versionOf(i)]}</span> ${versionLabel(versionOf(i))}` : ""}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+const listCover = i => `<button class="lcov" data-open="${i.id}" aria-label="Open ${esc(i.title)}" title="Open the details">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}</button>`;
+// one row as a small form: title, authors, status, rating, pages, language, version (the rest is in the panel)
+function rowEditHtml(i) {
+  const book = i.kind === "book", L = LABEL[i.kind] || LABEL.book;
+  const fmts = FORMATS.map(([c, l]) => `<option value="${c}" ${i.format === c ? "selected" : ""}>${l}</option>`).join("");
+  return `<tr class="editing" data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}">
+    <td>${listCover(i)}</td>
+    <td class="acts"><span class="rowbtns"><button class="btn small primary" data-lesave="${i.id}">Save</button><button class="btn small" data-lecancel="1">Cancel</button></span></td>
+    <td><input class="le wide" id="le-title" value="${esc(i.title)}" aria-label="Title" maxlength="1000"></td>
+    <td><input class="le wide" id="le-authors" value="${esc(i.authors)}" aria-label="Authors, separated by commas"></td>
+    <td><select class="le" id="le-status" aria-label="Status">${STATUS_ORDER.map(x => `<option value="${x}" ${i.status === x ? "selected" : ""}>${L[x]}</option>`).join("")}</select></td>
+    <td><select class="le num" id="le-rating" aria-label="Rating"><option value="">—</option>${Array.from({length: 11}, (_, n) => `<option ${i.rating != null && Math.round(i.rating) === n ? "selected" : ""}>${n}</option>`).join("")}</select></td>
+    <td class="num">${i.year ?? ""}</td>
+    <td>${book ? `<input class="le num" id="le-pages" value="${i.pages ?? ""}" inputmode="numeric" aria-label="Pages">` : ""}</td>
+    <td>${book ? `<select class="le" id="le-lang" aria-label="Language">${langOptions(i.lang)}</select>` : esc(langName(i.lang))}</td>
+    <td>${book ? `<select class="le" id="le-format" aria-label="Version"><option value="">—</option>${fmts}</select>` : ""}</td>
+    <td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`;
+}
+// saves only what changed, so untouched values keep where they came from
+async function saveRow(id) {
+  const i = LIB.items.find(x => x.id === id), v = k => $("le-" + k)?.value, body = {}, item = {}, edition = {}, entry = {};
+  if (!i) return;
+  const title = v("title").trim(), authors = splitList(v("authors"), /[;,]/), rating = v("rating") === "" ? null : +v("rating");
+  if (title !== i.title) item.title = title;
+  if (authors.join(", ") !== (i.authors || "")) body.authors = authors;
+  if (rating !== (i.rating == null ? null : Math.round(i.rating))) entry.rating = rating;
+  if (i.kind === "book") {
+    if (v("pages").trim() !== String(i.pages ?? "")) edition.pages = v("pages").trim();
+    if (v("lang") !== (i.lang || "")) edition.lang = v("lang");
+    if (v("format") !== (i.format || "")) edition.format = v("format") || null;
+  }
+  for (const [k, o] of [["item", item], ["edition", edition], ["entry", entry]]) if (Object.keys(o).length) body[k] = o;
+  const status = v("status") !== i.status ? v("status") : null;
+  if (!Object.keys(body).length && !status) { st.rowEdit = null; renderDatabase(); return; }
+  await act(async () => {
+    if (Object.keys(body).length) await api.patch(id, body);
+    if (status) await api.status(id, status);
+    st.rowEdit = null; LIB = await api.library();
+    if (st.selected === id) st.detail = await api.detail(id);
+    renderDatabase();
+  }, "Saved");
 }
 
 // ----------------------------------------------------------- filter pane
@@ -1248,7 +1302,11 @@ document.addEventListener("click", async e => {
       toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }); return; }
   if (t.id === "ed-fill") { await act(async () => { const r = await api.fill(st.selected);
     toast(r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know")); await afterItemChange(r.item); }); return; }
-  if (t.matches(".book") || t.matches("tr[data-id]")) { if (drag.suppressClick) { drag.suppressClick = false; return; } return t.matches(".book") ? openBook(t) : openDetail(t.dataset.id); }
+  if (t.matches(".book")) { if (drag.suppressClick) { drag.suppressClick = false; return; } return openBook(t); }
+  if (t.dataset.open) return openDetail(t.dataset.open);
+  if (t.dataset.ledit) { if (!canEdit()) return act(() => 0); st.rowEdit = t.dataset.ledit; renderDatabase(); $("le-title")?.focus(); return; }
+  if (t.dataset.lecancel) { st.rowEdit = null; renderDatabase(); return; }
+  if (t.dataset.lesave) return saveRow(t.dataset.lesave);
   if (t.id === "d-close") return closeDetail();
   const id = st.selected;
   if (t.dataset.status) { if (await act(async () => afterItemChange(await api.status(id, t.dataset.status)), "Status saved")) {} return; }
@@ -1520,7 +1578,8 @@ document.addEventListener("keydown", e => {
   if (e.key === "/" && !typing) { e.preventDefault(); $("search").focus(); return; }
   if (e.key === "Escape" && st.fpane) { closeFilterPane(); filterBtn()?.focus(); return; }
   if (e.key === "Escape" && !typing && st.selected) { closeDetail(); return; }
-  if (e.target.matches?.("tr[data-id]") && e.key === "Enter") { openDetail(e.target.dataset.id); return; }
+  if (e.target.classList?.contains("le") && st.rowEdit && (e.key === "Enter" || e.key === "Escape")) {
+    e.preventDefault(); if (e.key === "Enter") saveRow(st.rowEdit); else { st.rowEdit = null; renderDatabase(); } return; }
   if (e.target.id === "key-input" && e.key === "Enter") { unlock(); return; }
   if (e.target.id !== "search") return;
   if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (!hits.length) return; active = (active + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;
