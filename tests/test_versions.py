@@ -60,3 +60,10 @@ def test_added_date_is_editable(site):  # noqa: F811
     assert s == 200 and d["added"] == "2019-06-30" and d["prov"]["entry"]["added_at"] == "owner"
     for bad in ("2019-06", "2999-01-01", "yesterday"):
         assert c.call("PATCH", "api/items/" + r["id"], {"entry": {"added": bad}})[0] == 400
+
+
+def test_a_finished_reading_makes_a_to_read_book_read(site):  # noqa: F811
+    c = Client(site).unlock()
+    s, r = c.call("POST", "api/add-manual", {"title": "Bought and read " + uuid.uuid4().hex[:6]})
+    s, d = c.call("POST", "api/items/" + r["id"] + "/readings", {"state": "completed", "started": "2020-03-21", "ended": "2020-04-21"})
+    assert s == 200 and d["status"] == "completed"

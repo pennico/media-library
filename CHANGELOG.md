@@ -8,6 +8,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
   from the button in the Genre cell) and the **Added** date.
 - API: `entry.added` (YYYY-MM-DD, not in the future) changes when a book
   entered the library; owner-labelled like every console edit.
+- Fixed: adding a finished reading to a book still To read left it To read;
+  it now becomes Read.
 
 ## [0.5.0] - 2026-10-25
 

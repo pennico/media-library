@@ -354,6 +354,9 @@ def add_reading(conn, login, pid, body):
         names = list(cols)
         conn.execute("INSERT INTO library.consumption ({}) VALUES ({})".format(", ".join(names), ", ".join(["%s"] * len(names))),
                      list(cols.values()))
+        if cols["state"] == "completed":           # a finished reading added to a book still "to read": it has been read
+            conn.execute("UPDATE library.entry SET status = 'completed', status_changed_at = now()"
+                         " WHERE item_id = %s AND status = 'planned'", (ids["id"],))
         sync_status(conn, ids["id"])
 
 
