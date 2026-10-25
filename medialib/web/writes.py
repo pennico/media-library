@@ -6,6 +6,7 @@ Input is checked here against explicit allow-lists; the database checks it
 again (domains, CHECKs, triggers)."""
 import datetime
 import re
+from zoneinfo import ZoneInfo
 
 from .. import db
 from ..covers import CoverError
@@ -160,6 +161,14 @@ def edit_item(conn, login, pid, body):
             elif k == "review":
                 cols["review"] = text(v, "review", max_len=100000)
                 cols["reviewed_at"] = datetime.datetime.now(datetime.timezone.utc) if cols["review"] else None
+            elif k == "added":
+                d, p = partial_date(v, "added")
+                if d is None or p != "day":
+                    raise BadRequest("added: use YYYY-MM-DD")
+                if d > today():
+                    raise BadRequest("added cannot be in the future")
+                # midday in Copenhagen, so the date reads the same in any time zone the console shows it in
+                cols["added_at"] = datetime.datetime.combine(d, datetime.time(12), tzinfo=ZoneInfo("Europe/Copenhagen"))
             else:
                 raise BadRequest("unknown entry field " + k)
         update(conn, "library.entry", "item_id", ids["id"], cols)

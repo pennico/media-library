@@ -209,6 +209,12 @@ table.list tr.editing td { white-space: normal; vertical-align: middle; }
 table.list .le { width: 100%; min-width: 64px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-size: 12.5px; }
 table.list .le.wide { min-width: 170px; } table.list .le.num { min-width: 56px; max-width: 74px; text-align: right; }
 table.list .rowbtns { display: inline-flex; flex-direction: column; gap: 4px; }
+table.list .lecat-btn { text-align: left; min-width: 150px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lecat-pop { position: fixed; z-index: 55; width: 300px; max-height: min(420px, 70vh); overflow: auto; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 12px 30px -8px var(--shadow); padding: 8px 12px; font-size: 13px; }
+.lecat-pop .cpg { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-top: 1px solid var(--line); }
+.lecat-pop .cpg:first-child { border-top: 0; } .lecat-pop .cpg label { display: flex; gap: 6px; align-items: center; }
+.lecat-pop .cpg > label:not(:first-child), .lecat-pop .cpg > span ~ label { padding-left: 18px; }
 table.list tbody tr:hover { background: var(--sunk); }
 table.list tr[aria-current="true"] { background: var(--sel); }
 table.list img, table.list .noimg { width: 24px; height: 36px; object-fit: cover; border-radius: 2px 3px 3px 2px; display: block; background: var(--sunk); }
@@ -504,7 +510,7 @@ const VICON = {
 };
 let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, STATS = null, READING = null;
 const st = {sec: "database", kind: "book", shelf: null, filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
-  listSort: null, err: "", unlockMsg: "", syncTab: "readest", readerPw: null, view: "shelf", trash: null,
+  listSort: null, err: "", unlockMsg: "", rowCats: [], syncTab: "readest", readerPw: null, view: "shelf", trash: null,
   confirmTrash: false, vtab: "me", vscope: "all", LSTATS: null, side: true, f: null, fpane: false, pick: null,
   time: {metric: "books", g: "year", cum: false, axis: {}}, cal: "last"};
 function load(key, dflt) { try { const v = localStorage.getItem("ml-" + key); return v == null ? dflt : JSON.parse(v); } catch (e) { return dflt; } }
@@ -882,7 +888,28 @@ function rowEditHtml(i) {
     <td>${book ? `<input class="le num" id="le-pages" value="${i.pages ?? ""}" inputmode="numeric" aria-label="Pages">` : ""}</td>
     <td>${book ? `<select class="le" id="le-lang" aria-label="Language">${langOptions(i.lang)}</select>` : esc(langName(i.lang))}</td>
     <td>${book ? `<select class="le" id="le-format" aria-label="Version"><option value="">—</option>${fmts}</select>` : ""}</td>
-    <td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`;
+    <td class="lecats"><button type="button" class="le lecat-btn" id="le-cats" aria-expanded="false" aria-haspopup="true" title="Categories">${esc(st.rowCats.join(", ") || "—")} ▾</button></td>
+    <td><input type="date" class="le" id="le-added" value="${esc(i.added)}" max="${new Date().toISOString().slice(0, 10)}" aria-label="Added"></td></tr>`;
+}
+// the categories of the row being edited: a small list of checkboxes under the button, by group
+function catPopHtml() {
+  const cats = LIB.categories || [], on = new Set(st.rowCats.map(n => n.toLowerCase()));
+  const box = c => `<label><input type="checkbox" data-lecat="${esc(c.name)}" ${on.has(c.name.toLowerCase()) ? "checked" : ""}> ${esc(c.name)}</label>`;
+  const groups = cats.filter(c => c.parent == null && c.group), loose = cats.filter(c => c.parent == null && !c.group);
+  return groups.map(g => `<div class="cpg"><b>${box(g)}</b>${cats.filter(c => c.parent === g.id).map(box).join("")}</div>`).join("")
+    + (loose.length ? `<div class="cpg"><span class="muted">Other labels</span>${loose.map(box).join("")}</div>` : "")
+    + `<div class="row-actions"><button class="btn small" data-lecatdone="1">Done</button></div>`;
+}
+function toggleCatPop(open) {
+  $("le-catpop")?.remove();
+  const b = $("le-cats"); if (!b) return;
+  b.setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  const pop = document.createElement("div"), r = b.getBoundingClientRect();
+  pop.id = "le-catpop"; pop.className = "lecat-pop"; pop.innerHTML = catPopHtml();
+  document.body.append(pop);
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + "px";
+  pop.style.top = (r.bottom + 4 + pop.offsetHeight > innerHeight ? Math.max(8, r.top - pop.offsetHeight - 4) : r.bottom + 4) + "px";
 }
 // saves only what changed, so untouched values keep where they came from
 async function saveRow(id) {
@@ -892,6 +919,9 @@ async function saveRow(id) {
   if (title !== i.title) item.title = title;
   if (authors.join(", ") !== (i.authors || "")) body.authors = authors;
   if (rating !== (i.rating == null ? null : Math.round(i.rating))) entry.rating = rating;
+  if (v("added") && v("added") !== i.added) entry.added = v("added");
+  const norm = xs => xs.map(x => x.toLowerCase()).sort().join("|");
+  if (norm(st.rowCats) !== norm(i.genres)) body.genres = st.rowCats;
   if (i.kind === "book") {
     if (v("pages").trim() !== String(i.pages ?? "")) edition.pages = v("pages").trim();
     if (v("lang") !== (i.lang || "")) edition.lang = v("lang");
@@ -1032,6 +1062,7 @@ document.addEventListener("change", e => {
   C.redraw();
 });
 addEventListener("resize", () => { if (st.fpane) renderFilterPane(); });
+addEventListener("scroll", () => { if ($("le-catpop")) toggleCatPop(false); });
 
 // ---------------------------------------------------------------- detail
 const reduceMotion = () => !Element.prototype.animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1304,9 +1335,15 @@ document.addEventListener("click", async e => {
     toast(r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know")); await afterItemChange(r.item); }); return; }
   if (t.matches(".book")) { if (drag.suppressClick) { drag.suppressClick = false; return; } return openBook(t); }
   if (t.dataset.open) return openDetail(t.dataset.open);
-  if (t.dataset.ledit) { if (!canEdit()) return act(() => 0); st.rowEdit = t.dataset.ledit; renderDatabase(); $("le-title")?.focus(); return; }
-  if (t.dataset.lecancel) { st.rowEdit = null; renderDatabase(); return; }
-  if (t.dataset.lesave) return saveRow(t.dataset.lesave);
+  if (t.dataset.ledit) { if (!canEdit()) return act(() => 0); st.rowEdit = t.dataset.ledit; st.rowCats = [...(LIB.items.find(x => x.id === st.rowEdit)?.genres || [])];
+    toggleCatPop(false); renderDatabase(); $("le-title")?.focus(); return; }
+  if (t.dataset.lecancel) { st.rowEdit = null; toggleCatPop(false); renderDatabase(); return; }
+  if (t.dataset.lesave) { toggleCatPop(false); return saveRow(t.dataset.lesave); }
+  if (t.id === "le-cats") { toggleCatPop(!$("le-catpop")); return; }
+  if (t.dataset.lecatdone) { toggleCatPop(false); $("le-cats")?.focus(); return; }
+  if (t.dataset.lecat !== undefined) { const n = t.dataset.lecat;
+    st.rowCats = t.checked ? [...st.rowCats.filter(x => x.toLowerCase() !== n.toLowerCase()), n] : st.rowCats.filter(x => x.toLowerCase() !== n.toLowerCase());
+    const b = $("le-cats"); if (b) b.textContent = (st.rowCats.join(", ") || "—") + " ▾"; return; }
   if (t.id === "d-close") return closeDetail();
   const id = st.selected;
   if (t.dataset.status) { if (await act(async () => afterItemChange(await api.status(id, t.dataset.status)), "Status saved")) {} return; }
@@ -1578,8 +1615,9 @@ document.addEventListener("keydown", e => {
   if (e.key === "/" && !typing) { e.preventDefault(); $("search").focus(); return; }
   if (e.key === "Escape" && st.fpane) { closeFilterPane(); filterBtn()?.focus(); return; }
   if (e.key === "Escape" && !typing && st.selected) { closeDetail(); return; }
-  if (e.target.classList?.contains("le") && st.rowEdit && (e.key === "Enter" || e.key === "Escape")) {
-    e.preventDefault(); if (e.key === "Enter") saveRow(st.rowEdit); else { st.rowEdit = null; renderDatabase(); } return; }
+  if (e.key === "Escape" && $("le-catpop")) { e.preventDefault(); toggleCatPop(false); $("le-cats")?.focus(); return; }
+  if (e.target.classList?.contains("le") && e.target.id !== "le-cats" && st.rowEdit && (e.key === "Enter" || e.key === "Escape")) {
+    e.preventDefault(); toggleCatPop(false); if (e.key === "Enter") saveRow(st.rowEdit); else { st.rowEdit = null; renderDatabase(); } return; }
   if (e.target.id === "key-input" && e.key === "Enter") { unlock(); return; }
   if (e.target.id !== "search") return;
   if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (!hits.length) return; active = (active + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;

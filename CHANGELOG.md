@@ -2,6 +2,13 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] - 2026-10-25
+
+- List view row editing also covers **categories** (a checklist by group,
+  from the button in the Genre cell) and the **Added** date.
+- API: `entry.added` (YYYY-MM-DD, not in the future) changes when a book
+  entered the library; owner-labelled like every console edit.
+
 ## [0.5.0] - 2026-10-25
 
 - **Page filter on Visuals**: one filter for every chart and tile on the page

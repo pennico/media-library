@@ -51,3 +51,12 @@ def test_readings_have_a_medium(site):  # noqa: F811
     i = library_item(c, pid)
     assert i["medium"] == "ebook" and i["reads"] == [["2019-01-01", "year", None, None, None]]
     assert i["days"] == ["2025-03-02"]                                # the start, for the calendar
+
+
+def test_added_date_is_editable(site):  # noqa: F811
+    c = Client(site).unlock()
+    s, r = c.call("POST", "api/add-manual", {"title": "Added long ago " + uuid.uuid4().hex[:6]})
+    s, d = c.call("PATCH", "api/items/" + r["id"], {"entry": {"added": "2019-06-30"}})
+    assert s == 200 and d["added"] == "2019-06-30" and d["prov"]["entry"]["added_at"] == "owner"
+    for bad in ("2019-06", "2999-01-01", "yesterday"):
+        assert c.call("PATCH", "api/items/" + r["id"], {"entry": {"added": bad}})[0] == 400
