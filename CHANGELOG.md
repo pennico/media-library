@@ -2,6 +2,28 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-10-25
+
+Readest and Joplin reach the library directly.
+
+- **Readest**: an OPDS 1.2 catalog (`/opds`: Reading, To read, Recently added,
+  Read, All books, search) of the books with an ebook file, and the KOReader
+  sync protocol (`/kosync`) for reading positions. Moving into a book marks it
+  Reading, the last page marks it Read, starting over after the end is a
+  re-read. Copies Readest got from Calibre-Web are recognised by their old
+  checksums; others can be linked once in the console. Separate generated
+  login for reading apps (DESIGN.md §13.1).
+- **Joplin review notes**: `medialib joplin` reads a Joplin sync folder
+  (read-only) and writes each note's status, rating, review, dated reading and
+  collections, matching the book in the library or through Apple Books + Open
+  Library, never by guess (§13.2). `ops/joplin-sync.sh` runs it from cron.
+- **Console**: a **Sync** section (Readest login and synced books, Joplin
+  feed's last run and notes that need a look); history names Readest and
+  Joplin as the source of a change.
+- `medialib adopt-files` copies imported Calibre-Web EPUBs into the store.
+- Migration 0012 (schema `sync`, `catalog.document_alias`, `ingest.run.summary`).
+  Health: the Joplin feed's last run.
+
 ## [0.1.0] - 2026-10-24
 
 First release.
@@ -29,4 +51,4 @@ First release.
   nightly base backup, weekly restore test, `/api/health`.
 
 Known limits: the statistics bucket days in one fixed time zone (migration
-0007; a setting is planned); a single owner, no reader accounts.
+0007; a setting is planned); a single owner.

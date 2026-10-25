@@ -1,7 +1,8 @@
 # <install dir>/docker-compose.yml  (DESIGN.md §5.3 and §10; steps: docs/INSTALL.md)
 # db:    PostgreSQL 18.6, no host port, internal network only, WAL archive + backups under this folder.
 # app:   the console on 127.0.0.1:8099 -> Tailscale Serve on a tailnet-only HTTPS port.
-# tools: one-off commands (bootstrap, migrate, import): docker compose run --rm tools <command>
+# tools: one-off commands (bootstrap, migrate, import, adopt-files): docker compose run --rm tools <command>
+# Feeds run inside app: docker compose exec -T app python -m medialib joplin --tar - --apply (ops/joplin-sync.sh)
 name: media-library
 
 x-hardening: &hardening
@@ -95,11 +96,15 @@ services:
       MEDIALIB_PASSWORD_FILE: /console-password
       MEDIALIB_PASSKEYS_FILE: /agent-console-state/passkeys.json
       MEDIALIB_COOKIE_SECURE: "1"
+      MEDIALIB_READER_USER: ${READER_USER:-reader}       # reading apps (Readest): OPDS + KOReader sync login
+      MEDIALIB_READER_PASSWORD_FILE: /run/secrets/reader.pw
     secrets:
       - source: ml_app_pw
         target: ml_app.pw
       - source: ml_readonly_pw
         target: ml_readonly.pw
+      - source: reader_pw
+        target: reader.pw
     volumes:
       - ./media:/media
       - ./state:/state
@@ -162,3 +167,5 @@ secrets:
     file: ./secrets/ml_app.pw
   ml_readonly_pw:
     file: ./secrets/ml_readonly.pw
+  reader_pw:
+    file: ./secrets/reader.pw

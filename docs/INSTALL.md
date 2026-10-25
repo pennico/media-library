@@ -25,6 +25,7 @@ for f in postgres ml_migrator ml_app ml_readonly; do
   ( umask 077; python3 -c 'import secrets; print(secrets.token_urlsafe(32))' > secrets/$f.pw )
 done
 python3 app/deploy/make-password.py secrets/console-password   # the unlock password
+( umask 077; python3 -c 'import secrets; a = "abcdefghjkmnpqrstuvwxyz23456789"; print("-".join("".join(secrets.choice(a) for _ in range(4)) for _ in range(5)))' > secrets/reader.pw )   # reading apps
 cp app/deploy/env.example .env && chmod 600 .env && "${EDITOR:-nano}" .env
 cp app/deploy/docker-compose.yml docker-compose.yml
 ```
@@ -83,7 +84,46 @@ sudo tailscale serve --bg --https=8443 http://127.0.0.1:8099   # pick a free por
 Open `https://<server>.<tailnet>.ts.net:8443/`. Everyone on the tailnet can
 read; only `OWNER_LOGIN` can write, after unlocking with the password.
 
-## 5. Backups
+## 5. Readest (optional)
+
+The console's **Sync** page shows the addresses and, once unlocked, the
+reading-app password (`secrets/reader.pw`; user `READER_USER` from `.env`).
+Requests must also come from `OWNER_LOGIN` through Tailscale Serve.
+
+- **Catalog**: Readest library → **+** → **OPDS Catalogs** (or **Online
+  Library**) → **Add Catalog**: OPDS URL `https://<server>…:8443/opds`, the
+  username and password.
+- **Positions**: Readest → **Settings** → **Integrations** → **KOReader Sync**:
+  Server URL `https://<server>…:8443/kosync`, the same login → **Connect**;
+  then turn on **Send Document Metadata**.
+
+The catalog lists books with an ebook file in the store: uploads, and the
+imported Calibre-Web files after
+
+```bash
+docker compose run --rm tools adopt-files /snapshot --apply
+```
+
+## 6. Joplin review notes (optional)
+
+Write one note per book or film in a **Reviews** notebook (sub-notebooks
+Books, Audiobooks, Movies, TV-Series; DESIGN.md §13.2 has the format). Tell
+`.env` where Joplin syncs to: `JOPLIN_SOURCE_CONTAINER` + `JOPLIN_SOURCE_PATH`
+for a folder inside a container (e.g. Nextcloud's data folder), or
+`JOPLIN_SOURCE_DIR` for a folder on this machine. End-to-end encrypted sync
+targets can't be read. Then:
+
+```bash
+app/ops/joplin-sync.sh --dry-run        # what it would do
+( crontab -l 2>/dev/null
+  echo "12 * * * * flock -n /tmp/medialib-joplin.lock $BASE/app/ops/joplin-sync.sh > $BASE/out/joplin.log 2>&1"
+) | crontab -
+```
+
+Notes it can't match show on the console's Sync page, with the closest
+candidates; add an `isbn:` line or add the book in the console.
+
+## 7. Backups
 
 ```bash
 OPS=$BASE/app/ops
@@ -108,7 +148,8 @@ Set the dump times a few minutes before your file backup (restic, Backrest,
 
 `/api/health` returns 503 when a check fails (schema version, page checksums,
 WAL archiving, ICU collation drift, audit chain, dump < 7 h, base backup
-< 26 h, restore test < 8 days), so an uptime monitor can watch it.
+< 26 h, restore test < 8 days, and the Joplin feed's last run once it is
+set up), so an uptime monitor can watch it.
 
 Restore a dump into a scratch database to look at it:
 
@@ -128,7 +169,8 @@ docker compose build && docker compose run --rm tools migrate && docker compose 
 ```
 
 Migrations are forward-only and each runs in one transaction; a changed
-migration file stops the run.
+migration file stops the run. From 0.1.0 to 0.2.0: create `secrets/reader.pw`
+first (step 1); the compose file needs it.
 
 ## Upgrades
 

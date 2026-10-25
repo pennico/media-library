@@ -75,8 +75,8 @@ header.top { grid-column: 1 / -1; position: sticky; top: env(safe-area-inset-top
 /* left pane */
 aside.side { border-right: 1px solid var(--line); background: var(--panel); padding: 14px 12px; display: flex; flex-direction: column; gap: 16px;
   position: sticky; top: calc(env(safe-area-inset-top, 0px) + 52px); align-self: start; height: calc(100vh - 52px - env(safe-area-inset-top, 0px)); overflow: auto; }
-.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; background: var(--sunk); border-radius: 10px; }
-.seg button { border: 0; background: none; border-radius: 7px; padding: 6px 8px; font-weight: 600; color: var(--muted); }
+.seg { display: grid; grid-template-columns: repeat(3, auto); gap: 2px; padding: 3px; background: var(--sunk); border-radius: 10px; }
+.seg button { border: 0; background: none; border-radius: 7px; padding: 6px 4px; font-size: 13px; font-weight: 600; min-width: 0; color: var(--muted); }
 .seg button[aria-selected="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 1px 2px var(--shadow); }
 .navlist { display: flex; flex-direction: column; gap: 2px; }
 .navlist h3 { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 6px 4px; font-weight: 500; }
@@ -224,6 +224,14 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; 
 .card h3 { margin: 0; font-size: 14px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
 .card h3 .btn { margin-left: auto; }
 .card .note { color: var(--muted); font-size: 12.5px; margin: 2px 0 10px; }
+.card ol.steps { margin: 6px 0 10px; padding-left: 20px; font-size: 13px; } .card ol.steps li { margin-bottom: 3px; }
+.card .kv { grid-template-columns: 90px minmax(0, 1fr); } .card .kv dd { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.card ul.plain { margin: 4px 0 10px; padding-left: 18px; font-size: 13px; } .card ul.plain li { margin-bottom: 3px; overflow-wrap: anywhere; }
+.card .kv.fmt { grid-template-columns: minmax(0, 150px) minmax(0, 1fr); background: var(--sunk); border-radius: 8px; padding: 10px 12px; }
+.card .kv.fmt dt { color: var(--fg); }
+.narrow-only { display: none; }
+@media (max-width: 760px) { .wide-only { display: none; } .narrow-only { display: inline; } }
+.unclear { border-top: 1px solid var(--line); padding: 8px 0; font-size: 13px; } .unclear:first-of-type { border-top: 0; }
 .card svg { display: block; width: 100%; height: auto; overflow: visible; }
 .card svg text { fill: var(--muted); font-size: 11px; font-family: var(--sans); }
 .card svg text.v { fill: var(--fg); font-weight: 600; }
@@ -264,6 +272,7 @@ table.tv td.num, table.tv th.num { text-align: right; font-variant-numeric: tabu
     <div class="seg" role="tablist" aria-label="Section">
       <button role="tab" id="sec-database" data-sec="database" aria-selected="true">Database</button>
       <button role="tab" id="sec-visuals" data-sec="visuals" aria-selected="false">Visuals</button>
+      <button role="tab" id="sec-sync" data-sec="sync" aria-selected="false">Sync</button>
     </div>
     <div class="navlist" id="kinds"></div>
     <div class="navlist shelves" id="shelves"></div>
@@ -272,6 +281,7 @@ table.tv td.num, table.tv th.num { text-align: right; font-variant-numeric: tabu
   <main id="main">
     <div id="v-database"></div>
     <div id="v-visuals" hidden></div>
+    <div id="v-sync" hidden></div>
   </main>
 </div>
 <div class="tip" id="tip" hidden></div>
@@ -299,9 +309,9 @@ const statusLine = i => i.status === "completed" ? statusLabel(i.kind, i.status)
   : statusLabel(i.kind, i.status) + (i.year ? " · " + (i.kind === "book" ? "read " : "watched ") + i.year : "");
 const DESC_FIRST = ["finished", "rating", "added", "pages", "published"];   // newest / highest first when picked
 const statusLabel = (kind, s) => (LABEL[kind] || LABEL.book)[s] || s;
-let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, STATS = null;
+let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, STATS = null, READING = null;
 const st = {sec: "database", kind: "book", shelf: null, filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
-  listSort: null, err: "", unlockMsg: ""};
+  listSort: null, err: "", unlockMsg: "", syncTab: "readest", readerPw: null};
 function load(key, dflt) { try { const v = localStorage.getItem("ml-" + key); return v == null ? dflt : JSON.parse(v); } catch (e) { return dflt; } }
 function save(key, v) { try { localStorage.setItem("ml-" + key, JSON.stringify(v)); } catch (e) {} }
 const langName = c => c ? (LIB.languages[c] || c) : "";
@@ -356,6 +366,9 @@ const serverApi = {
   lock() { return this.send("POST", "api/lock", {}); },
   passkeyOptions() { return this.send("POST", "api/passkey/options", {purpose: "login"}); },
   passkeyLogin(body) { return this.send("POST", "api/passkey/login", body); },
+  readingApps() { return this.get("api/reading-apps"); },
+  readerPassword() { return this.send("POST", "api/reading-apps/password", {}); },
+  linkDocument(doc, item) { return this.send("POST", "api/kosync/" + doc + "/link", {item}); },
 };
 const api = PREVIEW ? makePreviewApi(PREVIEW) : serverApi;
 const coverSrc = url => !url ? null : url.startsWith("data:") ? url : PREVIEW ? (PREVIEW.covers[(url.match(/[0-9a-f]{64}/) || [""])[0]] || null) : url;
@@ -368,6 +381,7 @@ async function refresh(keepDetail) {
   } catch (e) { $("v-database").innerHTML = `<p class="empty">Could not load the library: ${esc(e.message)}</p>`; return; }
   if (!st.shelf || !LIB.shelves.some(s => s.id === st.shelf)) st.shelf = allShelf(st.kind)?.id || null;
   if (st.sec === "visuals") { try { STATS = await api.stats(); } catch (e) { STATS = null; } }
+  if (st.sec === "sync") await loadReading();
   if (keepDetail && st.selected) await openDetail(st.selected, true);
   render();
 }
@@ -392,11 +406,19 @@ async function setPref(key, value) {
 // ---------------------------------------------------------------- render
 function render() {
   for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-selected", String(b.dataset.sec === st.sec));
-  $("v-database").hidden = st.sec !== "database"; $("v-visuals").hidden = st.sec !== "visuals";
+  $("v-database").hidden = st.sec !== "database"; $("v-visuals").hidden = st.sec !== "visuals"; $("v-sync").hidden = st.sec !== "sync";
   renderKeybar(); renderSide();
-  if (st.sec === "database") renderDatabase(); else renderVisuals();
+  if (st.sec === "database") renderDatabase(); else if (st.sec === "visuals") renderVisuals(); else renderSync();
 }
 function renderSide() {
+  if (st.sec === "sync") {
+    const J = READING?.joplin, unclear = J ? J.unclear.length : 0, docs = READING ? READING.documents.length : 0;
+    $("kinds").innerHTML = `<h3>Reading apps and feeds</h3>` + [["readest", "Readest", "◫", docs], ["joplin", "Joplin notes", "✎", unclear || ""]].map(([k, label, ico, n]) =>
+      `<button class="nav" id="sync-${k}" data-synctab="${k}" aria-current="${st.syncTab === k}"><span class="ico">${ico}</span>${label}<span class="n">${n}</span></button>`).join("");
+    $("shelves").hidden = true;
+    $("side-foot").innerHTML = PREVIEW ? `Preview: no server behind this page.` : `Tailnet only · ${esc(SESSION.login || "no login")}`;
+    return;
+  }
   const counts = Object.fromEntries(KINDS.map(([k]) => [k, LIB.items.filter(i => i.kind === k).length]));
   $("kinds").innerHTML = `<h3>${st.sec === "database" ? "Library" : "Statistics"}</h3>` + KINDS.map(([k, label, ico]) =>
     `<button class="nav" id="kind-${k}" data-kind="${k}" aria-current="${st.kind === k}"><span class="ico">${ico}</span>${label}<span class="n">${counts[k]}</span></button>`).join("");
@@ -600,7 +622,8 @@ function historyHtml(h) {
   if (!h.length) return `<span class="muted">No changes recorded.</span>`;
   const show = v => v == null || v === "" ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v).length > 60 ? String(v).slice(0, 60) + "…" : String(v);
   return h.map(x => {
-    const who = x.client?.startsWith("console:") ? "you" : x.imported ? "importer" : x.client;
+    const who = x.client?.startsWith("console:") ? "you" : x.imported ? "importer" : x.client?.startsWith("joplin:") ? "your Joplin note"
+      : x.client?.startsWith("kosync:") ? "Readest (" + x.client.slice(7) + ")" : x.client;
     const what = x.op === "I" ? `Added ${x.what}` : x.op === "D" ? `Removed ${x.what}` : Object.entries(x.changes).map(([k, [a, b]]) => `${k.replace(/_/g, " ")}: ${show(a)} → ${show(b)}`).join("; ") || `Changed ${x.what}`;
     return `<div><span class="when">${esc((x.at || "").slice(0, 16).replace("T", " "))} · ${esc(who)}${x.source ? " · from " + esc(SRC[x.source] || x.source) : ""}${x.external ? " (Yamtrack history)" : ""}</span><br>${esc(what)}</div>`;
   }).join("");
@@ -620,7 +643,14 @@ async function afterItemChange(detail) {
 const splitList = (s, sep) => s.split(sep).map(x => x.trim()).filter(Boolean);
 document.addEventListener("click", async e => {
   const t = e.target.closest("button, [data-id], input[type=checkbox]"); if (!t) return;
-  if (t.matches(".seg button")) { st.sec = t.dataset.sec; save("sec", st.sec); if (st.sec === "visuals") { try { STATS = await api.stats(); } catch (er) { STATS = null; } } render(); return; }
+  if (t.matches(".seg button")) { st.sec = t.dataset.sec; save("sec", st.sec); if (st.sec === "visuals") { try { STATS = await api.stats(); } catch (er) { STATS = null; } }
+    if (st.sec === "sync") { READING = null; render(); await loadReading(); } render(); return; }
+  if (t.dataset.synctab) { st.syncTab = t.dataset.synctab; save("synctab", st.syncTab); render(); return; }
+  if (t.dataset.copy !== undefined) { try { await navigator.clipboard.writeText(t.dataset.copy); toast("Copied"); } catch (er) { toast("Copy didn't work here: select the text instead", true); } return; }
+  if (t.id === "ra-showpw" || t.dataset.showpw !== undefined) { await act(async () => { st.readerPw = (await api.readerPassword()).password; renderSync(); }); return; }
+  if (t.dataset.linkdoc) { const item = $("ld-" + t.dataset.linkdoc)?.value; if (!item) { toast("Pick a book first", true); return; }
+    await act(async () => { await api.linkDocument(t.dataset.linkdoc, item); await loadReading(); render(); }, "Linked: the next sync updates that book"); return; }
+  if (t.dataset.gobook) { st.sec = "database"; st.kind = "book"; st.shelf = allShelf("book")?.id; save("sec", st.sec); render(); return openDetail(t.dataset.gobook); }
   if (t.dataset.kind) { st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; save("kind", st.kind); render(); return; }
   if (t.dataset.shelf) { st.shelf = t.dataset.shelf; st.filter = "all"; st.selected = null; st.listSort = null; save("shelf", st.shelf); render(); return; }
   if (t.dataset.filter) { st.filter = t.dataset.filter; renderDatabase(); return; }
@@ -1015,6 +1045,69 @@ document.addEventListener("focusout", hideTip);
 document.addEventListener("click", e => { const b = e.target.closest?.("[data-tv]"); if (b) { save("tv-" + b.dataset.tv, !load("tv-" + b.dataset.tv, false)); renderVisuals(); } });
 
 // --------------------------------------------------------- preview store
+// ------------------------------------------------------------------ sync
+async function loadReading() { try { READING = await api.readingApps(); } catch (e) { READING = {error: e.message}; } }
+function when(iso) {
+  if (!iso) return "";
+  const d = new Date(iso), mins = Math.round((Date.now() - d) / 60000);
+  if (mins < 1) return "just now"; if (mins < 60) return mins + " min ago"; if (mins < 24 * 60) return Math.round(mins / 60) + " h ago";
+  return d.toLocaleDateString("en-GB", {day: "numeric", month: "short", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric"});
+}
+function renderSync() {
+  const v = $("v-sync"), R = READING;
+  if (!R) { v.innerHTML = `<p class="empty">Loading…</p>`; return; }
+  if (R.error) { v.innerHTML = `<p class="empty">Could not load: ${esc(R.error)}</p>`; return; }
+  if (st.syncTab === "joplin") return renderJoplin(v, R.joplin);
+  const copy = val => `<span class="mono">${esc(val)}</span> <button class="btn small" data-copy="${esc(val)}">Copy</button>`;
+  const pw = st.readerPw ? copy(st.readerPw) : `<button class="btn small" data-showpw>${canEdit() ? "Show password" : "Unlock to show"}</button>`;
+  const books = LIB.items.filter(i => i.kind === "book").sort((a, b) => a.sort.localeCompare(b.sort));
+  const rows = R.documents.map(d => {
+    const name = d.item ? `<button class="btn small" data-gobook="${d.item}" style="border:0;padding:0;font-weight:600;text-align:left">${esc(d.title)}</button>`
+      : `<span class="pill warn">not matched</span> ${esc(d.appTitle || "")}${d.appAuthors ? ` <span class="muted">${esc(d.appAuthors.split("\n")[0])}</span>` : ""}
+         ${canEdit() ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><select id="ld-${d.document}" aria-label="Which book is this?" style="max-width:min(100%, 320px)"><option value="">Which book is this?</option>${books.map(b => `<option value="${b.id}">${esc(b.title)}</option>`).join("")}</select><button class="btn small" data-linkdoc="${d.document}">Link</button></div>` : ""}`;
+    const how = {file: "the stored file", cwa: "CWA's copy", owner: "linked by you"}[d.how] || "";
+    return `<tr><td class="wrap">${name}<div class="muted mono" style="font-size:11px">${d.document}${how ? " · " + how : ""}</div>
+      <div class="muted" style="font-size:12px"><span class="narrow-only">${esc(d.device)} · ${esc(when(d.updated))}</span></div></td>
+      <td class="num">${d.percentage}%</td><td class="wide-only">${esc(d.device)}</td><td class="wide-only">${esc(when(d.updated))}</td></tr>`;
+  }).join("");
+  v.innerHTML = `<div class="toolbar"><h2>Readest</h2>${R.ready ? `<span class="pill ok">ready</span>` : `<span class="pill warn">no reading-app login on the server yet</span>`}</div>
+    <div class="charts">
+      <div class="card"><h3>1 · Book catalog (OPDS)</h3>
+        <ol class="steps"><li>Readest library: <b>+</b> (Import Books) → <b>OPDS Catalogs</b> (on a Mac from readest.com: <b>Online Library</b>) → <b>Add Catalog</b></li><li>Catalog Name <i>Media library</i>; OPDS URL, Username and Password below; save</li><li>Open it: Reading, To read, Recently added, Read, All books, and search</li></ol>
+        <dl class="kv"><dt>URL</dt><dd>${copy(R.opds)}</dd><dt>Username</dt><dd>${copy(R.user)}</dd><dt>Password</dt><dd>${pw}</dd></dl>
+        <p class="note" style="margin-top:10px">${R.opdsBooks} book${R.opdsBooks === 1 ? "" : "s"} with an ebook file. Upload an EPUB in a book's panel to add more.</p></div>
+      <div class="card"><h3>2 · Reading position sync (KOReader)</h3>
+        <ol class="steps"><li>Readest: <b>Settings</b> → <b>Integrations</b> → <b>KOReader Sync</b></li><li>Server URL, Username and Password below → <b>Connect</b></li><li>Then: Checksum Method <b>File Content</b>; <b>Send Document Metadata</b> on. On each device (iPhone, Mac)</li></ol>
+        <dl class="kv"><dt>Server</dt><dd>${copy(R.kosync)}</dd><dt>Username</dt><dd>${copy(R.user)}</dd><dt>Password</dt><dd>${pw}</dd></dl>
+        <p class="note" style="margin-top:10px">Moving 1 % into a book marks it Reading; the last page marks it Read.</p></div>
+      <div class="card wide"><h3>Synced books</h3>
+        <p class="note">${R.documents.length ? "Every book Readest has synced here, newest first. A copy from elsewhere (not this catalog, not CWA) shows as not matched: link it once." : "Nothing synced yet. Open a book in Readest after connecting KOReader sync."}</p>
+        ${R.documents.length ? `<div class="listbox"><table class="list"><thead><tr><th>Book</th><th class="num">Progress</th><th class="wide-only">Device</th><th class="wide-only">Last sync</th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}</div>
+    </div>`;
+}
+function renderJoplin(v, J) {
+  const run = J.lastRun, sm = run?.summary || {};
+  const list = (label, xs) => xs && xs.length ? `<p class="note" style="margin:8px 0 2px"><b>${label}</b></p><ul class="plain">${xs.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const runPill = !run ? `<span class="pill plain">not run yet</span>` : run.status === "ok" ? `<span class="pill ok">last run ${esc(when(run.at))}</span>` : `<span class="pill warn">last run ${esc(run.status)}</span>`;
+  const changes = (sm.added || []).length + (sm.updated || []).length;
+  v.innerHTML = `<div class="toolbar"><h2>Joplin notes</h2>${runPill}</div>
+    <div class="charts">
+      <div class="card"><h3>Needs a look ${J.unclear.length ? `<span class="pill warn">${J.unclear.length}</span>` : ""}</h3>
+        ${J.unclear.length ? J.unclear.map(u => `<div class="unclear"><b>${esc(u.title)}</b> <span class="muted">${esc(u.kind || "")}</span><br>${esc(u.problem || "")}${u.candidates?.length ? `<div class="muted" style="font-size:12px;margin-top:3px">Close: ${u.candidates.map(c => esc(c.title + (c.authors?.length ? " — " + c.authors.join(", ") : ""))).join(" · ")}</div>` : ""}</div>`).join("")
+          : `<p class="muted">Nothing: every note found its book.</p>`}</div>
+      <div class="card"><h3>Last run</h3>
+        <p class="note">${run ? `${esc(when(run.at))} · ${J.synced} note${J.synced === 1 ? "" : "s"} in sync · ${changes ? changes + " change" + (changes === 1 ? "" : "s") : "no changes"}` : "The hourly job hasn't run yet."}</p>
+        ${list("Added", sm.added)}${list("Updated", sm.updated)}${list("Errors", sm.errors)}${list("Warnings", sm.warnings)}</div>
+      <div class="card wide"><h3>How a note is read</h3>
+        <p class="note">One note per book, film or series in the <b>Reviews</b> notebook (sub-notebooks Books, Audiobooks, Movies, TV-Series). The title is the book's title. Every line is optional; an edited note updates what it wrote before.</p>
+        <dl class="kv fmt">${[["by: Kazuo Ishiguro", "author (director for films)"], ["status: finished", "or to-read · reading · paused · dropped"],
+          ["date: 2026-10-18", "or 2026-10 / 2026 (kept as month / year)"], ["in: Italian", "the language you read it in"],
+          ["rating: 4/5", "or 8/10; stored 0–10"], ["isbn: 9788806…", "when the title alone isn't enough"],
+          ["lists: Favourites", "collections (created if new)"], ["# Comment", "then your review, as long as you like"]]
+          .map(([k, d]) => `<dt class="mono">${esc(k)}</dt><dd class="muted">${esc(d)}</dd>`).join("")}</dl></div>
+    </div>`;
+}
+
 function makePreviewApi(P) {
   // The same API, answered in the browser from the data embedded in the page. Edits are kept in localStorage only.
   let S;
@@ -1047,6 +1140,10 @@ function makePreviewApi(P) {
   const done = (d, what, changes) => { if (what) hist(d, what, changes || {}); syncSummary(d); persist(); return clone(d); };
   return {
     async session() { return {owner: true, login: "preview", unlockedUntil: null, passkeys: {available: false}}; },
+    async readingApps() { return {ready: false, user: "nicola", opds: "https://<server>:8459/opds", kosync: "https://<server>:8459/kosync", documents: [],
+      opdsBooks: 0, joplin: {lastRun: null, synced: 0, unclear: []}}; },
+    async readerPassword() { throw new Error("The preview has no server: the password is on the server only"); },
+    async linkDocument() { throw new Error("Nothing to link in the preview"); },
     async library() { return clone(S.library); },
     async stats() { return clone(S.stats); },
     async detail(id) { const d = S.details[id]; if (!d) throw new Error("No such item."); return clone(d); },
@@ -1126,8 +1223,9 @@ function makePreviewApi(P) {
 }
 
 // ------------------------------------------------------------------ start
-st.sec = load("sec", "database"); st.kind = load("kind", "book"); st.shelf = load("shelf", null);
-const hashSec = location.hash.slice(1); if (["database", "visuals"].includes(hashSec)) st.sec = hashSec;
+st.sec = load("sec", "database"); st.kind = load("kind", "book"); st.shelf = load("shelf", null); st.syncTab = load("synctab", "readest");
+const hashSec = location.hash.slice(1); if (["database", "visuals", "sync"].includes(hashSec)) st.sec = hashSec;
+if (!["database", "visuals", "sync"].includes(st.sec)) st.sec = "database";
 refresh();
 </script>
 </body>

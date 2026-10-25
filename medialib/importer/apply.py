@@ -10,6 +10,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 
 from psycopg.types.json import Jsonb
 
@@ -253,8 +254,20 @@ class Writer:
             cols = {"edition_id": edition_id, "format": f["format"], "storage": "cwa", "rel_path": f["rel_path"],
                     "size_bytes": os.path.getsize(f["path"]), "sha256": sha, "kosync_md5": md5,
                     "added_at": f["added_at"]}
+            known = self.map_get(f["key"], "catalog.edition_file")
+            if known and self.one("SELECT 1 AS x FROM catalog.edition_file WHERE id = %s AND storage = 'store'"
+                                  " AND sha256 = %s", known, sha):
+                del cols["storage"], cols["rel_path"]          # already copied into the store (adopt-files)
             prov = {c: {"src": "cwa", "ref": "data + file in the snapshot"} for c in cols}
-            self.upsert("catalog.edition_file", f["key"], cols, prov, "cwa", locked=locked, title=f["title"])
+            fid = self.upsert("catalog.edition_file", f["key"], cols, prov, "cwa", locked=locked, title=f["title"])
+            for doc in dict.fromkeys(f["cwa_checksums"]):
+                if doc == md5 or not re.fullmatch(r"[0-9a-f]{32}", doc or "") or self.one("SELECT 1 AS x FROM catalog.document_alias WHERE document = %s", doc) \
+                        or self.one("SELECT 1 AS x FROM catalog.edition_file WHERE kosync_md5 = %s", doc):
+                    continue
+                self.source("cwa")
+                self.q("INSERT INTO catalog.document_alias (document, edition_id, edition_file_id, source)"
+                       " VALUES (%s, %s, %s, 'cwa')", doc, edition_id, fid)
+                self.counts[("catalog.document_alias", "created")] += 1
 
     def tags(self, item_id, tags, locked):
         for t in tags:

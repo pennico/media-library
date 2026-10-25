@@ -35,6 +35,18 @@ Funnel.
 
 Five failed unlocks block unlocking for 10 minutes.
 
+**Reading apps** (`/opds`, `/kosync`) can't unlock, so they use their own
+login: a user name and a generated password in a file, never the console
+password, because the KOReader sync protocol sends md5(password) with every
+request (Basic auth also works). The `Tailscale-User-Login` header must still
+be `OWNER_LOGIN`. Twenty failed logins block them for 10 minutes. These paths
+have no cookie, so they skip the Origin and `X-Console-Action` checks;
+they can read the catalog and files and store reading positions, which move
+a book's status. The console shows the password only after unlocking.
+
+**Joplin notes** come in as a read-only tar stream of the sync folder; the
+app gets no credentials for wherever Joplin syncs to.
+
 **What the app can do.** The app container has a read-only filesystem, no
 capabilities and no Docker socket, and runs as the install user. It connects
 as `ml_app`, which can read and write the catalog and library but cannot
@@ -63,4 +75,8 @@ No secret is in this repository; CI scans for private patterns.
 - script injection through library data the page renders (titles, reviews,
   provider metadata);
 - unsafe handling of uploaded covers or EPUBs;
-- passkey verification flaws.
+- passkey verification flaws;
+- using `/opds` or `/kosync` without the reading-app login, or reaching
+  anything beyond the catalog, the files and positions through them;
+- crafted Joplin notes or sync folders that write outside what a note may
+  change.

@@ -9,6 +9,10 @@ Reads are open to the tailnet; every write needs, as in agent-console:
     CORS preflight, which is never answered) and a same-origin Origin.
 Writes go through the app role in audited transactions (writes.py);
 statistics through the read-only role.
+
+Reading apps (Readest) use /opds and /kosync instead: the owner's Tailscale
+login plus the reading-app login (reader.py), no cookie, no Origin check
+(the app sends its own Origin).
 """
 import glob
 import hashlib
@@ -29,9 +33,10 @@ from PIL import Image
 
 from .. import db, migrate
 from ..covers import CoverStore
+from ..feeds import kosync
 from ..fill import service as fill_service
 from . import auth as auth_mod
-from . import queries, writes
+from . import opds, queries, reader, writes
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "web")
 MAX_BODY = 256 * 1024
@@ -41,6 +46,7 @@ THUMB_WIDTHS = (160, 320, 640)
 SHA_RE = re.compile(r"^/thumbs/([0-9a-f]{64})-(\d+)\.jpg$")
 COVER_RE = re.compile(r"^/covers/([0-9a-f]{2})/([0-9a-f]{64})\.(jpg|png|webp)$")
 UUID = r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+DOC = r"([0-9a-f]{32})"
 # database rules, in words (anything else shows the database's own message)
 FRIENDLY = {
     "consumption_dates_ordered": "A reading can't finish before it started.",
@@ -55,7 +61,8 @@ FRIENDLY = {
 
 
 class App:
-    def __init__(self, cfg, owner_login, origin, password_file, passkeys_file, state_dir, cookie_secure=True):
+    def __init__(self, cfg, owner_login, origin, password_file, passkeys_file, state_dir, cookie_secure=True,
+                 reader_user="", reader_password_file=None):
         self.cfg = cfg
         kw = {"autocommit": True, "row_factory": dict_row}
         self.pool = ConnectionPool(cfg.dsn(db.ROLE_APP), min_size=1, max_size=4, kwargs=kw, open=True,
@@ -63,6 +70,7 @@ class App:
         self.ro_pool = ConnectionPool(cfg.dsn(db.ROLE_READONLY), min_size=1, max_size=2, kwargs=kw, open=True,
                                       name="readonly")
         self.auth = auth_mod.Auth(owner_login, origin, password_file, passkeys_file, state_dir)
+        self.reader = reader.Reader(reader_user, reader_password_file)
         self.store = CoverStore(cfg.media_dir, log=lambda *_: None)
         self.fill = fill_service.Fill(self.store, fill_service.http_fetcher(os.path.join(cfg.media_dir, "cache", "http")))
         self.cookie_secure = cookie_secure
@@ -140,8 +148,12 @@ def make_handler(app):
             return self.do_GET()
 
         def do_GET(self):
-            path = self.path.split("?", 1)[0]
+            path, _, query = self.path.partition("?")
             try:
+                if path == "/opds" or path.startswith("/opds/"):
+                    return self.opds(path, query)
+                if path.startswith("/kosync/"):
+                    return self.kosync_get(path)
                 if path in ("/", "/index.html"):
                     return self.static("index.html", "text/html; charset=utf-8")
                 if path == "/healthz":
@@ -161,6 +173,12 @@ def make_handler(app):
                 if path == "/api/stats":
                     with app.ro_pool.connection() as ro:
                         return self.send(200, queries.stats(ro, "book"))
+                if path == "/api/reading-apps":
+                    with app.pool.connection() as conn:
+                        return self.send(200, dict(queries.reading_apps(conn), user=app.reader.user,
+                                                   ready=app.reader.available(),
+                                                   opds=app.auth.origin.rstrip("/") + "/opds",
+                                                   kosync=app.auth.origin.rstrip("/") + "/kosync"))
                 m = re.fullmatch(r"/api/files/" + UUID, path)
                 if m:
                     return self.download(m.group(1))
@@ -208,14 +226,14 @@ def make_handler(app):
                 return self.error(404, "The file is missing on disk.")
             with fh:
                 self.send_response(200)
-                self.send_header("Content-Type", "application/epub+zip")
+                self.send_header("Content-Type", opds.MIME.get(row["format"], "application/octet-stream"))
                 self.send_header("Content-Length", str(os.path.getsize(path)))
                 self.send_header("Content-Disposition", "attachment; filename=\"{}.{}\"; filename*=UTF-8''{}.{}".format(
                     name, row["format"], urllib.parse.quote(row["title"][:80]), row["format"]))
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
-                while True:
+                while self.command != "HEAD":
                     chunk = fh.read(1 << 20)
                     if not chunk:
                         break
@@ -256,6 +274,100 @@ def make_handler(app):
             res = health(app)
             return self.send(200 if res["ok"] else 503, res)
 
+        # ------------------------------------------------- reading apps
+
+        def reader_gate(self, kosync_api):
+            """True when the request may go on; otherwise the answer is sent."""
+            if not app.auth.is_owner(self.login()):
+                self.send(403, {"message": "Only the owner's Tailscale login can use this."})
+                return False
+            if not app.reader.available():
+                self.send(503, {"message": "No reading-app login is set up on the server."})
+                return False
+            if app.reader.locked_out():
+                self.send(429, {"message": "Too many failed logins. Try again in 10 minutes."})
+                return False
+            ok = app.reader.check_kosync(self.headers) if kosync_api else \
+                app.reader.check_basic(self.headers.get("Authorization"))
+            if ok:
+                return True
+            if self.headers.get("Authorization") or self.headers.get("x-auth-user") is not None:
+                app.reader.fail()
+            self.send_response(401)
+            body = json.dumps({"message": "Unauthorized"}).encode()
+            if not kosync_api:
+                self.send_header("WWW-Authenticate", 'Basic realm="media-library", charset="UTF-8"')
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+            return False
+
+        def opds(self, path, query):
+            if not self.reader_gate(False):
+                return None
+            q = urllib.parse.parse_qs(query)
+            page = q.get("page", ["1"])[0]
+            page = int(page) if page.isdigit() and 0 < len(page) < 6 else 1
+            m = re.fullmatch(r"/opds/files/" + UUID, path)
+            if m:
+                return self.download(m.group(1))
+            if path == "/opds/search.xml":
+                return self.send(200, opds.opensearch(app.auth.origin), "application/opensearchdescription+xml")
+            with app.pool.connection() as conn:
+                if path in ("/opds", "/opds/"):
+                    return self.send(200, opds.root(conn), opds.NAV)
+                if path == "/opds/books":
+                    body = opds.books(conn, q.get("shelf", ["all"])[0], page)
+                    return self.send(200, body, opds.ACQ) if body else self.error(404, "No such shelf.")
+                if path == "/opds/search":
+                    return self.send(200, opds.search(conn, q.get("q", [""])[0], page), opds.ACQ)
+            return self.error(404, "Not found.")
+
+        def kosync_get(self, path):
+            if path == "/kosync/healthcheck":
+                return self.send(200, {"state": "OK"})
+            if not self.reader_gate(True):
+                return None
+            if path == "/kosync/users/auth":
+                return self.send(200, {"authorized": "OK"})
+            m = re.fullmatch(r"/kosync/syncs/progress/" + DOC, path.lower())
+            if m:
+                with app.pool.connection() as conn:
+                    return self.send(200, kosync.get(conn, m.group(1)) or {})
+            return self.send(404, {"message": "Not found"})
+
+        def do_PUT(self):
+            path = self.path.split("?", 1)[0]
+            if path != "/kosync/syncs/progress":
+                return self.error(405, "Method not allowed.")
+            if not self.reader_gate(True):
+                return None
+            try:
+                req = self.body()
+                with app.pool.connection() as conn:
+                    doc, ts = kosync.put(conn, req)
+            except (ValueError, writes.BadRequest) as e:      # BadDocument is a ValueError
+                return self.send(400, {"message": str(e) or "Bad request"})
+            except psycopg.Error as e:
+                traceback.print_exc()
+                return self.send(503, {"message": e.diag.message_primary or type(e).__name__})
+            return self.send(200, {"document": doc, "timestamp": ts})
+
+        def kosync_create(self):
+            if not app.auth.is_owner(self.login()):
+                return self.send(403, {"message": "Only the owner's Tailscale login can use this."})
+            try:
+                req = self.body()
+            except (ValueError, writes.BadRequest):
+                return self.send(400, {"message": "Bad request"})
+            if app.reader.available() and not app.reader.locked_out() and \
+                    app.reader.check_create(req.get("username"), req.get("password")):
+                return self.send(201, {"username": app.reader.user})
+            app.reader.fail()
+            return self.send(402, {"message": "Registration is closed: use the reading-app login from the console."})
+
         def session(self):
             login = self.login()
             until = app.auth.session_until(self.token()) if app.auth.is_owner(login) else None
@@ -278,6 +390,8 @@ def make_handler(app):
 
         def write(self, method):
             path = self.path.split("?", 1)[0]
+            if method == "POST" and path == "/kosync/users/create":
+                return self.kosync_create()
             if not app.auth.is_owner(self.login()):
                 return self.error(403, "Only the owner's Tailscale login can change things.")
             origin = self.headers.get("Origin")
@@ -318,7 +432,7 @@ def make_handler(app):
                 return self.error(400, str(e))
             except LookupError as e:
                 return self.error(404, str(e).capitalize() + ".")
-            except fill_service.FillError as e:
+            except (fill_service.FillError, kosync.BadDocument) as e:
                 return self.error(400, str(e))
             except psycopg.errors.IntegrityError as e:
                 return self.error(409, FRIENDLY.get(e.diag.constraint_name or "", None)
@@ -396,6 +510,12 @@ def make_handler(app):
                 m = re.fullmatch(r"/api/readings/" + UUID, path)
                 if m and method in ("PATCH", "DELETE"):
                     writes.edit_reading(conn, login, m.group(1), req, delete=(method == "DELETE"))
+                    return self.send(200, {"ok": True})
+                if path == "/api/reading-apps/password" and method == "POST":
+                    return self.send(200, {"user": app.reader.user, "password": app.reader.password()})
+                m = re.fullmatch(r"/api/kosync/" + DOC + r"/link", path)
+                if m and method == "POST":
+                    kosync.link(conn, login, m.group(1), req.get("item"))
                     return self.send(200, {"ok": True})
                 if path == "/api/shelves" and method == "POST":
                     return self.send(200, {"id": writes.create_shelf(conn, login, req)})
@@ -486,6 +606,11 @@ def health(app):
                     app.audit_verified = last
             add("audit chain intact", r["first_bad"] is None,
                 "{} new rows checked".format(r["checked"]) if r["first_bad"] is None else "broken at row {}".format(r["first_bad"]))
+            j = q("SELECT status, extract(epoch FROM now() - coalesce(finished_at, started_at)) / 3600 AS age"
+                  " FROM ingest.run WHERE tool = 'joplin' AND mode = 'apply' ORDER BY id DESC LIMIT 1")
+            if j:      # only once the feed is set up
+                add("Joplin feed ran ok < 3 h ago", j["status"] == "ok" and j["age"] < 3,
+                    "{} {:.1f} h ago".format(j["status"], j["age"]))
     except psycopg.Error as e:
         add("database reachable", False, type(e).__name__)
     bdir = app.backup_dir
@@ -526,4 +651,6 @@ def from_env(cfg):
                 password_file=env.get("MEDIALIB_PASSWORD_FILE", "/secrets/console-password"),
                 passkeys_file=env.get("MEDIALIB_PASSKEYS_FILE", "/agent-console-state/passkeys.json"),
                 state_dir=env.get("MEDIALIB_STATE_DIR", "/state"),
-                cookie_secure=env.get("MEDIALIB_COOKIE_SECURE", "1") != "0")
+                cookie_secure=env.get("MEDIALIB_COOKIE_SECURE", "1") != "0",
+                reader_user=env.get("MEDIALIB_READER_USER", ""),
+                reader_password_file=env.get("MEDIALIB_READER_PASSWORD_FILE", "/run/secrets/reader.pw"))

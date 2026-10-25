@@ -4,6 +4,8 @@
     python -m medialib migrate [--check]
     python -m medialib import SNAPSHOT_DIR [--apply] [--offline] [--out DIR]
     python -m medialib serve [--host 0.0.0.0] [--port 8099]
+    python -m medialib joplin (--dir DIR | --tar FILE|-) [--apply] [--offline]
+    python -m medialib adopt-files SNAPSHOT_DIR [--apply]
 """
 import argparse
 import sys
@@ -26,6 +28,16 @@ def main(argv=None):
     s = sub.add_parser("serve", help="run the console (page + API)")
     s.add_argument("--host", default="0.0.0.0")
     s.add_argument("--port", type=int, default=8099)
+    j = sub.add_parser("joplin", help="Joplin review notes -> the library (dry run unless --apply)")
+    src = j.add_mutually_exclusive_group(required=True)
+    src.add_argument("--dir", help="the Joplin sync folder (or a copy)")
+    src.add_argument("--tar", help="a tar stream of the sync folder ('-' = stdin)")
+    j.add_argument("--notebook", default="Reviews")
+    j.add_argument("--apply", action="store_true", help="write (default: show what it would do)")
+    j.add_argument("--offline", action="store_true", help="no Apple Books / Open Library search")
+    f = sub.add_parser("adopt-files", help="copy the imported CWA ebook files into the store (dry run unless --apply)")
+    f.add_argument("snapshot")
+    f.add_argument("--apply", action="store_true")
     a = ap.parse_args(argv)
     cfg = config.from_env(**({"db_name": a.db} if a.db else {}))
     if a.cmd == "bootstrap":
@@ -43,6 +55,17 @@ def main(argv=None):
         if result.get("failed"):
             return 2
         print("committed" if result.get("committed") else "dry run: nothing written")
+    elif a.cmd == "joplin":
+        from .feeds import joplin
+        if a.tar == "-":
+            return joplin.main(cfg, tar=sys.stdin.buffer, apply=a.apply, offline=a.offline, notebook=a.notebook)
+        if a.tar:
+            with open(a.tar, "rb") as fh:
+                return joplin.main(cfg, tar=fh, apply=a.apply, offline=a.offline, notebook=a.notebook)
+        return joplin.main(cfg, source_dir=a.dir, apply=a.apply, offline=a.offline, notebook=a.notebook)
+    elif a.cmd == "adopt-files":
+        from . import adopt
+        return adopt.main(cfg, a.snapshot, apply=a.apply)
     elif a.cmd == "serve":
         from .web import server
         server.serve(cfg, host=a.host, port=a.port, **server.from_env(cfg))

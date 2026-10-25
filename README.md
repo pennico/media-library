@@ -14,6 +14,10 @@ looks like a bookshelf.
 - **Add a book** from Apple Books (cover and basics) and Open Library (ISBN,
   pages, publisher), or by hand. Upload a cover or an EPUB (stored by sha256,
   with its Readest/KOReader id).
+- **Readest**: an OPDS catalog of your ebooks and KOReader-protocol position
+  sync; reading in Readest moves a book to Reading and, at the end, to Read.
+- **Joplin review notes** (one note per book or film: rating, review, date,
+  collections) flow in hourly from a Joplin sync folder.
 - **Import** from Yamtrack and Calibre-Web Automated without losing data: every
   source field is imported or listed as dropped, with the reason, and a
   completeness report checks that nothing went missing.
@@ -28,9 +32,8 @@ looks like a bookshelf.
   (shared with [agent-console](https://github.com/pennico/agent-console) if
   you use it).
 
-Status: 0.1.0, used daily by its author next to Yamtrack and CWA. Movies and
-series have their schema and empty views; OPDS/kosync serving is planned
-(DESIGN.md §11).
+Status: 0.2.0, used daily by its author. Movies and series have their schema
+and views (Joplin notes add them; no TMDB lookup yet).
 
 ## Docs
 
@@ -38,7 +41,7 @@ series have their schema and empty views; OPDS/kosync serving is planned
 |---|---|
 | [`docs/INSTALL.md`](docs/INSTALL.md) | install, update, backups, rollback |
 | [`DESIGN.md`](DESIGN.md) | needs, PostgreSQL vs MySQL, schema, integrity and operations, import mapping |
-| [`DECISIONS.md`](DECISIONS.md) | design decisions (cited in the code as D1…D29) |
+| [`DECISIONS.md`](DECISIONS.md) | design decisions (cited in the code as D1…D35) |
 | [`SECURITY.md`](SECURITY.md) | security model and how to report a problem |
 | [`CHANGELOG.md`](CHANGELOG.md) | releases |
 
@@ -47,12 +50,12 @@ series have their schema and empty views; OPDS/kosync serving is planned
 | Path | What |
 |---|---|
 | `migrations/NNNN_*.sql` | the schema, forward-only, one transaction each |
-| `medialib/` | Python package: `config`, `db` (audited write transactions), `bootstrap`, `migrate`, `importer/`, `fill/` (metadata providers), `web/` (server, auth, queries, writes), `covers`, `files`, `text` |
+| `medialib/` | Python package: `config`, `db` (audited write transactions), `bootstrap`, `migrate`, `importer/`, `fill/` (metadata providers), `feeds/` (Joplin notes, KOReader sync), `web/` (server, auth, queries, writes, OPDS, reading-app login), `adopt`, `covers`, `files`, `text` |
 | `web/index.html` | the console: one file, no build step |
 | `tests/` | one test per database rule, importer, metadata fill, web API |
 | `tools/devdb.py` | development PostgreSQL 18.6 without root (PGDG packages in `.devdb/`) |
 | `tools/restore_drill.py` | dump/restore + point-in-time recovery drill on the dev cluster |
-| `ops/` | WAL archiver, dump, base backup and restore test scripts |
+| `ops/` | WAL archiver, dump, base backup, restore test and Joplin feed scripts |
 | `deploy/` | Dockerfile, compose file, `pg_hba.conf`, `env.example`, `make-password.py` |
 
 ## Development

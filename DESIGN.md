@@ -996,13 +996,9 @@ class Provider:
 
 ## 11. Later, and why nothing here blocks it
 
-- **OPDS + kosync (replacing CWA):** `edition_file` already has storage, path,
-  sha256 and the KOReader partial MD5 (LuaJIT semantics: first sample at
-  offset 0, as in CWA); CWA's checksum history per file is kept in
-  `ingest.source_record`, because Readest may still send an older id; editions have `public_id` for OPDS entry
-  ids and chosen covers on local disk. Adding these is new tables
-  (`sync.device_user`, `library.kosync_position`) and endpoints, no reshaping.
-  Files move from `storage = 'cwa'` to `'store'` by copy + update.
+- **OPDS + kosync (replacing CWA):** done in 0.2.0, §13.1. CWA's checksum
+  history became `catalog.document_alias`; files move to the store by copy +
+  update (`adopt-files`).
 - **LLM "fix issues" assistant:** a new `ingest.proposal` table (target row,
   column diffs as JSON, rationale, status pending/approved/rejected). Applying
   an approved proposal is a normal write with `ml.source = 'llm'`, so the owner
@@ -1013,10 +1009,8 @@ class Provider:
 - **Box sets / omnibus files** (owner: to be moved in later): an omnibus
   edition plus `catalog.edition_content (edition_id, work_id, position)`
   listing the works it contains; the box-set EPUB then hangs off that edition.
-- **Feeding new data in** (Joplin Reviews, Readest progress): today they feed
-  Yamtrack. Switching them to this database is a later owner decision (this
-  runs next to the current method).
-
+- **Feeding new data in** (Joplin Reviews, Readest progress): done in 0.2.0,
+  §13. Switching off the Yamtrack feeds and CWA's sync is the owner's call.
 ---
 
 ## 12. Choices made with the owner
@@ -1030,3 +1024,81 @@ class Provider:
 5. **Tailnet only**; writes only from the owner's Tailscale login.
 6. Box sets: not imported yet; they will become an omnibus edition that
    contains several works (§11).
+
+---
+
+## 13. Reading apps and feeds (0.2.0, 2026-10-25)
+
+The owner reads in Readest (iPhone, Mac) and writes reviews as Joplin notes.
+Both now reach this database directly; the console's **Sync** section shows
+them.
+
+### 13.1 Readest: OPDS catalog + KOReader sync
+
+| Path | What | Login |
+|---|---|---|
+| `/opds` | OPDS 1.2 (Atom) navigation: Reading, To read, Recently added, Read, All books; OpenSearch at `/opds/search.xml` | HTTP Basic, reader login |
+| `/opds/books?shelf=…&page=N` | acquisition feeds, 50 per page (`rel="next"`): title, authors, language, publisher, issued, genres, description, cover + thumbnail, one acquisition link per stored file | same |
+| `/opds/files/<file uuid>` | the EPUB (`HEAD` answered; `Content-Disposition` names it) | same |
+| `/kosync/users/auth`, `/users/create`, `/syncs/progress[/<doc>]` | the KOReader sync protocol as Readest speaks it | `x-auth-user` + `x-auth-key` (md5 of the password), or Basic |
+
+- **Login (D30).** Reading apps can't do the console's unlock, so they get a
+  user name and a generated password (`secrets/reader.pw`), never the console
+  password: KOReader sync sends md5(password) on every request. On top, the
+  request must carry the owner's Tailscale login, like console writes. Ten
+  minutes' lockout after 20 wrong logins. `/users/create` answers 201 only to
+  the configured login (Readest "registers" when a first login fails), 402
+  otherwise. These paths skip the console's Origin and `X-Console-Action`
+  checks: Readest sends `Origin: tauri://localhost` through its native HTTP
+  client, and there is no cookie to protect.
+- **Which book (D31).** A document id is the KOReader partial MD5 of the
+  reader's copy. It names a book through `edition_file.kosync_md5` or
+  `catalog.document_alias`: CWA's whole checksum history per file (Readest's
+  copies came from CWA, which rewrote metadata inside the EPUBs, so they
+  differ from the stored bytes), and links the owner makes in the console for
+  copies from elsewhere. Every position is kept in `sync.kosync_position`, named
+  or not, so devices sync either way; Readest's optional metadata (title,
+  authors) is stored to show unnamed ones.
+- **What a position does (D32).** Same rules as the earlier CWA → Yamtrack job:
+  To read (or Abandoned) and a move of 1 % or more → Reading, a new reading
+  started today; 99 % or more → Read, finished today; after the end was seen
+  here, starting over below 25 % → a re-read; in between, the open reading's
+  `progress_pct` (and pages, from the edition's page count) follows in steps of
+  one point. A book read before, with a mid-way position, stays Read. These
+  are the owner's own reading, so they are written as the owner (client
+  `kosync:<device>`) and audited; the position table itself is device state
+  and not audited.
+- **Files (D35).** The catalog lists books with a file in the store.
+  `medialib adopt-files SNAPSHOT` copies the imported CWA files there
+  (verified by sha256; locked books skipped), and a re-import keeps them there.
+
+### 13.2 Joplin review notes
+
+`python -m medialib joplin --tar -` reads the Joplin sync folder as a tar
+stream on stdin (`ops/joplin-sync.sh` pipes it from wherever Joplin syncs to
+into the console container; D34), takes the live notes of the **Reviews**
+notebook and its sub-notebooks (Books, Audiobooks, Movies, TV-Series;
+templates skipped), and writes them as the owner, client `joplin:<note id>`
+(D33). The note format is the earlier Joplin → Yamtrack job's
+(`medialib/feeds/notes.py`), plus an `isbn:` line; dates keep their precision.
+
+- **Which item:** the one the note matched before (same title and kind); an
+  explicit `isbn:` / `openlibrary:` / `tmdb:` line; an item in the library
+  whose title fits and whose author (or, for films, year) agrees, or the very
+  same title when the note names nobody; else, for books, Apple Books + Open
+  Library through the metadata fill, where title and author must agree, and
+  the book is added. Films and series the library lacks are added from the
+  note itself (title, year, director, original language). Anything else is
+  **unclear**: listed in the console with the closest candidates, never
+  guessed, and tried again (library only) on every run, so adding the book in
+  the console resolves it.
+- **What it writes:** rating (x/5, x/10 → 0–10), review (the comment),
+  details the library lacks (original language, pages, author, genre),
+  collections (`lists:`; one the note no longer names is left again), and the
+  reading: an edited note updates the reading it wrote; a "finished" note
+  closes the open reading (e.g. one Readest started) instead of adding one,
+  and adopts the reading it describes (same period, or days less than a month
+  apart: Readest's "finished today" gets the note's date). A note without a
+  date describes the latest reading already there.
+- **Runs** are `ingest.run` rows (tool `joplin`, a `summary`); the health check
+  wants the last one ok and under 3 hours old once the feed exists.

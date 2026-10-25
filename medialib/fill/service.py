@@ -14,6 +14,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -104,6 +105,18 @@ class Fill:
                     if c.score >= MIN_SCORE:
                         cands.append(c)
         cands.sort(key=lambda c: (-c.score, c.provider != "apple"))
+        return self._remember(cands)
+
+    def lookup_edition(self, olid):
+        """An Open Library edition id (OL..M) -> the same answer as lookup()."""
+        if not re.fullmatch(r"OL[0-9]+M", olid or ""):
+            raise FillError("an Open Library edition id looks like OL123M")
+        c = self.ol.by_edition(olid)
+        if c:
+            c.score = 1.0
+        return self._remember([c] if c else [])
+
+    def _remember(self, cands):
         token = secrets.token_urlsafe(12)
         with self._lock:
             now = time.time()
@@ -157,7 +170,7 @@ class Fill:
 
     # ------------------------------------------------------------------ add
 
-    def add(self, conn, login, token, index, status="planned"):
+    def add(self, conn, login, token, index, status="planned", client=None):
         if status not in ("planned", "in_progress", "completed"):
             raise FillError("status must be planned, in_progress or completed")
         chosen, all_cands = self._picked(token, index)
@@ -181,7 +194,7 @@ class Fill:
         lab = lambda src, ref=None: dict({"src": src, "at": stamp}, **({"ref": ref} if ref else {}))  # noqa: E731
         title, tsrc = m["title"]
         lang = m.get("language", (None, None))
-        with db.write_tx(conn, chosen.provider, "console:" + (login or "unknown"), reason="add from " + chosen.provider):
+        with db.write_tx(conn, chosen.provider, client or "console:" + (login or "unknown"), reason="add from " + chosen.provider):
             item_prov = {"title": lab(tsrc)}
             if lang[0]:
                 item_prov["title_language"] = lab(lang[1])

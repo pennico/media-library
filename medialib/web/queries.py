@@ -220,3 +220,31 @@ def stats(ro, kind="book"):
                     for r in q("SELECT * FROM stats.current ORDER BY started_on DESC NULLS LAST")],
         "yearPrecisionOnly": sum(1 for m in q("SELECT 1 FROM stats.books_by_month WHERE month IS NOT NULL")) == 0,
     }
+
+
+def reading_apps(conn):
+    """Readest (synced documents, OPDS books) and the Joplin feed, for the console."""
+    from ..feeds import kosync
+    docs = [{"document": d["document"], "percentage": d["percentage"], "device": d["device"],
+             "updated": iso(d["updated_at"]), "firstSeen": iso(d["first_seen_at"]), "item": d["item"],
+             "title": d["title"], "how": d["how"], "appTitle": d["metadata"].get("title"),
+             "appAuthors": d["metadata"].get("authors")} for d in kosync.documents(conn)]
+    books = conn.execute("""SELECT count(DISTINCT e.work_id) AS n FROM catalog.edition_file f
+                              JOIN catalog.edition e ON e.id = f.edition_id AND e.deleted_at IS NULL
+                              JOIN catalog.media_item i ON i.id = e.work_id AND i.deleted_at IS NULL
+                             WHERE f.storage = 'store' AND f.deleted_at IS NULL""").fetchone()["n"]
+    run = conn.execute("""SELECT started_at, finished_at, status, summary FROM ingest.run
+                           WHERE tool = 'joplin' AND mode = 'apply' ORDER BY id DESC LIMIT 1""").fetchone()
+    unclear = conn.execute("""SELECT title, kind, problem, candidates, seen_at FROM sync.joplin_note
+                               WHERE state = 'unclear' ORDER BY seen_at DESC LIMIT 100""").fetchall()
+    synced = conn.execute("SELECT count(*) AS n FROM sync.joplin_note WHERE state = 'synced'").fetchone()["n"]
+    return {
+        "documents": docs, "opdsBooks": books,
+        "joplin": {
+            "lastRun": {"at": iso(run["finished_at"] or run["started_at"]), "status": run["status"],
+                        "summary": run["summary"]} if run else None,
+            "synced": synced,
+            "unclear": [{"title": u["title"], "kind": u["kind"], "problem": u["problem"],
+                         "candidates": u["candidates"], "seen": iso(u["seen_at"])} for u in unclear],
+        },
+    }
