@@ -328,8 +328,83 @@ table.tv td.num, table.tv th.num { text-align: right; font-variant-numeric: tabu
 .fb-front img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .fb-front .ph { position: relative; padding: 14px; font-weight: 600; color: var(--wood-muted); }
 .fb-back { transform: rotateY(180deg); background: linear-gradient(to left, var(--page-a), var(--page-b) 10%); }
-body.fb-slot .book[aria-current="true"] .cov { visibility: hidden; }
+.flybook { will-change: transform, opacity; }
 body.fb-pane .detail { visibility: hidden; }
+
+/* the version of a book: a small mark on the cover for ebooks and audiobooks (paper is the plain book) */
+.vmark { position: absolute; right: 5px; bottom: 5px; z-index: 2; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  background: rgb(255 252 245 / 0.92); color: #3b2c1d; box-shadow: 0 1px 3px rgb(0 0 0 / 0.35); pointer-events: none; }
+.grid.s .vmark { width: 18px; height: 18px; right: 3px; bottom: 3px; } .grid.s .vmark svg { width: 11px; height: 11px; }
+.vico { display: inline-flex; vertical-align: -2px; }
+.verbar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.verbar button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; display: inline-flex; gap: 5px; align-items: center; }
+.verbar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.verbar button:disabled { cursor: default; opacity: .7; }
+.verbar .muted { font-size: 12px; margin-left: 4px; }
+
+/* the filter pane: a small panel under the Filter button (a sheet on phones) */
+.fbadge { display: inline-grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; margin-left: 5px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; }
+.btn[aria-expanded="true"] { border-color: var(--accent); background: var(--sel); }
+.fpane { position: absolute; z-index: 50; width: 360px; max-width: calc(100vw - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 16px 40px -10px var(--shadow), 0 2px 6px var(--shadow); display: flex; flex-direction: column; }
+.fpane .fp-body { overflow: auto; padding: 4px 14px 8px; overscroll-behavior: contain; }
+.fpane .fp-head, .fpane .fp-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; }
+.fpane .fp-head { border-bottom: 1px solid var(--line); font-weight: 650; } .fpane .fp-head .xbtn { margin-left: auto; float: none; }
+.fpane .fp-foot { border-top: 1px solid var(--line); font-size: 13px; } .fpane .fp-foot .btn { margin-left: auto; }
+.fsec { padding: 10px 0; border-top: 1px solid var(--line); } .fsec:first-child { border-top: 0; }
+.fsec h4 { margin: 0 0 7px; font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 500;
+  display: flex; align-items: center; gap: 8px; }
+.fsec h4 .segsmall, .fsec h4 .linkbtn { margin-left: auto; font-family: var(--sans); text-transform: none; letter-spacing: 0; }
+.ftoggles { display: flex; flex-wrap: wrap; gap: 5px; }
+.ftog { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 2px 10px; font-size: 12.5px; display: inline-flex; gap: 5px; align-items: center; }
+.ftog .n { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.ftog[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.ftog[aria-pressed="true"] .n { color: inherit; opacity: .8; }
+.ftog:disabled { opacity: .45; cursor: default; }
+.ftog.grp { font-weight: 600; }
+.fcatgrp { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--accent); font-size: 12px; }
+.dual { position: relative; height: 26px; margin: 0 2px; touch-action: none; }
+.dual .trk, .dual .rng { position: absolute; top: 11px; height: 4px; border-radius: 2px; }
+.dual .trk { left: 9px; right: 9px; background: var(--line); }
+.dual .rng { background: var(--accent); left: calc(9px + (100% - 18px) * var(--lo)); width: calc((100% - 18px) * (var(--hi) - var(--lo))); }
+.fpane .fp-body { min-height: 0; }
+.dual input { position: absolute; inset: 0; width: 100%; height: 26px; margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
+.dual input::-webkit-slider-runnable-track { background: none; border: 0; }
+.dual input::-moz-range-track { background: none; border: 0; }
+.dual input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--panel); border: 2px solid var(--accent); box-shadow: 0 1px 3px var(--shadow); cursor: grab; }
+.dual input::-moz-range-thumb { pointer-events: auto; width: 14px; height: 14px; border-radius: 50%; background: var(--panel); border: 2px solid var(--accent); box-shadow: 0 1px 3px var(--shadow); cursor: grab; }
+.dual input:focus-visible { outline: none; } .dual input:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dual-val { display: flex; justify-content: space-between; font-size: 12.5px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.dual-val b { font-weight: 600; } .dual-val .muted { font-size: 12px; }
+.activef { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; align-items: center; }
+.activef .chip { display: inline-flex; gap: 6px; align-items: center; background: var(--sel); border-color: transparent; font-size: 12.5px; padding: 2px 6px 2px 10px; }
+.activef .chip span[aria-hidden] { color: var(--muted); font-size: 14px; line-height: 1; }
+@media (max-width: 760px) {
+  .fpane { position: fixed; left: 0 !important; right: 0; bottom: 0; top: auto !important; width: auto; max-width: none; max-height: 82vh !important; border-radius: 14px 14px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px); }
+}
+
+/* visuals you can click: a bar picks its books, shown in a card under the chart */
+.card svg .barg { cursor: pointer; }
+.card svg.picking .barg:not(.on) .bar { opacity: .35; }
+.hbars .row { display: contents; cursor: pointer; }
+.hbars .row:hover .name, .hbars .row:focus-visible .name { color: var(--accent); }
+.hbars .row:focus-visible .name { text-decoration: underline; }
+.hbars.picking .row:not(.on) .fill { opacity: .35; }
+.hbars .row.on .name { font-weight: 650; }
+.chartscroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+.chartscroll svg { max-width: none; }
+.ctlrow { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 2px 0 10px; }
+.ctlrow select { padding: 2px 6px; font-size: 12.5px; }
+.pick { border: 1px solid var(--accent); }
+.pick h3 .muted { font-weight: 400; font-size: 13px; }
+.pickshelf { display: flex; gap: 12px; overflow-x: auto; padding: 8px 2px 6px; scroll-snap-type: x proximity; }
+.pickshelf .pb { flex: 0 0 84px; width: 84px; min-width: 0; scroll-snap-align: start; border: 0; background: none; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 4px; }
+.pickshelf .pb .cov { width: 84px; height: 126px; aspect-ratio: auto; box-shadow: 0 2px 6px var(--shadow); }
+.pickshelf .pb .t { font-size: 11.5px; font-weight: 600; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pickshelf .pb .a { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pickshelf .pb:hover .t { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -378,15 +453,28 @@ const STATUS_ORDER = ["planned", "in_progress", "completed", "paused", "dropped"
 const SRC = {yamtrack: "Yamtrack", cwa: "CWA", apple: "Apple", openlibrary: "Open Library", owner: "you", tmdb: "TMDB",
   derived: "computed", system: "system", kosync: "Readest"};
 const SORTS = [["manual", "Manual"], ["title", "Title"], ["author", "Author"], ["added", "Date added"], ["finished", "Date read"],
-  ["rating", "Rating"], ["published", "Published"], ["pages", "Pages"], ["language", "Language"], ["status", "Status"], ["genre", "Genre"]];
+  ["rating", "Rating"], ["published", "Published"], ["pages", "Pages"], ["language", "Language"], ["status", "Status"], ["genre", "Genre"], ["version", "Version"]];
 const statusLine = i => i.status === "completed" ? statusLabel(i.kind, i.status) + (i.year ? " " + i.year : "")
   : statusLabel(i.kind, i.status) + (i.year ? " · " + (i.kind === "book" ? "read " : "watched ") + i.year : "");
 const DESC_FIRST = ["finished", "rating", "added", "pages", "published"];   // newest / highest first when picked
 const statusLabel = (kind, s) => (LABEL[kind] || LABEL.book)[s] || s;
+// A book's version: the edition's format (what you have), else the medium of the latest reading. Paper covers
+// print, paperback and hardcover; the editor keeps those finer formats.
+const VERSIONS = [["paper", "Paper", "print"], ["ebook", "Ebook", "ebook"], ["audio", "Audiobook", "audiobook"]];
+const FMT_VER = {print: "paper", paperback: "paper", hardcover: "paper", ebook: "ebook", audiobook: "audio"};
+const FORMATS = [["print", "Paper"], ["paperback", "Paperback"], ["hardcover", "Hardcover"], ["ebook", "Ebook"], ["audiobook", "Audiobook"]];
+const versionOf = i => FMT_VER[i.format] || FMT_VER[i.medium] || null;
+const versionLabel = v => (VERSIONS.find(x => x[0] === v) || [, "Not set"])[1];
+const VICON = {
+  ebook: `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="3.5" y="1.5" width="9" height="13" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 4.5h4M6 7h4M6 9.5h2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`,
+  audio: `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M2.5 10V8a5.5 5.5 0 0 1 11 0v2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="1.8" y="9" width="3.4" height="5" rx="1.2" fill="currentColor"/><rect x="10.8" y="9" width="3.4" height="5" rx="1.2" fill="currentColor"/></svg>`,
+  paper: `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 3.5C6.5 2.4 4.4 2 2 2.2v10c2.4-.2 4.5.2 6 1.3 1.5-1.1 3.6-1.5 6-1.3v-10c-2.4-.2-4.5.2-6 1.3zM8 3.5v10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`,
+};
 let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, STATS = null, READING = null;
 const st = {sec: "database", kind: "book", shelf: null, filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
-  listSort: null, err: "", unlockMsg: "", syncTab: "readest", readerPw: null, cat: null, view: "shelf", trash: null,
-  confirmTrash: false, vtab: "me", vscope: "all", LSTATS: null, side: true};
+  listSort: null, err: "", unlockMsg: "", syncTab: "readest", readerPw: null, view: "shelf", trash: null,
+  confirmTrash: false, vtab: "me", vscope: "all", LSTATS: null, side: true, f: null, fpane: false, pick: null,
+  time: {metric: "books", g: "year", year: "", month: ""}};
 function load(key, dflt) { try { const v = localStorage.getItem("ml-" + key); return v == null ? dflt : JSON.parse(v); } catch (e) { return dflt; } }
 function save(key, v) { try { localStorage.setItem("ml-" + key, JSON.stringify(v)); } catch (e) {} }
 const langName = c => c ? (LIB.languages[c] || c) : "";
@@ -420,7 +508,7 @@ const serverApi = {
   shelfItems(sid, body) { return this.send("POST", "api/shelves/" + sid + "/items", body); },
   move(sid, item, to) { return this.send("POST", "api/shelves/" + sid + "/move", {item, to}); },
   lookup(body) { return this.send("POST", "api/lookup", body); },
-  add(token, index, status) { return this.send("POST", "api/add", {token, index, status}); },
+  add(token, index, status, format) { return this.send("POST", "api/add", {token, index, status, format}); },
   fill(id) { return this.send("POST", "api/items/" + id + "/fill", {}); },
   addManual(body) { return this.send("POST", "api/add-manual", body); },
   async uploadCover(id, file) {
@@ -531,8 +619,8 @@ function renderSide() {
     const tree = catTree(st.kind);
     $("cats").hidden = !tree.length;
     $("cats").innerHTML = tree.length ? `<h3>Categories</h3>` + tree.map(g =>
-      `<button class="nav" id="cat-${g.id}" data-cat="${g.id}" aria-current="${st.cat === g.id && st.view !== "trash"}"><span class="ico">▾</span>${esc(g.name)}<span class="n">${g.n}</span></button>` +
-      g.subs.filter(c => c.n).map(c => `<button class="nav sub" id="cat-${c.id}" data-cat="${c.id}" aria-current="${st.cat === c.id && st.view !== "trash"}"><span class="ico"></span>${esc(c.name)}<span class="n">${c.n}</span></button>`).join("")).join("") : "";
+      `<button class="nav" id="cat-${g.id}" data-cat="${g.id}" aria-current="${st.f.cats.includes(g.id) && st.view !== "trash"}"><span class="ico">▾</span>${esc(g.name)}<span class="n">${g.n}</span></button>` +
+      g.subs.filter(c => c.n).map(c => `<button class="nav sub" id="cat-${c.id}" data-cat="${c.id}" aria-current="${st.f.cats.includes(c.id) && st.view !== "trash"}"><span class="ico"></span>${esc(c.name)}<span class="n">${c.n}</span></button>`).join("")).join("") : "";
   } else { $("shelves").hidden = true; $("cats").hidden = true; }
   $("side-foot").innerHTML = PREVIEW ? `Preview of the console with your imported data. Edits stay in this browser.` :
     `Tailnet only · ${esc(SESSION.login || "no login")}`;
@@ -550,11 +638,63 @@ function catTree(kind) {
   }).filter(g => g.n);
 }
 const catName = id => (LIB.categories || []).find(c => c.id === id)?.name || "";
-function inCat(i) {
-  if (!st.cat) return true;
-  const ids = [st.cat, ...(LIB.categories || []).filter(c => c.parent === st.cat).map(c => c.id)];
-  return (i.cats || []).some(c => ids.includes(c));
+// a picked group stands for its categories too
+const catIds = ids => ids.flatMap(id => [id, ...(LIB.categories || []).filter(c => c.parent === id).map(c => c.id)]);
+
+// --------------------------------------------------------------- filters
+// The Filter pane: each facet narrows the list; values inside one facet add up (Italian or French). Dates compare
+// as text keys at the chosen detail: "2024", "2024-03" or "2024-03-12"; a reading known to the year only has no month.
+const NOF = () => ({langs: [], olangs: [], versions: [], cats: [], read: null, added: null, pub: null, rating: null, pages: null, file: null, review: null});
+const G_LEN = {year: 4, month: 7, day: 10}, G_RANK = {year: 0, month: 1, day: 2};
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const readKeys = (i, g) => (i.reads || []).filter(r => r[0] && G_RANK[r[1]] >= G_RANK[g]).map(r => r[0].slice(0, G_LEN[g]));
+const addedKeys = (i, g) => i.added ? [i.added.slice(0, G_LEN[g])] : [];
+const DATE_KEYS = {read: readKeys, added: addedKeys};
+function fmtKey(k) {
+  if (!k) return "";
+  const [y, m, d] = k.split("-");
+  return d ? `${+d} ${MONTHS[m - 1]} ${y}` : m ? `${MONTHS[m - 1]} ${y}` : y;
 }
+const fmtYear = y => y < 0 ? -y + " BC" : String(y);
+function fMatch(i, skip) {
+  const f = st.f, has = (k, xs) => skip === k || !xs.length;
+  if (!has("langs", f.langs) && !f.langs.includes(i.lang || "")) return false;
+  if (!has("olangs", f.olangs) && !f.olangs.includes(i.origLang || "")) return false;
+  if (!has("versions", f.versions) && !f.versions.includes(versionOf(i) || "")) return false;
+  if (!has("cats", f.cats)) { const ids = catIds(f.cats); if (!(i.cats || []).some(c => ids.includes(c))) return false; }
+  for (const k of ["read", "added"]) {
+    const r = f[k]; if (skip === k || !r) continue;
+    if (!DATE_KEYS[k](i, r.g).some(x => x >= r.from && x <= r.to)) return false;
+  }
+  if (skip !== "pub" && f.pub && !(i.published != null && i.published >= f.pub[0] && i.published <= f.pub[1])) return false;
+  if (skip !== "rating" && f.rating && !(i.rating != null && Math.floor(i.rating) >= f.rating[0] && Math.floor(i.rating) <= f.rating[1])) return false;
+  if (skip !== "pages" && f.pages && !(i.pages != null && i.pages >= f.pages[0] && i.pages <= f.pages[1])) return false;
+  if (skip !== "file" && f.file != null && !!i.hasFile !== f.file) return false;
+  if (skip !== "review" && f.review && !i.hasReview) return false;
+  return true;
+}
+// the active filters, each with a label and how to take it off (the chips under the toolbar)
+function activeFilters() {
+  const f = st.f, out = [], range = (a, b, fmt) => a === b ? fmt(a) : fmt(a) + "–" + fmt(b);
+  for (const v of f.versions) out.push(["versions:" + v, versionLabel(v || null)]);
+  for (const c of f.langs) out.push(["langs:" + c, (c ? langName(c) : "Language not recorded")]);
+  for (const c of f.olangs) out.push(["olangs:" + c, "Original: " + (c ? langName(c) : "not recorded")]);
+  for (const c of f.cats) out.push(["cats:" + c, catName(c)]);
+  if (f.read) out.push(["read", "Read " + range(f.read.from, f.read.to, fmtKey)]);
+  if (f.added) out.push(["added", "Added " + range(f.added.from, f.added.to, fmtKey)]);
+  if (f.pub) out.push(["pub", "Published " + range(f.pub[0], f.pub[1], fmtYear)]);
+  if (f.rating) out.push(["rating", "Rated " + range(f.rating[0], f.rating[1], String)]);
+  if (f.pages) out.push(["pages", range(f.pages[0], f.pages[1], String) + " pages"]);
+  if (f.file != null) out.push(["file", f.file ? "Has an EPUB" : "No EPUB"]);
+  if (f.review) out.push(["review", "Has a review"]);
+  return out;
+}
+function clearFilter(key) {
+  const [k, v] = key.split(/:(.*)/s);
+  if (v !== undefined) st.f[k] = st.f[k].filter(x => String(x) !== v); else st.f[k] = null;
+  saveF();
+}
+const saveF = () => save("filter", st.f);
 // the "find it" link: {q} in the address gets the title and first author, as a search form sends them (spaces as +)
 function findUrl(title, authors) {
   if (!LIB.find) return null;
@@ -568,22 +708,20 @@ function findFormHtml() {
     <label class="full">Name on the link<input id="fd-label" value="${esc(f.label)}" maxlength="40" autocomplete="off"></label>
     <div class="full row-actions">${LIB.findCustom && LIB.findDefault ? `<button class="btn small" id="fd-reset" title="${esc(LIB.findDefault.url)}">Back to the server's</button>` : ""}<button class="btn small" id="fd-cancel">Cancel</button><button class="btn small primary" id="fd-save">Save</button></div></div>`;
 }
-function visibleItems() {
+function shelfItems() {
   const shelf = LIB.shelves.find(s => s.id === st.shelf), byId = itemsById();
-  let list = shelf ? shelf.items.map(id => byId[id]).filter(Boolean) : LIB.items.filter(i => i.kind === st.kind);
-  return list.filter(inCat);
+  return shelf ? shelf.items.map(id => byId[id]).filter(Boolean) : LIB.items.filter(i => i.kind === st.kind);
 }
-function filtered(list) {
-  const q = fold(st.q.trim());
-  return list.filter(i => (st.filter === "all" || i.status === st.filter) && (!q || fold(i.title + " " + i.authors + " " + i.genres.join(" ")).includes(q)));
-}
+const visibleItems = () => shelfItems().filter(i => fMatch(i));
+const statusQ = i => (st.filter === "all" || i.status === st.filter) && (!st.q.trim() || fold(i.title + " " + i.authors + " " + i.genres.join(" ")).includes(fold(st.q.trim())));
+const filtered = list => list.filter(statusQ);
 function sorted(list, prefs) {
   const sortKey = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc;
   if (sortKey === "manual") return list;
   const coll = new Intl.Collator(prefs.locale === "und" ? undefined : prefs.locale, {numeric: true, sensitivity: "base"});
   const val = {title: i => i.sort, author: i => i.authorSort || "~", added: i => i.added, finished: i => i.year ?? -1, rating: i => i.rating ?? -1,
     published: i => i.published ?? -99999, pages: i => i.pages ?? -1, language: i => langName(i.lang) || "~", status: i => STATUS_ORDER.indexOf(i.status),
-    genre: i => i.genres[0] || "~"}[sortKey] || (i => i.sort);
+    genre: i => i.genres[0] || "~", version: i => versionOf(i) ? VERSIONS.findIndex(x => x[0] === versionOf(i)) : 9}[sortKey] || (i => i.sort);
   const out = [...list].sort((a, b) => {
     const x = val(a), y = val(b);
     const c = typeof x === "number" && typeof y === "number" ? x - y : coll.compare(String(x), String(y));
@@ -597,18 +735,19 @@ function renderDatabase() {
   const shelf = LIB.shelves.find(s => s.id === st.shelf);
   if (!shelf) { $("v-database").innerHTML = `<p class="empty">No collection.</p>`; return; }
   const prefs = shelfPrefs(shelf), base = visibleItems(), list = sorted(filtered(base), prefs);
-  const kind = st.kind, labels = LABEL[kind];
+  const kind = st.kind, labels = LABEL[kind], active = activeFilters();
   const present = STATUS_ORDER.filter(s => ["planned", "in_progress", "completed"].includes(s) || base.some(i => i.status === s));
   const chips = [["all", "All", base.length], ...present.map(s => [s, labels[s], base.filter(i => i.status === s).length])];
   const manual = (st.listSort?.key || prefs.sort) === "manual";
-  const canDrag = manual && prefs.layout === "grid" && st.filter === "all" && !st.q && canEdit();
-  const title = (shelf.kind === "all" ? "All " + KINDS.find(k => k[0] === kind)[1].toLowerCase() : shelf.name) + (st.cat ? " · " + catName(st.cat) : "");
-  const tree = catTree(kind);
+  const canDrag = manual && prefs.layout === "grid" && st.filter === "all" && !st.q && !active.length && canEdit();
+  const title = (shelf.kind === "all" ? "All " + KINDS.find(k => k[0] === kind)[1].toLowerCase() : shelf.name) + (st.f.cats.length === 1 ? " · " + catName(st.f.cats[0]) : "");
   const v = $("v-database");
+  // covers already on the shelf are kept as they are (no image reload, no blink); only changed ones are redrawn
+  const kept = new Map([...v.querySelectorAll("#grid > .book")].map(b => [b.id, b])), paneTop = $("detail")?.scrollTop || 0;
   v.innerHTML = `<div class="toolbar">
       <h2>${esc(title)}</h2>
-      <div class="chips" role="group" aria-label="Filter">${chips.map(([k, label, n]) => `<button class="chip" id="f-${k}" data-filter="${k}" aria-pressed="${st.filter === k}">${esc(label)}<span class="n">${n}</span></button>`).join("")}</div>
-      ${tree.length ? `<select id="cat-pick" aria-label="Category"><option value="">All categories</option>${tree.map(g => `<optgroup label="${esc(g.name)}"><option value="${g.id}" ${st.cat === g.id ? "selected" : ""}>${esc(g.name)} (all)</option>${g.subs.filter(c => c.n).map(c => `<option value="${c.id}" ${st.cat === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>` : ""}
+      <div class="chips" role="group" aria-label="Status">${chips.map(([k, label, n]) => `<button class="chip" id="f-${k}" data-filter="${k}" aria-pressed="${st.filter === k}">${esc(label)}<span class="n">${n}</span></button>`).join("")}</div>
+      <button class="btn small" id="filter-btn" aria-expanded="${st.fpane}" aria-controls="fpane" title="Filter by language, version, category, dates, rating…">Filter${active.length ? `<span class="fbadge">${active.length}</span>` : ""}</button>
       <div class="tools">
         <input type="search" id="filter-q" placeholder="Filter this list" value="${esc(st.q)}" aria-label="Filter this list">
         <select id="sort" aria-label="Sort">${SORTS.map(([k, l]) => `<option value="${k}" ${(st.listSort?.key || prefs.sort) === k ? "selected" : ""}>${l}</option>`).join("")}</select>
@@ -619,14 +758,17 @@ function renderDatabase() {
         ${kind === "book" ? `<button class="btn small primary" id="add-book" title="Find a book at Apple Books and Open Library and add it">+ Add book</button>` : ""}
       </div>
     </div>
-    ${canDrag ? `<p class="hintline">Drag covers to reorder${shelf.kind === "all" ? " your library" : " this collection"}.</p>` : manual && prefs.layout === "grid" && canEdit() && (st.filter !== "all" || st.q) ? `<p class="hintline">Clear the filter to drag covers into a new order.</p>` : ""}
+    ${active.length ? `<div class="activef" role="group" aria-label="Active filters">${active.map(([k, label]) => `<button class="chip" data-fclear="${esc(k)}" title="Remove this filter">${esc(label)}<span aria-hidden="true">×</span></button>`).join("")}<button class="linkbtn" data-fclear="*">Clear all</button></div>` : ""}
+    ${canDrag ? `<p class="hintline">Drag covers to reorder${shelf.kind === "all" ? " your library" : " this collection"}.</p>` : manual && prefs.layout === "grid" && canEdit() && (st.filter !== "all" || st.q || active.length) ? `<p class="hintline">Clear the filter to drag covers into a new order.</p>` : ""}
     <div class="lib ${st.selected ? "withdetail" : ""}" id="lib">
-      <div id="content">${list.length ? (prefs.layout === "list" ? listHtml(list, prefs) : gridHtml(list, prefs)) : `<p class="empty">${base.length ? "Nothing matches the filter." : "Nothing here yet."}</p>`}</div>
+      <div id="content">${list.length ? (prefs.layout === "list" ? listHtml(list, prefs) : gridHtml(list, prefs)) : `<p class="empty">${shelfItems().length ? `Nothing matches the filter. <button class="linkbtn" data-fclear="*">Clear the filters</button>` : "Nothing here yet."}</p>`}</div>
       <aside class="detail" id="detail" ${st.selected ? "" : "hidden"}></aside>
     </div>`;
-  if (st.selected) renderDetail();
+  if (kept.size) for (const b of v.querySelectorAll("#grid > .book")) { const o = kept.get(b.id); if (o && o.outerHTML === b.outerHTML) b.replaceWith(o); }
+  if (st.selected) { renderDetail(); $("detail").scrollTop = paneTop; }
   if (canDrag) enableDrag(shelf);
   watchShelves();
+  if (st.fpane && !fDrag) renderFilterPane();
 }
 // The boards: one under each row of covers (rows found from where the covers end), then empty ones at the same
 // spacing down to the bottom of the case. Redone whenever the grid or the case changes size.
@@ -648,9 +790,13 @@ function layoutShelves() {
 }
 function gridHtml(list, prefs) {
   return `<div class="shelfwrap" id="shelfwrap"><div class="boards" id="boards"></div><div class="grid ${prefs.size}" id="grid">${list.map(i => `<button class="book" id="b-${i.id}" data-id="${i.id}" aria-current="${st.selected === i.id}">
-    <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}</div></div>
+    <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}</div></div>
     <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span>
     <span class="s"><span class="dot ${i.status}"></span>${esc(statusLine(i))}${i.rating != null ? " · " + i.rating + "/10" : ""}</span></button>`).join("")}</div></div>`;
+}
+function vmark(i) {
+  const v = versionOf(i);
+  return v === "ebook" || v === "audio" ? `<span class="vmark" title="${versionLabel(v)}">${VICON[v]}</span>` : "";
 }
 async function renderTrash() {
   const v = $("v-database");
@@ -667,7 +813,7 @@ async function renderTrash() {
     </div>`).join("")}</div>${edit ? "" : `<p class="muted" style="font-size:12.5px">Unlock to restore or delete.</p>`}` : `<p class="empty">The trash is empty.</p>`}`;
 }
 const LIST_COLS = [["cover", "", null], ["title", "Title", "title"], ["author", "Author", "author"], ["status", "Status", "status"], ["rating", "Rating", "rating"],
-  ["finished", "Read", "finished"], ["pages", "Pages", "pages"], ["language", "Language", "language"], ["genre", "Genre", "genre"], ["added", "Added", "added"]];
+  ["finished", "Read", "finished"], ["pages", "Pages", "pages"], ["language", "Language", "language"], ["version", "Version", "version"], ["genre", "Genre", "genre"], ["added", "Added", "added"]];
 function listHtml(list, prefs) {
   const key = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc;
   const head = LIST_COLS.map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : `<th></th>`).join("");
@@ -676,35 +822,182 @@ function listHtml(list, prefs) {
     <td class="wrap"><b>${esc(i.title)}</b></td><td>${esc(i.authors || "—")}</td>
     <td><span class="dot ${i.status}" style="display:inline-block;margin-right:6px"></span>${esc(statusLabel(i.kind, i.status))}</td>
     <td class="num">${i.rating ?? ""}</td><td class="num">${i.year ?? ""}</td><td class="num">${i.pages ?? ""}</td>
-    <td>${esc(langName(i.lang))}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`).join("")}</tbody></table></div>`;
+    <td>${esc(langName(i.lang))}</td><td>${versionOf(i) ? `<span class="vico">${VICON[versionOf(i)]}</span> ${versionLabel(versionOf(i))}` : ""}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
+// ----------------------------------------------------------- filter pane
+// Toggles show how many books each value would leave (with the other filters on); sliders run over the values the
+// books have (years, months or days for the dates, narrowed to a year or a month when the detail is finer).
+const FDOM = {};
+let fLang = "langs", fDrag = false;
+function dateDom(k) {
+  const w = st.fwin[k], keys = [...new Set(shelfItems().flatMap(i => DATE_KEYS[k](i, w.g)))].sort();
+  const years = [...new Set(keys.map(x => x.slice(0, 4)))];
+  if (w.year && !years.includes(w.year)) w.year = "";
+  let dom = w.year ? keys.filter(x => x.startsWith(w.year)) : keys;
+  const months = w.year && w.g === "day" ? [...new Set(dom.map(x => x.slice(5, 7)))] : [];
+  if (w.month && !months.includes(w.month)) w.month = "";
+  if (w.month) dom = dom.filter(x => x.slice(5, 7) === w.month);
+  return {dom, years, months};
+}
+function dualHtml(key, label, cur) {
+  const D = FDOM[key], dom = D.dom, n = dom.length;
+  if (n < 2) return `<p class="muted" style="margin:0;font-size:12.5px">${n ? esc(D.fmt(dom[0])) + " only" : "Nothing to filter by"}</p>`;
+  let lo = 0, hi = n - 1;
+  if (cur) { lo = Math.max(0, dom.findIndex(x => x >= cur[0])); const j = dom.findLastIndex(x => x <= cur[1]); hi = j < lo ? lo : j; }
+  return `<div class="dual" data-dual="${key}" style="--lo:${lo / (n - 1)};--hi:${hi / (n - 1)}"><div class="trk"></div><div class="rng"></div>
+      <input type="range" min="0" max="${n - 1}" step="1" value="${lo}" aria-label="${esc(label)}: from" style="z-index:${lo > (n - 1) / 2 ? 2 : 1}">
+      <input type="range" min="0" max="${n - 1}" step="1" value="${hi}" aria-label="${esc(label)}: to"></div>
+    <div class="dual-val">${dualVals(D, lo, hi, !cur)}</div>`;
+}
+const dualVals = (D, lo, hi, any) => `<b>${esc(D.fmt(D.dom[lo]))}</b><span class="muted">${any ? "any" : ""}</span><b>${esc(D.fmt(D.dom[hi]))}</b>`;
+function renderFilterPane() {
+  let p = $("fpane");
+  const btn = $("filter-btn");
+  if (!st.fpane || st.sec !== "database" || st.view === "trash" || !btn) { p?.remove(); st.fpane = false; btn?.setAttribute("aria-expanded", "false"); return; }
+  if (!p) { p = document.createElement("div"); p.id = "fpane"; p.className = "fpane"; p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Filter"); document.body.append(p); }
+  const keep = p.querySelector(".fp-body")?.scrollTop || 0, f = st.f, items = shelfItems(), all = items.filter(statusQ);
+  const count = (skip, test) => all.filter(i => fMatch(i, skip) && test(i)).length;
+  const tog = (facet, val, label, n, cls = "") => { const on = f[facet].includes(val);
+    return `<button class="ftog ${cls}" data-ftog="${facet}" data-fval="${esc(val)}" aria-pressed="${on}" ${!n && !on ? "disabled" : ""}>${label}<span class="n">${n}</span></button>`; };
+  const isBook = st.kind === "book", noun = isBook ? "book" : st.kind === "movie" ? "movie" : "series";
+  const vers = [...VERSIONS.map(([v, l]) => [v, `<span class="vico">${VICON[v]}</span>${l}`]), ["", "Not set"]];
+  const field = fLang === "langs" ? "lang" : "origLang";
+  const langs = [...new Set(items.map(i => i[field] || ""))].map(c => [c, count(fLang, i => (i[field] || "") === c)])
+    .sort((a, b) => b[1] - a[1] || langName(a[0]).localeCompare(langName(b[0])));
+  const tree = catTree(st.kind);
+  const dateSec = (k, title) => {
+    const w = st.fwin[k], {dom, years, months} = dateDom(k), r = f[k];
+    FDOM[k] = {dom, fmt: fmtKey, set: (lo, hi) => { f[k] = !w.year && lo === 0 && hi === dom.length - 1 ? null : {g: w.g, from: dom[lo], to: dom[hi]}; }};
+    return `<div class="fsec"><h4>${title}<span class="segsmall" role="group" aria-label="${title}: detail">${["year", "month", "day"].map(g =>
+        `<button data-fg="${k}:${g}" aria-pressed="${w.g === g}">${g[0].toUpperCase() + g.slice(1)}</button>`).join("")}</span></h4>
+      ${w.g !== "year" ? `<div class="ctlrow"><select data-fwin="${k}:year" aria-label="${title}: year"><option value="">All years</option>${years.map(y => `<option ${w.year === y ? "selected" : ""}>${y}</option>`).join("")}</select>
+        ${w.g === "day" && w.year ? `<select data-fwin="${k}:month" aria-label="${title}: month"><option value="">All months</option>${months.map(m => `<option value="${m}" ${w.month === m ? "selected" : ""}>${MONTHS[m - 1]}</option>`).join("")}</select>` : ""}</div>` : ""}
+      ${dualHtml(k, title, r && r.g === w.g ? [r.from, r.to] : null)}</div>`;
+  };
+  const nums = key => [...new Set(items.map(i => i[key]).filter(x => x != null))].sort((a, b) => a - b);
+  const full = (key, dom) => (lo, hi) => { f[key] = lo === 0 && hi === dom.length - 1 ? null : [dom[lo], dom[hi]]; };
+  const pub = nums("published"), pages = nums("pages"), rating = Array.from({length: 11}, (_, n) => n);
+  FDOM.pub = {dom: pub, fmt: fmtYear, set: full("pub", pub)};
+  FDOM.pages = {dom: pages, fmt: n => n + " p.", set: full("pages", pages)};
+  FDOM.rating = {dom: rating, fmt: n => n + "/10", set: full("rating", rating)};
+  const flag = (k, v, label, n) => `<button class="ftog" data-fflag="${k}:${v}" aria-pressed="${f[k] === (k === "review" ? true : v === "1")}" ${!n && f[k] == null ? "disabled" : ""}>${label}<span class="n">${n}</span></button>`;
+  const shown = all.filter(i => fMatch(i)).length;
+  p.innerHTML = `<div class="fp-head">Filter<button class="xbtn" id="fp-close" aria-label="Close the filter">✕</button></div>
+    <div class="fp-body">
+      ${isBook ? `<div class="fsec"><h4>Version</h4><div class="ftoggles">${vers.map(([v, l]) => tog("versions", v, l, count("versions", i => (versionOf(i) || "") === v))).join("")}</div></div>` : ""}
+      <div class="fsec"><h4>Language<span class="segsmall" role="group" aria-label="Which language"><button data-flang="langs" aria-pressed="${fLang === "langs"}">${isBook ? "Of the book" : "Audio"}</button><button data-flang="olangs" aria-pressed="${fLang === "olangs"}">Original</button></span></h4>
+        <div class="ftoggles">${langs.map(([c, n]) => tog(fLang, c, esc(c ? langName(c) : "Not recorded"), n)).join("") || `<span class="muted">—</span>`}</div></div>
+      ${tree.length ? `<div class="fsec"><h4>Category</h4>${tree.map(g => `<div class="fcatgrp">${tog("cats", g.id, esc(g.name), count("cats", i => (i.cats || []).some(c => catIds([g.id]).includes(c))), "grp")}${g.subs.filter(c => c.n).map(c => tog("cats", c.id, esc(c.name), count("cats", i => (i.cats || []).includes(c.id)))).join("")}</div>`).join("")}</div>` : ""}
+      ${dateSec("read", isBook ? "Read" : "Watched")}
+      <div class="fsec"><h4>Published</h4>${dualHtml("pub", "Published", f.pub)}</div>
+      <div class="fsec"><h4>Rating</h4>${dualHtml("rating", "Rating", f.rating)}</div>
+      ${isBook ? `<div class="fsec"><h4>Pages</h4>${dualHtml("pages", "Pages", f.pages)}</div>` : ""}
+      ${dateSec("added", "Added")}
+      ${isBook ? `<div class="fsec"><h4>Other</h4><div class="ftoggles">${flag("file", "1", "Has an EPUB", count("file", i => i.hasFile))}${flag("file", "0", "No EPUB", count("file", i => !i.hasFile))}${flag("review", "1", "Has a review", count("review", i => i.hasReview))}</div></div>` : ""}
+    </div>
+    <div class="fp-foot"><span><b>${shown}</b> ${noun}${shown === 1 || noun === "series" ? "" : "s"}</span><button class="btn small" data-fclear="*" ${activeFilters().length ? "" : "disabled"}>Clear all</button></div>`;
+  p.querySelector(".fp-body").scrollTop = keep;
+  btn.setAttribute("aria-expanded", "true");
+  if (matchMedia("(max-width: 760px)").matches) { p.style.left = p.style.top = p.style.maxHeight = ""; return; }
+  const r = btn.getBoundingClientRect(), w = p.offsetWidth;
+  p.style.left = Math.max(16, Math.min(r.left, innerWidth - w - 16)) + scrollX + "px";
+  p.style.top = r.bottom + scrollY + 6 + "px";
+  p.style.maxHeight = Math.max(320, innerHeight - r.bottom - 16) + "px";
+}
+function closeFilterPane() { if (!st.fpane) return; st.fpane = false; renderFilterPane(); }
+let listFrame = 0;
+const redrawList = () => { if (!listFrame) listFrame = requestAnimationFrame(() => { listFrame = 0; renderDatabase(); }); };
+function setDateDetail(k, g) {
+  const w = st.fwin[k], r = st.f[k], L = G_LEN[g];
+  w.g = g;
+  if (!r || r.g === g) return;
+  if (L <= r.from.length) { st.f[k] = {g, from: r.from.slice(0, L), to: r.to.slice(0, L)}; return; }
+  const keys = [...new Set(shelfItems().flatMap(i => DATE_KEYS[k](i, g)))].sort();
+  const from = keys.find(x => x.slice(0, r.from.length) >= r.from), to = keys.findLast(x => x.slice(0, r.to.length) <= r.to);
+  st.f[k] = from && to && from <= to ? {g, from, to} : null;
+  if (r.from.slice(0, 4) === r.to.slice(0, 4)) w.year = r.from.slice(0, 4);   // one year: look inside it
+}
+document.addEventListener("input", e => {
+  const dual = e.target.closest?.(".dual"); if (!dual) return;
+  const D = FDOM[dual.dataset.dual], [a, b] = dual.querySelectorAll("input"), n = D.dom.length;
+  let lo = +a.value, hi = +b.value;
+  if (lo > hi) { if (e.target === a) a.value = lo = hi; else b.value = hi = lo; }
+  dual.style.setProperty("--lo", lo / (n - 1)); dual.style.setProperty("--hi", hi / (n - 1)); a.style.zIndex = lo > (n - 1) / 2 ? 2 : 1;
+  D.set(lo, hi); saveF();
+  dual.nextElementSibling.innerHTML = dualVals(D, lo, hi, false);
+  fDrag = true; redrawList();
+});
+document.addEventListener("change", e => {
+  const dual = e.target.closest?.(".dual");
+  if (dual) {                                        // redraw the counts; keep the keyboard on the same handle
+    const key = dual.dataset.dual, n = [...dual.querySelectorAll("input")].indexOf(e.target), had = document.activeElement === e.target;
+    fDrag = false; renderFilterPane();
+    if (had) document.querySelector(`#fpane .dual[data-dual="${key}"]`)?.querySelectorAll("input")[n]?.focus();
+    return;
+  }
+  const win = e.target.dataset?.fwin; if (!win) return;
+  const [k, part] = win.split(":"), w = st.fwin[k];
+  w[part] = e.target.value; if (part === "year") w.month = "";
+  const {dom} = dateDom(k);
+  st.f[k] = w.year && dom.length ? {g: w.g, from: dom[0], to: dom[dom.length - 1]} : null; saveF();
+  renderDatabase();
+});
+addEventListener("resize", () => { if (st.fpane) renderFilterPane(); });
+
 // ---------------------------------------------------------------- detail
+const reduceMotion = () => !Element.prototype.animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
 async function openDetail(id, quiet) {
   st.selected = id; st.editing = false; st.editReview = false; st.readingEdit = null; st.err = ""; st.confirmTrash = false; st.findEdit = false;
-  if (!quiet) { st.detail = null; renderDatabase(); }
-  try { st.detail = await api.detail(id); } catch (e) { st.detail = {error: e.message}; }
+  if (!quiet) { st.detail = null; showSelection(); renderDetail(); }    // the panel opens at once with what the shelf knows
+  let d;
+  try { d = await api.detail(id); } catch (e) { d = {error: e.message}; }
+  if (st.selected !== id) return;                    // another book was opened meanwhile
+  st.detail = d;
   if (!quiet) renderDetail();
 }
-function closeDetail() { st.selected = null; st.detail = null; st.editing = false; renderDatabase(); }
+function closeDetail() { st.selected = null; st.detail = null; st.editing = false; showSelection(); }
+// Opening or closing the panel without redrawing the shelf: the current book is marked, and when the panel takes
+// its column the covers glide to their new places (FLIP) instead of jumping.
+function showSelection() {
+  const lib = $("lib"), pane = $("detail");
+  if (!lib || !pane || st.selected?.startsWith?.("__")) return renderDatabase();
+  for (const el of lib.querySelectorAll("[data-id][aria-current]")) el.setAttribute("aria-current", String(el.dataset.id === st.selected));
+  const want = !!st.selected;
+  if (lib.classList.contains("withdetail") === want) { pane.hidden = !want; return; }
+  glide(() => { lib.classList.toggle("withdetail", want); pane.hidden = !want; });
+}
+function glide(change) {
+  const books = reduceMotion() ? [] : [...document.querySelectorAll("#grid > .book")].filter(b => { const r = b.getBoundingClientRect(); return r.bottom > -200 && r.top < innerHeight + 200; });
+  const before = books.map(b => b.getBoundingClientRect());
+  change();
+  books.forEach((b, n) => {
+    const a = before[n], r = b.getBoundingClientRect(), dx = a.left - r.left, dy = a.top - r.top;
+    if (Math.abs(dx) + Math.abs(dy) > 1) b.animate([{transform: `translate(${dx}px, ${dy}px)`}, {transform: "none"}], {duration: 460, easing: "cubic-bezier(.25, .8, .25, 1)"});
+  });
+}
 // Opening a book from the shelf, as in the old iBooks: a copy of its cover lifts off, flies to the info panel and
-// swings open on its spine; the panel shows through as the page fades. Without animation under "Reduce motion".
+// swings open on its spine; the panel shows through as the page fades. The book itself stays on the shelf. Without
+// animation under "Reduce motion".
 // The timeline in ms: the flight, then the cover opening ([delay, duration]), the page fading, the copy going.
 const OPEN_MS = {fly: 720, cover: [440, 980], page: [900, 560], gone: [1340, 260]};
 async function openBook(btn) {
-  const cov = btn.querySelector(".cov");
-  if (!cov || !Element.prototype.animate || matchMedia("(prefers-reduced-motion: reduce)").matches) return openDetail(btn.dataset.id);
-  const run = openBook.run = (openBook.run || 0) + 1, a = cov.getBoundingClientRect(), px = r => ({left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px"});
+  const cov = btn.querySelector(".cov"), id = btn.dataset.id;
+  if (!cov || reduceMotion()) return openDetail(id);
+  if (st.selected === id && st.detail) return;
+  const run = openBook.run = (openBook.run || 0) + 1, px = r => ({left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px"});
   document.querySelector(".flybook")?.remove();
+  document.body.classList.add("fb-pane");
+  const loading = openDetail(id);                    // the panel is in place at once (hidden until the cover opens)
+  const a = cov.getBoundingClientRect();             // where the book is seen now (gliding, if the shelf made room)
   const fly = document.createElement("div");
   fly.className = "flybook";
-  fly.innerHTML = `<div class="fb-page"></div><div class="fb-cover"><div class="fb-front">${cov.innerHTML}</div><div class="fb-back"></div></div>`;
-  Object.assign(fly.style, px(a));
-  document.body.append(fly); document.body.classList.add("fb-slot", "fb-pane");
-  const done = () => { fly.remove(); if (openBook.run === run) document.body.classList.remove("fb-slot", "fb-pane"); };
-  await openDetail(btn.dataset.id);                  // the panel, with the book's details, is in place (but hidden)
+  fly.innerHTML = `<div class="fb-page"></div><div class="fb-cover"><div class="fb-front">${cov.innerHTML.replace(/<span class="vmark"[\s\S]*?<\/span>/, "")}</div><div class="fb-back"></div></div>`;
+  document.body.append(fly);
+  const done = () => { fly.remove(); if (openBook.run === run) document.body.classList.remove("fb-pane"); };
+  loading.then(() => { if (openBook.run === run && !$("detail")) done(); });
   const pane = $("detail");
-  if (!pane || pane.hidden || !fly.isConnected) return done();
+  if (!pane || pane.hidden) return done();
   // the copy moves to its landing place at once and is drawn back over the shelf by a transform, which then
   // runs to none: a compositor animation, smooth on phones while the panel renders
   const p = pane.getBoundingClientRect(), w = Math.min(p.width, 420), h = Math.max(120, Math.min(w * 1.5, innerHeight - p.top - 8));
@@ -724,7 +1017,12 @@ function srcTag(group, col) { const s = st.detail?.prov?.[group]?.[col]; return 
 function renderDetail() {
   const el = $("detail"); if (!el) return;
   const d = st.detail;
-  if (!d) { el.innerHTML = `<p class="muted">Loading…</p>`; return; }
+  if (!d) {                                          // while the details load: what the shelf already knows
+    const i = LIB.items.find(x => x.id === st.selected);
+    el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button>` + (i ? `<div class="head"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="">` : `<span class="ph">no cover</span>`}</div>
+      <div style="min-width:0"><h2>${esc(i.title)}</h2><div>${esc(i.authors || "")}</div><p class="muted" style="font-size:12.5px;margin:4px 0 0">Loading…</p></div></div>` : `<p class="muted">Loading…</p>`);
+    return;
+  }
   if (d.error) { el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button><p class="err">${esc(d.error)}</p>`; return; }
   const e = d.edition, edit = canEdit(), labels = LABEL[d.kind];
   const chosen = d.covers.find(c => c.chosen);
@@ -741,6 +1039,7 @@ function renderDetail() {
     ${st.err ? `<p class="err">${esc(st.err)}</p>` : ""}
     ${!edit && !PREVIEW && SESSION.owner ? `<p class="muted" style="font-size:12.5px;margin:12px 0 0">Unlock (top right) to change anything here.</p>` : ""}
     <div class="d-sec"><h3>Status${srcTag("entry", "status")}</h3><div class="statusbar">${statusBtns}</div></div>
+    ${d.kind === "book" ? `<div class="d-sec"><h3>Version${srcTag("edition", "format")}</h3>${versionHtml(d, edit)}</div>` : ""}
     <div class="d-sec"><h3>Rating${srcTag("entry", "rating")}</h3><div class="rating">${ratingBtns}
       <button id="rt-clear" data-rating="" ${edit ? "" : "disabled"} aria-label="Clear rating">–</button><span class="val">${r != null ? r + "/10" : "not rated"}</span></div></div>
     <div class="d-sec"><h3>Review${srcTag("entry", "review")}${edit && !st.editReview ? `<button class="btn small" id="rv-edit">${d.review ? "Edit" : "Write"}</button>` : ""}</h3>
@@ -766,10 +1065,17 @@ function renderDetail() {
     ${edit ? `<div class="d-sec">${st.confirmTrash ? `<div class="confirm">Move to the trash? It stays there 30 days. <button class="btn small danger" id="d-trash-yes">Move to trash</button><button class="btn small" id="d-trash-no">Cancel</button></div>`
       : `<button class="btn small danger" id="d-trash">Move to trash</button>`}</div>` : ""}`;
 }
+function versionHtml(d, edit) {
+  const fmt = d.edition?.format, cur = FMT_VER[fmt] || null, fromRead = !cur && FMT_VER[d.medium];
+  const fine = fmt && !["print", "ebook", "audiobook"].includes(fmt) ? FORMATS.find(f => f[0] === fmt)?.[1].toLowerCase() : null;
+  return `<div class="verbar" role="group" aria-label="Version">${VERSIONS.map(([v, label]) => `<button id="ver-${v}" data-version="${v}" aria-pressed="${cur === v}" ${edit ? "" : "disabled"} title="${cur === v ? "Click again to clear" : ""}"><span class="vico">${VICON[v]}</span>${label}</button>`).join("")}
+    ${fine ? `<span class="muted">${esc(fine)}</span>` : fromRead ? `<span class="muted">last read as ${esc(versionLabel(fromRead).toLowerCase())}</span>` : !cur ? `<span class="muted">not set</span>` : ""}</div>`;
+}
+const mediumLabel = m => (FORMATS.find(f => f[0] === m)?.[1] || m || "").toLowerCase();
 function readingsHtml(d, edit) {
   const L = LABEL[d.kind];
   const rows = d.readings.map(r => st.readingEdit === r.id ? readingForm(r) : `<div class="reading"><span>${esc(L[r.state] || r.state)}${r.ended ? " " + esc(fmtDate(r.ended, r.endedPrecision)) : ""}${r.endedPrecision === "year" ? ` <span class="muted">(year only)</span>` : ""}</span>
-    <span class="sub">${[r.started ? "started " + fmtDate(r.started, r.startedPrecision) : null, r.lang ? "in " + langName(r.lang) : null, r.progress != null ? r.progress + "%" : null, r.note].filter(Boolean).map(esc).join(" · ")}${r.source !== "owner" ? `<span class="src">${esc(SRC[r.source] || r.source)}</span>` : ""}</span>
+    <span class="sub">${[r.started ? "started " + fmtDate(r.started, r.startedPrecision) : null, r.lang ? "in " + langName(r.lang) : null, r.medium ? "as " + mediumLabel(r.medium) : null, r.progress != null ? r.progress + "%" : null, r.note].filter(Boolean).map(esc).join(" · ")}${r.source !== "owner" ? `<span class="src">${esc(SRC[r.source] || r.source)}</span>` : ""}</span>
     ${edit ? `<span class="acts"><button class="btn small" id="rd-e-${r.id}" data-redit="${r.id}">Edit</button></span>` : ""}</div>`).join("");
   return (st.readingEdit === "new" ? readingForm(null) : "") + (rows || (st.readingEdit === "new" ? "" : `<p class="muted" style="margin:0">None yet.</p>`));
 }
@@ -780,7 +1086,8 @@ function readingForm(r) {
     <label class="full">State<select id="rf-state">${["completed", "in_progress", "paused", "dropped"].map(s => `<option value="${s}" ${(r?.state || "completed") === s ? "selected" : ""}>${L[s]}</option>`).join("")}</select></label>
     <label>Started <input id="rf-started" placeholder="YYYY, YYYY-MM or YYYY-MM-DD" value="${esc(partial(r?.started, r?.startedPrecision))}" inputmode="numeric"></label>
     <label>Finished <input id="rf-ended" placeholder="YYYY, YYYY-MM or YYYY-MM-DD" value="${esc(partial(r?.ended, r?.endedPrecision))}" inputmode="numeric"></label>
-    <label class="full">Read in<select id="rf-lang">${langOptions(r?.lang)}</select></label>
+    <label>Read in<select id="rf-lang">${langOptions(r?.lang)}</select></label>
+    <label>Read as<select id="rf-medium"><option value="">—</option>${FORMATS.map(([c, l]) => `<option value="${c}" ${(r ? r.medium : st.detail.edition?.format) === c ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <label class="full">Note <input id="rf-note" value="${esc(r?.note || "")}" maxlength="2000"></label>
     <div class="row-actions full">${r ? `<button type="button" class="btn small danger" id="rf-delete">Delete</button>` : ""}<span style="flex:1"></span><button type="button" class="btn small" id="rf-cancel">Cancel</button><button type="submit" class="btn small primary">Save</button></div>
   </form>`;
@@ -796,7 +1103,7 @@ function detailsHtml(d) {
     ${e ? row("Publisher", esc(e.publisher), "edition", "publisher") : ""}
     ${e ? row("Published", esc(fmtDate(e.published, e.publishedPrecision)), "edition", "published_on") : ""}
     ${e ? row("Pages", e.pages, "edition", "pages") : ""}
-    ${e?.format ? row("Format", esc(e.format)) : ""}
+    ${e?.format ? row("Format", esc(FORMATS.find(f => f[0] === e.format)?.[1] || e.format), "edition", "format") : ""}
     ${d.genreList.length ? `<dt>Genres</dt><dd class="tags">${d.genreList.map(g => `<span class="tag genre">${esc(g)}</span>`).join("")}</dd>` : ""}
     ${d.tagList.length ? `<dt>Tags</dt><dd class="tags">${d.tagList.map(g => `<span class="tag">${esc(g)}</span>`).join("")}</dd>` : ""}
     ${row("Added", esc(d.added))}
@@ -825,7 +1132,7 @@ function editForm(d) {
     ${inp("ef-pub", "Publisher", e.publisher)}
     ${inp("ef-pdate", "Published", partial(e.published, e.publishedPrecision), 'placeholder="YYYY, YYYY-MM or YYYY-MM-DD" inputmode="numeric"')}
     ${inp("ef-pages", "Pages", e.pages, 'inputmode="numeric"')}
-    <label for="ef-format">Format</label><select id="ef-format"><option value="">—</option>${["ebook", "print", "paperback", "hardcover", "audiobook"].map(f => `<option ${e.format === f ? "selected" : ""}>${f}</option>`).join("")}</select>` : ""}
+    <label for="ef-format">Format</label><select id="ef-format"><option value="">—</option>${FORMATS.map(([c, l]) => `<option value="${c}" ${e.format === c ? "selected" : ""}>${l}</option>`).join("")}</select>` : ""}
     <label for="ef-cats">Categories</label><span class="catpick"><select id="ef-cats" multiple size="6" aria-describedby="ef-cats-hint">${catOptions(d)}</select>
       <span class="muted" id="ef-cats-hint" style="font-size:11.5px">Pick one or two (⌘/Ctrl-click for more).</span></span>
     ${inp("ef-tags", "Tags", d.tagList.join(", "), 'placeholder="Separate with commas"')}
@@ -858,6 +1165,15 @@ const splitList = (s, sep) => s.split(sep).map(x => x.trim()).filter(Boolean);
 document.addEventListener("click", async e => {
   const t = e.target.closest("button, [data-id], input[type=checkbox]"); if (!t) return;
   if (t.id === "side-toggle") { st.side = !st.side; save("side", st.side); applySide(); return; }
+  if (t.id === "filter-btn") { st.fpane = !st.fpane; renderFilterPane(); return; }
+  if (t.id === "fp-close") { closeFilterPane(); $("filter-btn")?.focus(); return; }
+  if (t.dataset.ftog) { const k = t.dataset.ftog, v = k === "cats" ? +t.dataset.fval : t.dataset.fval;
+    st.f[k] = st.f[k].includes(v) ? st.f[k].filter(x => x !== v) : [...st.f[k], v]; saveF(); renderDatabase(); return; }
+  if (t.dataset.flang) { fLang = t.dataset.flang; renderFilterPane(); return; }
+  if (t.dataset.fg) { const [k, g] = t.dataset.fg.split(":"); setDateDetail(k, g); saveF(); renderDatabase(); return; }
+  if (t.dataset.fflag) { const [k, v] = t.dataset.fflag.split(":"), want = k === "review" ? true : v === "1";
+    st.f[k] = st.f[k] === want ? null : want; saveF(); renderDatabase(); return; }
+  if (t.dataset.fclear) { if (t.dataset.fclear === "*") { st.f = NOF(); saveF(); } else clearFilter(t.dataset.fclear); renderDatabase(); return; }
   if (t.matches(".seg button")) { st.sec = t.dataset.sec; save("sec", st.sec); if (st.sec === "visuals") { try { STATS = await api.stats(); } catch (er) { STATS = null; } }
     if (st.sec === "sync") { READING = null; render(); await loadReading(); } render(); return; }
   if (t.dataset.vtab) { st.vtab = t.dataset.vtab; save("vtab", st.vtab); renderVisuals(); return; }
@@ -868,10 +1184,10 @@ document.addEventListener("click", async e => {
   if (t.dataset.linkdoc) { const item = $("ld-" + t.dataset.linkdoc)?.value; if (!item) { toast("Pick a book first", true); return; }
     await act(async () => { await api.linkDocument(t.dataset.linkdoc, item); await loadReading(); render(); }, "Linked: the next sync updates that book"); return; }
   if (t.dataset.gobook) { st.sec = "database"; st.kind = "book"; st.shelf = allShelf("book")?.id; save("sec", st.sec); render(); return openDetail(t.dataset.gobook); }
-  if (t.dataset.kind) { st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; st.cat = null; st.view = "shelf"; save("kind", st.kind);
+  if (t.dataset.kind) { st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; st.f = NOF(); saveF(); st.view = "shelf"; st.pick = null; save("kind", st.kind);
     if (st.sec === "visuals" && st.vtab === "library") st.LSTATS = null; render(); return; }
   if (t.dataset.shelf) { st.shelf = t.dataset.shelf; st.filter = "all"; st.selected = null; st.listSort = null; st.view = "shelf"; save("shelf", st.shelf); render(); return; }
-  if (t.dataset.cat) { const id = +t.dataset.cat; st.cat = st.cat === id && st.view !== "trash" ? null : id; st.view = "shelf"; st.selected = null; render(); return; }
+  if (t.dataset.cat) { const id = +t.dataset.cat; st.f.cats = st.f.cats.length === 1 && st.f.cats[0] === id && st.view !== "trash" ? [] : [id]; saveF(); st.view = "shelf"; st.selected = null; render(); return; }
   if (t.dataset.trashview) { st.view = "trash"; st.trash = null; st.selected = null; st.confirmPurge = null; render(); return; }
   if (t.dataset.restore) { await act(async () => { await api.restoreItem(t.dataset.restore); st.trash = null; LIB = await api.library(); render(); }, "Restored"); return; }
   if (t.dataset.purgeask) { if (!canEdit()) return act(() => 0); st.confirmPurge = t.dataset.purgeask; renderTrash(); return; }
@@ -893,8 +1209,8 @@ document.addEventListener("click", async e => {
   if (t.id === "shelf-menu") return shelfMenu();
   if (t.dataset.addtab) return addTab(t.dataset.addtab);
   if (t.id === "add-book") { if (!canEdit()) return act(() => 0); return addPanel(); }
-  if (t.dataset.addidx !== undefined) { const status = $("ad-status").value;
-    await act(async () => { const r = await api.add(addState.token, +t.dataset.addidx, status); LIB = await api.library();
+  if (t.dataset.addidx !== undefined) { const status = $("ad-status").value, format = $("ad-version").value || null;
+    await act(async () => { const r = await api.add(addState.token, +t.dataset.addidx, status, format); LIB = await api.library();
       toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }); return; }
   if (t.id === "ed-fill") { await act(async () => { const r = await api.fill(st.selected);
     toast(r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know")); await afterItemChange(r.item); }); return; }
@@ -902,12 +1218,14 @@ document.addEventListener("click", async e => {
   if (t.id === "d-close") return closeDetail();
   const id = st.selected;
   if (t.dataset.status) { if (await act(async () => afterItemChange(await api.status(id, t.dataset.status)), "Status saved")) {} return; }
+  if (t.dataset.version) { const on = t.getAttribute("aria-pressed") === "true", code = on ? null : VERSIONS.find(x => x[0] === t.dataset.version)[2];
+    await act(async () => afterItemChange(await api.patch(id, {edition: {format: code}})), on ? "Version cleared" : "Version saved"); return; }
   if (t.dataset.rating !== undefined && t.closest(".rating")) { const v = t.dataset.rating === "" ? null : +t.dataset.rating; await act(async () => afterItemChange(await api.patch(id, {entry: {rating: v}})), "Rating saved"); return; }
   if (t.id === "cv-upload") { $("cv-file").click(); return; }
   if (t.id === "fl-upload") { $("fl-file").click(); return; }
   if (t.id === "ep-choose") { if (!canEdit()) return act(() => 0); $("ep-file").click(); return; }
   if (t.dataset.epubidx !== undefined || t.dataset.epubown) {
-    const body = {upload: st.epub.upload, token: st.epub.token, index: t.dataset.epubidx !== undefined ? +t.dataset.epubidx : null, status: $("ep-status").value};
+    const body = {upload: st.epub.upload, token: st.epub.token, index: t.dataset.epubidx !== undefined ? +t.dataset.epubidx : null, status: $("ep-status").value, format: $("ep-version").value || null};
     await act(async () => { const r = await api.epubAdd(body); LIB = await api.library(); toast(r.existing ? "Already in your library: the file was added to it" : "Added with its file"); await openDetail(r.id); });
     return; }
   if (t.dataset.goitem) { return openDetail(t.dataset.goitem); }
@@ -941,14 +1259,14 @@ document.addEventListener("submit", async e => {
   }
   if (f.id === "handform") {
     const body = {title: $("mh-title").value, authors: $("mh-authors").value, language: $("mh-lang").value, published: $("mh-pub").value.trim(),
-      pages: $("mh-pages").value.trim(), publisher: $("mh-publisher").value, isbn: $("mh-isbn").value.trim(), status: $("mh-status").value};
+      pages: $("mh-pages").value.trim(), publisher: $("mh-publisher").value, isbn: $("mh-isbn").value.trim(), status: $("mh-status").value, format: $("mh-version").value || null};
     await act(async () => { const r = await api.addManual(body); LIB = await api.library(); toast(r.existing ? "Already in your library (same ISBN)" : "Added"); await openDetail(r.id); });
     return;
   }
   if (f.id === "newshelf") { const name = $("newshelf-name").value.trim(); if (!name) return;
     await act(async () => { const r = await api.newShelf(name, st.kind); LIB = await api.library(); st.shelf = r.id; render(); }, "Collection created"); return; }
   if (f.id === "rform") {
-    const body = {state: $("rf-state").value, started: $("rf-started").value.trim(), ended: $("rf-ended").value.trim(), lang: $("rf-lang").value, note: $("rf-note").value.trim()};
+    const body = {state: $("rf-state").value, started: $("rf-started").value.trim(), ended: $("rf-ended").value.trim(), lang: $("rf-lang").value, medium: $("rf-medium").value, note: $("rf-note").value.trim()};
     const rid = f.dataset.rid;
     if (await act(async () => { if (rid === "new") await api.addReading(id, body); else await api.editReading(rid, body); await afterItemChange(); }, "Reading saved")) st.readingEdit = null;
     renderDetail(); return;
@@ -989,7 +1307,6 @@ document.addEventListener("change", async e => {
     await act(async () => afterItemChange(await api.uploadFile(id, file, f => { const el = $("fl-progress"); if (el) el.textContent = "Uploading " + file.name + ": " + Math.round(f * 100) + "%"; })), "EPUB stored");
     return;
   }
-  if (e.target.id === "cat-pick") { st.cat = e.target.value ? +e.target.value : null; st.selected = null; renderDatabase(); return; }
   if (e.target.id === "sort") { st.listSort = null; const v = e.target.value; setPref("sort", v); setPref("desc", DESC_FIRST.includes(v)); }
 });
 async function shelfMenu() {
@@ -1019,12 +1336,14 @@ function addPanel() {
       <label for="ad-isbn">or ISBN</label><input id="ad-isbn" inputmode="numeric" autocomplete="off">
       <div class="row-actions full"><button type="submit" class="btn small primary">Search</button></div>
     </form>
-    <div class="form" style="margin-top:10px"><label for="ad-status">Add as</label><select id="ad-status"><option value="planned">To read</option><option value="in_progress">Reading (from today)</option><option value="completed">Read (today)</option></select></div>
+    <div class="form" style="margin-top:10px"><label for="ad-status">Add as</label><select id="ad-status"><option value="planned">To read</option><option value="in_progress">Reading (from today)</option><option value="completed">Read (today)</option></select>
+      <label for="ad-version">Version</label>${versionSelect("ad-version", "")}</div>
     <div id="ad-results" style="margin-top:12px"></div>
     </div>
     <div id="ad-epub" hidden>
     <p class="muted" style="font-size:12.5px;margin:0 0 12px">Choose an .epub: its own title, author and ISBN are read, the book is looked up, and the file is stored with it (its cover too, if the sources have none).</p>
-    <div class="form"><label for="ep-status">Add as</label><select id="ep-status"><option value="planned">To read</option><option value="in_progress">Reading (from today)</option><option value="completed">Read (today)</option></select></div>
+    <div class="form"><label for="ep-status">Add as</label><select id="ep-status"><option value="planned">To read</option><option value="in_progress">Reading (from today)</option><option value="completed">Read (today)</option></select>
+      <label for="ep-version">Version</label>${versionSelect("ep-version", "ebook")}</div>
     <p style="margin:10px 0"><button class="btn small primary" id="ep-choose">Choose an EPUB…</button></p>
     <input type="file" id="ep-file" accept=".epub,application/epub+zip" hidden>
     <div id="ep-out"></div>
@@ -1040,11 +1359,13 @@ function addPanel() {
       <label for="mh-publisher">Publisher</label><input id="mh-publisher">
       <label for="mh-isbn">ISBN</label><input id="mh-isbn" inputmode="numeric">
       <label for="mh-status">Add as</label><select id="mh-status"><option value="planned">To read</option><option value="in_progress">Reading (from today)</option><option value="completed">Read (today)</option></select>
+      <label for="mh-version">Version</label>${versionSelect("mh-version", "")}
       <div class="row-actions full"><button type="submit" class="btn small primary">Add to library</button></div>
     </form>
     </div>`;
   $("ad-title").focus();
 }
+const versionSelect = (id, sel) => `<select id="${id}"><option value="">Not set</option>${VERSIONS.map(([, label, code]) => `<option value="${code}" ${sel === code ? "selected" : ""}>${label}</option>`).join("")}</select>`;
 function addTab(tab) {
   for (const k of ["search", "epub", "hand"]) { $("ad-" + k).hidden = tab !== k; $("ad-tab-" + k).setAttribute("aria-pressed", String(tab === k)); }
   if (tab === "hand") { if (!$("mh-title").value) $("mh-title").value = $("ad-title").value; if (!$("mh-authors").value) $("mh-authors").value = $("ad-author").value; $("mh-title").focus(); }
@@ -1163,6 +1484,7 @@ function goHit(h) {
 document.addEventListener("keydown", e => {
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName || "");
   if (e.key === "/" && !typing) { e.preventDefault(); $("search").focus(); return; }
+  if (e.key === "Escape" && st.fpane) { closeFilterPane(); $("filter-btn")?.focus(); return; }
   if (e.key === "Escape" && !typing && st.selected) { closeDetail(); return; }
   if (e.target.matches?.("tr[data-id]") && e.key === "Enter") { openDetail(e.target.dataset.id); return; }
   if (e.target.id === "key-input" && e.key === "Enter") { unlock(); return; }
@@ -1175,6 +1497,7 @@ document.addEventListener("keydown", e => {
 document.addEventListener("click", e => {
   const h = e.target.closest?.("[data-hit]"); if (h) { goHit(hits[+h.dataset.hit]); return; }
   if (!e.target.closest?.(".search")) $("search-pop").hidden = true;
+  if (st.fpane && !e.target.closest?.("#fpane, #filter-btn, [data-fclear]")) closeFilterPane();
 }, true);
 
 // ---------------------------------------------------------------- unlock
@@ -1216,32 +1539,39 @@ setInterval(() => { if (!PREVIEW && SESSION.unlockedUntil) { if (SESSION.unlocke
 const tip = $("tip");
 function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + "px"; tip.style.top = (e.clientY - tip.offsetHeight - 12) + "px"; }
 function hideTip() { tip.hidden = true; }
+// A chart's rows can carry a pick ({dim, val, label}): clicking the bar or the row lists its books in a card under
+// the chart (pickCard); clicking again, or ✕, clears it.
+const pickKey = p => p ? p.dim + "|" + p.val : "";
+const pickAttr = p => p ? ` role="button" aria-pressed="${pickKey(p) === pickKey(st.pick)}" data-pick="${esc(JSON.stringify(p))}"` : "";
 function columnChart(id, rows, opts) {
-  // rows: [{label, value, tip}] — one series, one baseline, labels on the max and the last column
-  const W = 520, H = 190, padL = 30, padB = 22, padT = 16, n = rows.length;
+  // rows: [{label, value, tip, pick}] — one series, one baseline, labels on the max and the last column;
+  // opts.width makes it wider than the card (the card then scrolls sideways)
+  const W = opts.width || 520, H = 190, padL = 30, padB = 22, padT = 16, n = rows.length;
   if (!n) return `<p class="muted">No data yet.</p>`;
   const max = Math.max(1, ...rows.map(r => r.value)), step = niceStep(max), top = Math.ceil(max / step) * step;
   const bw = Math.min(24, (W - padL) / n * 0.62), band = (W - padL) / n;
   const y = v => padT + (H - padT - padB) * (1 - v / top);
   let ticks = ""; for (let v = 0; v <= top; v += step) ticks += `<line class="gl" x1="${padL}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end">${fmtTick(v)}</text>`;
-  const maxIdx = rows.reduce((m, r, i) => r.value > rows[m].value ? i : m, 0), labelEvery = Math.ceil(n / 12);
+  const maxIdx = rows.reduce((m, r, i) => r.value > rows[m].value ? i : m, 0), labelEvery = Math.ceil(n / Math.max(4, Math.floor((W - padL) / 46)));
+  const picked = rows.some(r => r.pick && pickKey(r.pick) === pickKey(st.pick));
   const bars = rows.map((r, i) => {
     const x = padL + band * i + (band - bw) / 2, h = Math.max(0, y(0) - y(r.value)), rad = Math.min(4, h / 2, bw / 2);
     const path = h > 0 ? `M${x},${y(0)} V${y(r.value) + rad} Q${x},${y(r.value)} ${x + rad},${y(r.value)} H${x + bw - rad} Q${x + bw},${y(r.value)} ${x + bw},${y(r.value) + rad} V${y(0)} Z` : "";
-    const showV = r.value > 0 && (i === maxIdx || i === n - 1);
-    return `<g class="barg" tabindex="0" data-tip="${esc(r.tip)}"><rect class="hit" x="${padL + band * i}" y="${padT}" width="${band}" height="${H - padT - padB}"/>${path ? `<path class="bar" d="${path}"/>` : ""}
+    const showV = r.value > 0 && (i === maxIdx || i === n - 1 || (r.pick && pickKey(r.pick) === pickKey(st.pick)));
+    return `<g class="barg${r.pick && pickKey(r.pick) === pickKey(st.pick) ? " on" : ""}" tabindex="0" data-tip="${esc(r.tip)}"${r.value ? pickAttr(r.pick) : ""}><rect class="hit" x="${padL + band * i}" y="${padT}" width="${band}" height="${H - padT - padB}"/>${path ? `<path class="bar" d="${path}"/>` : ""}
       ${showV ? `<text class="v" x="${x + bw / 2}" y="${y(r.value) - 5}" text-anchor="middle">${fmtNum(r.value)}</text>` : ""}
       ${i % labelEvery === 0 || i === n - 1 ? `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${esc(r.label)}</text>` : ""}</g>`;
   }).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.aria)}" id="${id}">${ticks}<line class="gl" x1="${padL}" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>${bars}</svg>`;
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.aria)}" id="${id}" class="${picked ? "picking" : ""}"${opts.width ? ` width="${W}" height="${H}" style="width:${W}px"` : ""}>${ticks}<line class="gl" x1="${padL}" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>${bars}</svg>`;
+  return opts.width ? `<div class="chartscroll" data-sig="${esc(opts.sig || "")}">${svg}</div>` : svg;
 }
 function niceStep(max) { const raw = max / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p; return Math.max(1, (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p); }
 function fmtTick(v) { return v >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0) + "K" : String(v); }
 function fmtNum(v) { return Math.round(v).toLocaleString("en"); }
 function hbars(rows) {
   if (!rows.length) return `<p class="muted">No data yet.</p>`;
-  const max = Math.max(1, ...rows.map(r => r.value));
-  return `<div class="hbars">${rows.map(r => `<span class="name" title="${esc(r.label)}">${esc(r.label)}</span><span class="track"><div class="fill" style="width:${(r.value / max * 100).toFixed(1)}%"></div></span><span class="num">${fmtNum(r.value)}</span>`).join("")}</div>`;
+  const max = Math.max(1, ...rows.map(r => r.value)), picked = rows.some(r => r.pick && pickKey(r.pick) === pickKey(st.pick));
+  return `<div class="hbars${picked ? " picking" : ""}">${rows.map(r => `<div class="row${r.pick && pickKey(r.pick) === pickKey(st.pick) ? " on" : ""}"${r.pick ? ` tabindex="0"${pickAttr(r.pick)}` : ""}><span class="name" title="${esc(r.label)}">${esc(r.label)}</span><span class="track"><div class="fill" style="width:${(r.value / max * 100).toFixed(1)}%"></div></span><span class="num">${fmtNum(r.value)}</span></div>`).join("")}</div>`;
 }
 function tableView(cols, rows) {
   return `<table class="tv"><tr>${cols.map((c, i) => `<th class="${i ? "num" : ""}">${esc(c)}</th>`).join("")}</tr>${rows.map(r => `<tr>${r.map((v, i) => `<td class="${i ? "num" : ""}">${esc(v ?? "")}</td>`).join("")}</tr>`).join("")}</table>`;
@@ -1249,6 +1579,52 @@ function tableView(cols, rows) {
 function card(id, title, note, body, table, wide) {
   const tv = load("tv-" + id, false);
   return `<div class="card${wide ? " wide" : ""}" id="card-${id}"><h3>${esc(title)}${table ? `<button class="btn small" data-tv="${id}" aria-pressed="${tv}">${tv ? "Chart" : "Table"}</button>` : ""}</h3>${note ? `<p class="note">${note}</p>` : ""}${tv && table ? table : body}</div>`;
+}
+// the picked bar's books: a little shelf under its chart
+const releaseBucket = y => y < 500 ? "Antiquity" : y < 1700 ? "Before 1700" : y < 1900 ? Math.floor(y / 100) + "00s" : Math.floor(y / 10) * 10 + "s";
+const authorsOf = i => i.authors ? i.authors.split(", ") : [];
+function pickList(p) {
+  const v = p.val, books = LIB.items.filter(i => i.kind === "book")
+    .filter(i => !p.scope || p.scope === "all" || (p.scope === "read") === (i.status === "completed"));
+  const test = {
+    period: i => { const [g, key] = v.split("@"); return readKeys(i, g).includes(key); },
+    rating: i => i.rating != null && Math.floor(i.rating) === +v,
+    author: i => i.timesRead > 0 && authorsOf(i).includes(v),
+    genre: i => i.status === "completed" && i.genres.includes(v),
+    readin: i => (i.reads || []).some(r => (r[2] || "") === v),
+    original: i => i.timesRead > 0 && (i.origLang || "") === v,
+    lcat: i => (i.cats || []).some(c => catName(c) === v),
+    llang: i => (i.origLang || "") === v,
+    lauthor: i => authorsOf(i).includes(v),
+    lreleased: i => i.published != null && releaseBucket(i.published) === v,
+    lversion: i => (versionOf(i) || "") === v,
+  }[p.dim] || (() => false);
+  return books.filter(test).sort((a, b) => a.sort.localeCompare(b.sort));
+}
+function pickCard() {
+  const p = st.pick, list = pickList(p);
+  return `<div class="card wide pick" id="card-pick" aria-live="polite"><h3>${esc(p.label)} <span class="muted">${list.length} book${list.length === 1 ? "" : "s"}</span>
+      <button class="btn small" id="pick-db" title="Open the Database with these books filtered">Show in Database</button><button class="xbtn" id="pick-x" aria-label="Clear the selection">✕</button></h3>
+    ${list.length ? `<div class="pickshelf">${list.map(i => `<button class="pb" data-gobook="${i.id}" title="${esc(i.title)}${i.authors ? " — " + esc(i.authors) : ""}">
+      <div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}</div>
+      <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span></button>`).join("")}</div>`
+      : `<p class="muted" style="margin:0">No book with a date or value to match here.</p>`}</div>`;
+}
+// the same books in the Database: the pick becomes filters
+function pickToDatabase(p) {
+  const f = NOF(), v = p.val, catsNamed = n => (LIB.categories || []).filter(c => c.name === n).map(c => c.id);
+  let q = "", filter = p.scope === "read" ? "completed" : "all";
+  if (p.dim === "period") { const [g, key] = v.split("@"); f.read = {g, from: key, to: key}; st.fwin.read = {g, year: g === "year" ? "" : key.slice(0, 4), month: ""}; }
+  else if (p.dim === "rating") f.rating = [+v, +v];
+  else if (p.dim === "author" || p.dim === "lauthor") { q = v; if (p.dim === "author") filter = "completed"; }
+  else if (p.dim === "genre" || p.dim === "lcat") { f.cats = catsNamed(v); if (p.dim === "genre") filter = "completed"; }
+  else if (p.dim === "readin") { f.langs = [v]; filter = "completed"; }
+  else if (p.dim === "original") { f.olangs = [v]; filter = "completed"; }
+  else if (p.dim === "llang") f.olangs = [v];
+  else if (p.dim === "lversion") f.versions = [v];
+  else if (p.dim === "lreleased") f.pub = v === "Antiquity" ? [-5000, 499] : v === "Before 1700" ? [500, 1699] : v.endsWith("00s") && +v.slice(0, 4) < 1900 ? [+v.slice(0, 4), +v.slice(0, 4) + 99] : [+v.slice(0, 4), +v.slice(0, 4) + 9];
+  Object.assign(st, {f, q, filter, sec: "database", kind: "book", shelf: allShelf("book")?.id, view: "shelf", selected: null, listSort: null});
+  saveF(); save("sec", st.sec); render(); scrollTo({top: 0});
 }
 function heatmap(activity) {
   const days = new Map(activity.map(a => [a.day, a.events])), today = new Date(), cells = [];
@@ -1264,6 +1640,52 @@ function heatmap(activity) {
   return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:${W}px;max-width:none" role="img" aria-label="Reading calendar, last 12 months">${months}
     <text x="0" y="${16 + 0 * 12 + 9}">Mon</text><text x="0" y="${16 + 4 * 12 + 9}">Fri</text>${cells.join("")}</svg></div>`;
 }
+// Reading over time, from the books' finished readings: per year, month or day, narrowed to one year (and month);
+// a reading known to the year only counts in the year view.
+function keyRange(a, b, g) {
+  const out = [];
+  if (g === "year") { for (let y = +a; y <= +b; y++) out.push(String(y)); return out; }
+  const d = new Date(Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, g === "day" ? +a.slice(8, 10) : 1));
+  for (let n = 0; n < 5000; n++) {
+    const k = d.toISOString().slice(0, G_LEN[g]); if (k > b) break; out.push(k);
+    if (g === "day") d.setUTCDate(d.getUTCDate() + 1); else d.setUTCMonth(d.getUTCMonth() + 1);
+  }
+  return out;
+}
+function timeCard() {
+  const T = st.time, g = T.g, now = new Date().toISOString(), counts = new Map(), years = new Set();
+  let hidden = 0;
+  for (const i of LIB.items) if (i.kind === "book") for (const r of i.reads || []) {
+    if (!r[0]) continue;
+    if (G_RANK[r[1]] < G_RANK[g]) { if (!T.year || r[0].startsWith(T.year)) hidden++; continue; }
+    const k = r[0].slice(0, G_LEN[g]); years.add(k.slice(0, 4));
+    if (T.year && !k.startsWith(T.year) || g === "day" && T.month && k.slice(5, 7) !== T.month) continue;
+    const e = counts.get(k) || {books: 0, pages: 0}; e.books++; e.pages += r[3] || 0; counts.set(k, e);
+  }
+  if (T.year && !years.has(T.year)) { T.year = ""; T.month = ""; return timeCard(); }
+  const keys = [...counts.keys()].sort(), last = (a, b) => a > b ? a : b;
+  let range = [];
+  if (g === "day" && T.year && T.month) range = keyRange(`${T.year}-${T.month}-01`, `${T.year}-${T.month}-31`, g).filter(k => k.slice(5, 7) === T.month);
+  else if (T.year && g !== "year") range = keyRange(T.year + (g === "month" ? "-01" : "-01-01"), T.year + (g === "month" ? "-12" : "-12-31"), g);
+  else if (keys.length) range = keyRange(keys[0], last(keys[keys.length - 1], now.slice(0, G_LEN[g])), g);
+  const metric = T.metric, unit = metric === "pages" ? "pages" : "books";
+  const label = k => g === "year" ? k : g === "month" ? MONTHS[k.slice(5, 7) - 1] + (T.year ? "" : " ’" + k.slice(2, 4)) : `${+k.slice(8, 10)} ${MONTHS[k.slice(5, 7) - 1]}`;
+  const rows = range.map(k => { const e = counts.get(k) || {books: 0, pages: 0}, v = e[metric];
+    return {label: label(k), value: v, tip: `<b>${fmtNum(v)}</b> ${unit} · ${esc(fmtKey(k))}`, pick: {dim: "period", val: g + "@" + k, label: "Read in " + fmtKey(k), from: "time"}}; });
+  // drawn at its real size (the card is wide: a stretched chart would blow its text up), scrolling when longer
+  const band = {year: 34, month: 26, day: 11}[g], avail = Math.max(300, ($("v-visuals")?.clientWidth || 900) - 34);
+  const width = Math.max(avail, 30 + rows.length * Math.min(band, 60));
+  const seg = (key, opts) => `<span class="segsmall" role="group">${opts.map(([v, l]) => `<button data-tm="${key}:${v}" aria-pressed="${T[key] === v}">${l}</button>`).join("")}</span>`;
+  const yearList = [...years].sort();
+  const ctl = `<div class="ctlrow">${seg("metric", [["books", "Books"], ["pages", "Pages"]])}${seg("g", [["year", "Year"], ["month", "Month"], ["day", "Day"]])}
+    ${g !== "year" ? `<select id="tm-year" aria-label="Year"><option value="">All years</option>${yearList.map(y => `<option ${T.year === y ? "selected" : ""}>${y}</option>`).join("")}</select>` : ""}
+    ${g === "day" && T.year ? `<select id="tm-month" aria-label="Month"><option value="">All months</option>${MONTHS.map((m, n) => { const v = String(n + 1).padStart(2, "0"); return `<option value="${v}" ${T.month === v ? "selected" : ""}>${m}</option>`; }).join("")}</select>` : ""}</div>`;
+  const note = (hidden ? `${hidden} reading${hidden === 1 ? "" : "s"} known to the ${g === "day" ? "year or month" : "year"} only ${hidden === 1 ? "isn't" : "aren't"} in this view. ` : "")
+    + (metric === "pages" ? "Pages of the edition read, where known. " : "") + "Click a bar for its books.";
+  const body = ctl + (rows.length ? columnChart("ch-time", rows, {aria: `${unit} read per ${g}`, width, sig: [g, T.year, T.month, metric].join("|")}) : `<p class="muted">No readings dated to the ${g} yet. Add the month or day when you edit a reading; new readings get their day.</p>`);
+  return card("time", metric === "pages" ? "Pages read over time" : "Books read over time", note, body,
+    ctl + tableView(["Period", "Books", "Pages"], range.filter(k => counts.has(k)).map(k => [fmtKey(k), counts.get(k).books, counts.get(k).pages])), true);
+}
 function renderVisuals() {
   const v = $("v-visuals"), kindLabel = KINDS.find(k => k[0] === st.kind)[1];
   if (st.kind !== "book") {
@@ -1275,30 +1697,33 @@ function renderVisuals() {
   if (st.vtab === "library") return renderLibraryStats(v, kindLabel, vtabs);
   const S = STATS;
   if (!S) { v.innerHTML = `<p class="empty">Loading statistics…</p>`; return; }
-  const T = S.tiles, years = [];
-  if (S.byYear.length) for (let y = S.byYear[0].year; y <= Math.max(S.year, S.byYear[S.byYear.length - 1].year); y++) years.push(S.byYear.find(r => r.year === y) || {year: y, books: 0, pages: 0});
+  const T = S.tiles;
   const ratingRows = Array.from({length: 11}, (_, b) => ({label: String(b), value: (S.ratings.find(r => r.bucket === b) || {}).books || 0}));
   const tile = (label, value, sub) => `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>`;
-  v.innerHTML = `<div class="toolbar"><h2>${kindLabel}</h2>${vtabs}</div>
+  const pk = (dim, val, label, from) => ({dim, val: String(val ?? ""), label, from});
+  const lang = c => c ? langName(c) : "not recorded";
+  const cards = [
+    ["time", timeCard()],
+    ["ratings", card("ratings", "Ratings", "Your 0–10 ratings, one per book.", columnChart("ch-ratings", ratingRows.map(r => ({...r, tip: `<b>${r.value}</b> books rated ${r.label}`, pick: pk("rating", r.label, "Rated " + r.label + "/10", "ratings")})), {aria: "Rating distribution"}),
+      tableView(["Rating", "Books"], ratingRows.map(r => [r.label, r.value])))],
+    ["authors", card("authors", "Most read authors", "", hbars(S.authors.map(a => ({label: a.name, value: a.books, pick: pk("author", a.name, "Read: " + a.name, "authors")}))), null)],
+    ["genres", card("genres", "Genres", "Books read with each genre.", hbars(S.genres.filter(g => g.read).map(g => ({label: g.name, value: g.read, pick: pk("genre", g.name, "Read: " + g.name, "genres")}))), null)],
+    ["readin", card("readin", "Language you read in", "", hbars(S.readIn.map(r => ({label: lang(r.lang), value: r.books, pick: pk("readin", r.lang, "Read in " + lang(r.lang), "readin")}))), null)],
+    ["original", card("original", "Original language", "", hbars(S.original.map(r => ({label: lang(r.lang), value: r.books, pick: pk("original", r.lang, "Read, written in " + lang(r.lang), "original")}))), null)],
+    ["calendar", card("calendar", "Reading calendar", S.activity.length ? "Days you started, finished or made progress." : "Fills in from now on: dated starts, finishes and Readest progress. The imported readings have no days.", heatmap(S.activity), null, true)],
+    ["current", card("current", "Reading now", "", S.current.length ? S.current.map(c => `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.title)}</b><span class="muted">${c.pct != null ? Math.round(c.pct) + "%" : c.progressPages ? c.progressPages + " p." : ""}</span></div><div class="muted" style="font-size:12px">${esc(c.authors || "")}</div>${c.pct != null ? `<div class="meter"><div style="width:${c.pct}%"></div></div>` : ""}</div>`).join("") : `<p class="muted">Nothing in progress. Mark a book as Reading to see it here.</p>`, null)],
+  ];
+  paintVisuals(v, `<div class="toolbar"><h2>${kindLabel}</h2>${vtabs}</div>
     <div class="tiles">${tile("Read in " + S.year, T.readThisYear, "books")}${tile("Pages in " + S.year, T.pagesThisYear.toLocaleString("en"), "")}
       ${tile("Average rating " + S.year, T.avgRatingThisYear != null ? T.avgRatingThisYear + "/10" : "—", "of the books rated")}${tile("Read in total", T.readTotal, "since " + (S.byYear[0]?.year || "—"))}
-      ${tile("To read", T.toRead, "")}${tile("Reading now", T.reading, "")}</div>
-    <div class="charts">
-      ${card("year", "Books read per year", "", columnChart("ch-year", years.map(r => ({label: String(r.year), value: r.books, tip: `<b>${r.books}</b> books · ${r.year}`})), {aria: "Books read per year"}),
-        tableView(["Year", "Books", "Pages"], years.map(r => [r.year, r.books, r.pages || 0])))}
-      ${card("pages", "Pages read per year", "Pages of the edition read, where known.", columnChart("ch-pages", years.map(r => ({label: String(r.year), value: r.pages || 0, tip: `<b>${(r.pages || 0).toLocaleString("en")}</b> pages · ${r.year}`})), {aria: "Pages read per year"}),
-        tableView(["Year", "Pages"], years.map(r => [r.year, r.pages || 0])))}
-      ${card("ratings", "Ratings", "Your 0–10 ratings, one per book.", columnChart("ch-ratings", ratingRows.map(r => ({...r, tip: `<b>${r.value}</b> books rated ${r.label}`})), {aria: "Rating distribution"}),
-        tableView(["Rating", "Books"], ratingRows.map(r => [r.label, r.value])))}
-      ${card("months", "Books per month", S.yearPrecisionOnly ? "Your imported readings have a year only, so no month is known yet. Add the month when you edit a reading, and new readings get their day." : "Months known; the rest is counted per year.",
-        monthChart(S.byMonth), null)}
-      ${card("authors", "Most read authors", "", hbars(S.authors.map(a => ({label: a.name, value: a.books}))), null)}
-      ${card("genres", "Genres", "Books read with each genre.", hbars(S.genres.filter(g => g.read).map(g => ({label: g.name, value: g.read}))), null)}
-      ${card("readin", "Language you read in", "", hbars(S.readIn.map(r => ({label: r.lang ? langName(r.lang) : "not recorded", value: r.books}))), null)}
-      ${card("original", "Original language", "", hbars(S.original.map(r => ({label: r.lang ? langName(r.lang) : "not recorded", value: r.books}))), null)}
-      ${card("calendar", "Reading calendar", S.activity.length ? "Days you started, finished or made progress." : "Fills in from now on: dated starts, finishes and Readest progress. The imported readings have no days.", heatmap(S.activity), null, true)}
-      ${card("current", "Reading now", "", S.current.length ? S.current.map(c => `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.title)}</b><span class="muted">${c.pct != null ? Math.round(c.pct) + "%" : c.progressPages ? c.progressPages + " p." : ""}</span></div><div class="muted" style="font-size:12px">${esc(c.authors || "")}</div>${c.pct != null ? `<div class="meter"><div style="width:${c.pct}%"></div></div>` : ""}</div>`).join("") : `<p class="muted">Nothing in progress. Mark a book as Reading to see it here.</p>`, null)}
-    </div>`;
+      ${tile("To read", T.toRead, "")}${tile("Reading now", T.reading, "")}</div>`, cards);
+}
+// draws the cards with the picked bar's books after its chart, and keeps the sideways scroll of the time chart
+function paintVisuals(v, head, cards) {
+  if (st.pick && (!cards.some(([id]) => id === st.pick.from) || st.pick.scope && st.pick.scope !== st.vscope)) st.pick = null;
+  const old = v.querySelector(".chartscroll"), was = old ? {sig: old.dataset.sig, left: old.scrollLeft} : null;
+  v.innerHTML = head + `<div class="charts">${cards.map(([id, html]) => html + (st.pick?.from === id ? pickCard() : "")).join("")}</div>`;
+  for (const sc of v.querySelectorAll(".chartscroll")) sc.scrollLeft = was && was.sig === sc.dataset.sig ? was.left : sc.scrollWidth;
 }
 async function renderLibraryStats(v, kindLabel, vtabs) {
   const scopes = [["all", "All books"], ["read", "Read"], ["unread", "Not read yet"]];
@@ -1309,35 +1734,57 @@ async function renderLibraryStats(v, kindLabel, vtabs) {
     try { st.LSTATS = await api.libraryStats(st.vscope); } catch (e) { v.innerHTML = head + `<p class="empty">Could not load: ${esc(e.message)}</p>`; return; }
     if (st.sec !== "visuals" || st.vtab !== "library") return;
   }
-  const S = st.LSTATS, T = S.tiles;
+  const S = st.LSTATS, T = S.tiles, scope = st.vscope;
   const tile = (label, value, sub) => `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>`;
   const groupNote = S.groups.map(g => `${g.name} ${g.books}`).join(" · ");
-  v.innerHTML = head + `
-    <div class="tiles">${tile("Books", T.books, st.vscope === "all" ? "in the library" : st.vscope === "read" ? "read" : "not read yet")}${tile("Authors", T.authors, "")}
+  const pk = (dim, val, label, from) => ({dim, val: String(val ?? ""), label, from, scope});
+  const lang = c => c ? langName(c) : "not recorded";
+  const scoped = LIB.items.filter(i => i.kind === "book" && (scope === "all" || (scope === "read") === (i.status === "completed")));
+  const vers = [...VERSIONS.map(([k, l]) => [k, l]), ["", "Not set"]].map(([k, l]) => ({label: l, value: scoped.filter(i => (versionOf(i) || "") === k).length,
+    pick: pk("lversion", k, l === "Not set" ? "Version not set" : l, "lversion")})).filter(r => r.value);
+  const cards = [
+    ["lcats", card("lcats", "Categories", groupNote || "No categories yet.", hbars(S.categories.map(c => ({label: c.name, value: c.books, pick: pk("lcat", c.name, c.name, "lcats")}))),
+      tableView(["Category", "Books"], S.categories.map(c => [c.name, c.books])))],
+    ["llang", card("llang", "Original language", "The language each book was written in.", hbars(S.languages.map(r => ({label: lang(r.lang), value: r.books, pick: pk("llang", r.lang, "Written in " + lang(r.lang), "llang")}))),
+      tableView(["Language", "Books"], S.languages.map(r => [lang(r.lang), r.books])))],
+    ["lversion", card("lversion", "Version", "Paper, ebook or audiobook: the edition you have, else how you last read it.", hbars(vers),
+      tableView(["Version", "Books"], vers.map(r => [r.label, r.value])))],
+    ["lauthors", card("lauthors", "Authors", "Most books in the library.", hbars(S.authors.map(a => ({label: a.name, value: a.books, pick: pk("lauthor", a.name, a.name, "lauthors")}))),
+      tableView(["Author", "Books"], S.authors.map(a => [a.name, a.books])))],
+    ["lreleased", card("lreleased", "Released", "First published (or this edition's year), by decade.", columnChart("ch-released", S.released.map(r => ({label: r.label, value: r.books, tip: `<b>${r.books}</b> books · ${esc(r.label)}`, pick: pk("lreleased", r.label, "Released: " + r.label, "lreleased")})), {aria: "Books by release decade"}),
+      tableView(["Released", "Books"], S.released.map(r => [r.label, r.books])))],
+  ];
+  paintVisuals(v, head + `
+    <div class="tiles">${tile("Books", T.books, scope === "all" ? "in the library" : scope === "read" ? "read" : "not read yet")}${tile("Authors", T.authors, "")}
       ${tile("Original languages", T.languages, "")}${tile("Categories", T.categories, "")}
-      ${tile("Released", T.oldest != null ? (T.oldest < 0 ? -T.oldest + " BC" : T.oldest) + "–" + T.newest : "—", T.noRelease ? T.noRelease + " without a year" : "oldest to newest")}</div>
-    <div class="charts">
-      ${card("lcats", "Categories", groupNote || "No categories yet.", hbars(S.categories.map(c => ({label: c.name, value: c.books}))),
-        tableView(["Category", "Books"], S.categories.map(c => [c.name, c.books])))}
-      ${card("llang", "Original language", "The language each book was written in.", hbars(S.languages.map(r => ({label: r.lang ? langName(r.lang) : "not recorded", value: r.books}))),
-        tableView(["Language", "Books"], S.languages.map(r => [r.lang ? langName(r.lang) : "not recorded", r.books])))}
-      ${card("lauthors", "Authors", "Most books in the library.", hbars(S.authors.map(a => ({label: a.name, value: a.books}))),
-        tableView(["Author", "Books"], S.authors.map(a => [a.name, a.books])))}
-      ${card("lreleased", "Released", "First published (or this edition's year), by decade.", columnChart("ch-released", S.released.map(r => ({label: r.label, value: r.books, tip: `<b>${r.books}</b> books · ${esc(r.label)}`})), {aria: "Books by release decade"}),
-        tableView(["Released", "Books"], S.released.map(r => [r.label, r.books])))}
-    </div>`;
+      ${tile("Released", T.oldest != null ? (T.oldest < 0 ? -T.oldest + " BC" : T.oldest) + "–" + T.newest : "—", T.noRelease ? T.noRelease + " without a year" : "oldest to newest")}</div>`, cards);
 }
-function monthChart(byMonth) {
-  const known = byMonth.filter(r => r.month);
-  if (!known.length) return `<p class="muted" style="margin:0">—</p>`;
-  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const rows = known.slice(-24).map(r => ({label: names[r.month - 1] + (r.month === 1 ? " " + r.year : ""), value: r.books, tip: `<b>${r.books}</b> books · ${names[r.month - 1]} ${r.year}`}));
-  return columnChart("ch-month", rows, {aria: "Books per month"});
+function choosePick(el) {
+  const p = JSON.parse(el.dataset.pick);
+  st.pick = pickKey(p) === pickKey(st.pick) ? null : p;
+  hideTip(); renderVisuals();
+  const c = $("card-pick");
+  if (c) { const r = c.getBoundingClientRect(); if (r.bottom > innerHeight || r.top < 60) c.scrollIntoView({block: "nearest", behavior: reduceMotion() ? "auto" : "smooth"}); }
 }
 document.addEventListener("pointermove", e => { const g = e.target.closest?.("[data-tip]"); if (g && g.closest(".card")) showTip(e, g.dataset.tip); else hideTip(); });
 document.addEventListener("focusin", e => { const g = e.target.closest?.("[data-tip]"); if (g) { const r = g.getBoundingClientRect(); showTip({clientX: r.left + r.width / 2, clientY: r.top}, g.dataset.tip); } });
 document.addEventListener("focusout", hideTip);
-document.addEventListener("click", e => { const b = e.target.closest?.("[data-tv]"); if (b) { save("tv-" + b.dataset.tv, !load("tv-" + b.dataset.tv, false)); renderVisuals(); } });
+document.addEventListener("click", e => {
+  const b = e.target.closest?.("[data-tv]"); if (b) { save("tv-" + b.dataset.tv, !load("tv-" + b.dataset.tv, false)); renderVisuals(); return; }
+  const p = e.target.closest?.("#v-visuals [data-pick]"); if (p) { choosePick(p); return; }
+  const tm = e.target.closest?.("[data-tm]");
+  if (tm) { const [k, val] = tm.dataset.tm.split(":"); st.time[k] = val; if (k === "g" && val !== "day") st.time.month = ""; save("time", st.time); renderVisuals(); return; }
+  if (e.target.closest?.("#pick-x")) { st.pick = null; renderVisuals(); return; }
+  if (e.target.closest?.("#pick-db") && st.pick) { const p = st.pick; st.pick = null; pickToDatabase(p); }
+});
+document.addEventListener("keydown", e => {
+  const p = e.target.closest?.("#v-visuals [data-pick]");
+  if (p && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); choosePick(p); const again = document.querySelector(`#v-visuals [data-pick="${CSS.escape(p.dataset.pick)}"]`); again?.focus(); }
+});
+document.addEventListener("change", e => {
+  if (e.target.id === "tm-year") { st.time.year = e.target.value; st.time.month = ""; save("time", st.time); renderVisuals(); }
+  if (e.target.id === "tm-month") { st.time.month = e.target.value; save("time", st.time); renderVisuals(); }
+});
 
 // --------------------------------------------------------- preview store
 // ------------------------------------------------------------------ sync
@@ -1421,7 +1868,8 @@ function makePreviewApi(P) {
   const syncSummary = d => {
     const s = sum(d.id); if (!s) return;
     const done = d.readings.filter(r => r.state === "completed" && r.ended).map(r => +r.ended.slice(0, 4));
-    Object.assign(s, {title: d.item.title, status: d.status, rating: d.rating, authors: d.authorsList.map(a => a.name).join(", "), authorSort: d.authorsList[0]?.sort || d.authorsList[0]?.name || "",
+    Object.assign(s, {title: d.item.title, status: d.status, rating: d.rating, format: d.edition?.format ?? null,
+      reads: d.readings.filter(r => r.state === "completed" && r.ended).map(r => [r.ended, r.endedPrecision, r.lang, d.edition?.pages ?? null, r.medium || null]), authors: d.authorsList.map(a => a.name).join(", "), authorSort: d.authorsList[0]?.sort || d.authorsList[0]?.name || "",
       genres: d.genreList, pages: d.edition?.pages ?? null, lang: d.edition?.lang ?? null, year: done.length ? Math.max(...done) : null, hasReview: !!d.review,
       cover: (d.covers.find(c => c.chosen) || {}).thumb || null});
     d.title = d.item.title; d.authors = s.authors; d.year = s.year; d.cover = s.cover;
@@ -1493,7 +1941,7 @@ function makePreviewApi(P) {
     _applyReading(r, b) { const [s, sp] = parseDate(b.started, "started"), [e, ep] = parseDate(b.ended, "finished");
       if (s && e && s > e) throw new Error("the reading cannot finish before it started");
       const open = ["in_progress", "paused"].includes(b.state);
-      Object.assign(r, {state: b.state, started: s, startedPrecision: sp, ended: open ? null : e, endedPrecision: open ? null : ep, lang: b.lang || null, note: b.note || null}); },
+      Object.assign(r, {state: b.state, started: s, startedPrecision: sp, ended: open ? null : e, endedPrecision: open ? null : ep, lang: b.lang || null, medium: b.medium || null, note: b.note || null}); },
     async cover(id, cover) { const d = S.details[id]; const c = d.covers.find(x => x.id === cover); if (!c.thumb) throw new Error("This preview has only the stored covers; the server downloads the others."); for (const x of d.covers) x.chosen = x.id === cover; return done(d, "cover", {}); },
     async newShelf(name, mediaKind) { const id = newId(); S.library.shelves.push({id, name, kind: "manual", media_kind: mediaKind, position: S.library.shelves.length + 1, sort_key: "manual", sort_desc: false, cover_size: "m", layout: "grid", sort_locale: "und", items: []});
       for (const d of Object.values(S.details)) if (d.kind === mediaKind) d.shelves.push({id, name, kind: "manual", member: false}); persist(); return {id}; },
@@ -1513,12 +1961,12 @@ function makePreviewApi(P) {
         ended: status === "completed" ? t : null, endedPrecision: status === "completed" ? "day" : null, source: "owner"}];
       S.details[id] = {id, kind: "book", title: body.title.trim(), status, rating: null, review: null, locked: false, added: t, cover: null,
         item: {title: body.title.trim(), originalTitle: null, originalLang: null, firstPublished: null, firstPublishedPrecision: null},
-        edition: {title: body.title.trim(), subtitle: null, lang: body.language || null, publisher: body.publisher || null, published: pd, publishedPrecision: pp, pages: body.pages ? +body.pages : null, format: null},
+        edition: {title: body.title.trim(), subtitle: null, lang: body.language || null, publisher: body.publisher || null, published: pd, publishedPrecision: pp, pages: body.pages ? +body.pages : null, format: body.format || null},
         otherEditions: [], authorsList: names.map(n => ({name: n, sort: n})), genreList: [], tagList: [], readings, ids: body.isbn ? [{p: "isbn13", v: body.isbn, url: null, src: "owner"}] : [],
         covers: [], files: [], prov: {item: {title: "owner"}, entry: {status: "owner"}, edition: {}}, history: [], shelves: S.library.shelves.filter(x => x.media_kind === "book").map(x => ({id: x.id, name: x.name, kind: x.kind, member: x.kind === "all"}))};
       S.library.items.push({id, kind: "book", title: body.title.trim(), sort: body.title.trim(), locked: false, status, rating: null, authors: names.join(", "), authorSort: names[0] || "",
         genres: [], year: status === "completed" ? +t.slice(0, 4) : null, timesRead: status === "completed" ? 1 : 0, progress: null, pages: body.pages ? +body.pages : null, lang: body.language || null,
-        origLang: null, published: pd ? +pd.slice(0, 4) : null, added: t, hasReview: false, cover: null});
+        origLang: null, published: pd ? +pd.slice(0, 4) : null, added: t, hasReview: false, cover: null, format: body.format || null, reads: []});
       allBooks.items.push(id); persist(); return {id, existing: false};
     },
     async uploadCover(id, file) {
@@ -1544,6 +1992,9 @@ st.sec = load("sec", "database"); st.kind = load("kind", "book"); st.shelf = loa
 const hashSec = location.hash.slice(1); if (["database", "visuals", "sync"].includes(hashSec)) st.sec = hashSec;
 if (!["database", "visuals", "sync"].includes(st.sec)) st.sec = "database";
 st.side = load("side", true) !== false; applySide();
+st.f = Object.assign(NOF(), load("filter", {}));
+Object.assign(st.time, load("time", {}));
+st.fwin = {read: {g: st.f.read?.g || "year", year: "", month: ""}, added: {g: st.f.added?.g || "year", year: "", month: ""}};
 refresh();
 </script>
 </body>

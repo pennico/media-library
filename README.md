@@ -6,11 +6,14 @@ the rules enforced by the database itself; the console is a single page that
 looks like a bookshelf.
 
 - **Database**: an Apple Books-style cover shelf you can arrange (drag to
-  reorder, collections, sort, size), filters for Read / To read / Reading,
+  reorder, collections, sort, size), filters for Read / To read / Reading
+  and a Filter pane (version, language, category, dates, rating, pages),
   and a detail panel for metadata, rating (0–10), review and readings,
   including re-reads and dates as precise as you know them (year, month or day).
-- **Visuals**: statistics per year and month, pages, ratings, authors,
-  genres, languages and a reading calendar, all read through a read-only role.
+- **Visuals**: statistics per year, month or day, pages, ratings, authors,
+  genres, languages, versions and a reading calendar; click a bar to see its
+  books.
+- **Versions**: paper, ebook or audiobook for each book, and for each reading.
 - **Add a book** from Apple Books (cover and basics), Open Library (ISBN,
   pages, publisher) and Google Books (with a key), from an EPUB file (its own
   metadata and cover), or by hand. Upload a cover or an EPUB (stored by
@@ -37,7 +40,7 @@ looks like a bookshelf.
   (shared with [agent-console](https://github.com/pennico/agent-console) if
   you use it).
 
-Status: 0.3.0, used daily by its author. Movies and series have their schema
+Status: 0.4.0, used daily by its author. Movies and series have their schema
 and views (Joplin notes add them; no TMDB lookup yet).
 
 ## Docs

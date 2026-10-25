@@ -2,6 +2,32 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-10-25
+
+- **Version of a book**: Paper, Ebook or Audiobook, one click in the book's
+  panel (the editor keeps paperback and hardcover), chosen when adding a book
+  (an EPUB defaults to Ebook), a small mark on ebook and audiobook covers, a
+  Version column and sort in the list. Each reading has a "Read as" (new
+  readings take the book's version; Joplin audiobook notes already set it).
+- **Opening a book is smoother**: the panel opens at once with the cover and
+  title while the details load, the covers glide aside to make room instead
+  of jumping, and the book stays on its shelf while its copy flies open.
+  Edits no longer redraw the whole shelf (no cover blink), and the panel
+  keeps its scroll position.
+- **Filter pane**: a Filter button opens a small pane with toggles (version,
+  language of the book or original, categories, EPUB, review) showing how
+  many books each leaves, and sliders for the read and added dates (by year,
+  month or day, narrowed to a year or month), published year, rating and
+  pages. Active filters show as removable chips; the choice is remembered.
+- **Interactive visuals**: click a bar (a language, category, author, genre,
+  rating, decade, version or period) to see its books under the chart, then
+  open one or show them all in the Database with the matching filters.
+  "Books read over time" replaces the per-year and per-month charts: books
+  or pages, per year, month or day, narrowed to a year (and month), scrolling
+  sideways when long. The library view gains a Version chart.
+- The library list now carries each book's format, latest reading medium and
+  finished readings (date, precision, language, pages, medium).
+
 ## [0.3.2] - 2026-10-25
 
 - The wood covers the whole page: a wooden top rail, the left pane and the

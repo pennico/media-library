@@ -15,7 +15,7 @@ PROVIDER_URL = {
 LIBRARY = """
 SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locked, i.original_language,
        e.status, e.rating, e.added_at, e.review IS NOT NULL AS has_review,
-       ed.pages, ed.language, extract(year FROM ed.published_on)::int AS published,
+       ed.pages, ed.language, ed.format, extract(year FROM ed.published_on)::int AS published,
        extract(year FROM i.first_published)::int AS first_published,
        (SELECT string_agg(p.name, ', ' ORDER BY ct.position) FROM catalog.contribution ct
           JOIN catalog.person p ON p.id = ct.person_id WHERE ct.item_id = i.id AND ct.role = 'author') AS authors,
@@ -33,6 +33,14 @@ SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locke
          WHERE c.item_id = i.id AND c.state = 'completed' AND c.deleted_at IS NULL)::int AS times_read,
        (SELECT c.progress_pct FROM library.consumption c
          WHERE c.item_id = i.id AND c.state IN ('in_progress', 'paused') AND c.deleted_at IS NULL) AS progress,
+       (SELECT c.medium FROM library.consumption c
+         WHERE c.item_id = i.id AND c.medium IS NOT NULL AND c.deleted_at IS NULL
+         ORDER BY coalesce(c.ended_on, c.started_on) DESC NULLS LAST, c.id DESC LIMIT 1) AS medium,
+       -- the finished readings, for the date filter and the charts: [ended, precision, read in, pages, medium]
+       (SELECT jsonb_agg(jsonb_build_array(c.ended_on, c.ended_precision, c.language, coalesce(ce.pages, ed.pages), c.medium)
+                         ORDER BY c.ended_on, c.id)
+          FROM library.consumption c LEFT JOIN catalog.edition ce ON ce.id = c.edition_id AND ce.deleted_at IS NULL
+         WHERE c.item_id = i.id AND c.state = 'completed' AND c.ended_on IS NOT NULL AND c.deleted_at IS NULL) AS reads,
        cv.sha256 AS cover_sha
   FROM catalog.media_item i
   JOIN library.entry e ON e.item_id = i.id AND e.deleted_at IS NULL
@@ -72,7 +80,8 @@ def summary(r):
         "pages": r["pages"], "lang": r["language"], "origLang": r["original_language"],
         "published": r["first_published"] or r["published"], "added": r["added_at"].date().isoformat(),
         "hasReview": r["has_review"], "cover": thumb_url(r["cover_sha"], 320),
-        "cats": r["cat_ids"] or [], "hasFile": r["has_file"],
+        "cats": r["cat_ids"] or [], "hasFile": r["has_file"], "format": r["format"], "medium": r["medium"],
+        "reads": r["reads"] or [],
     }
 
 
@@ -168,7 +177,7 @@ def detail(conn, pid):
                               FROM catalog.edition_file f
                              WHERE f.edition_id = ANY(%s) AND f.deleted_at IS NULL ORDER BY f.id""", (ed_ids or [0],)).fetchall()
     reads = conn.execute("""SELECT id, public_id::text AS id_pub, state, started_on, started_precision, ended_on,
-                                   ended_precision, language, note, source, progress_pct, progress_pages
+                                   ended_precision, language, medium, note, source, progress_pct, progress_pages
                               FROM library.consumption WHERE item_id = %s AND deleted_at IS NULL
                              ORDER BY coalesce(ended_on, started_on, 'infinity'::date) DESC, id DESC""", (iid,)).fetchall()
     people = conn.execute("""SELECT p.name, p.sort_name FROM catalog.contribution ct JOIN catalog.person p ON p.id = ct.person_id
@@ -202,7 +211,7 @@ def detail(conn, pid):
         "tagList": [t["name"] for t in tags if t["kind"] == "tag"],
         "readings": [{"id": r["id_pub"], "state": r["state"], "started": iso(r["started_on"]),
                       "startedPrecision": r["started_precision"], "ended": iso(r["ended_on"]),
-                      "endedPrecision": r["ended_precision"], "lang": r["language"], "note": r["note"],
+                      "endedPrecision": r["ended_precision"], "lang": r["language"], "medium": r["medium"], "note": r["note"],
                       "source": r["source"], "progress": float(r["progress_pct"]) if r["progress_pct"] is not None else None}
                      for r in reads],
         "ids": [{"p": x["provider"], "v": x["value"], "url": PROVIDER_URL.get(x["provider"], "").format(x["value"]) or None,

@@ -639,6 +639,12 @@ def make_handler(app):
             for ext in (".epub", ".json"):
                 if os.path.exists(base + ext):
                     os.remove(base + ext)
+            return self.with_version(conn, login, r, req)
+
+        def with_version(self, conn, login, r, req):
+            """Adding a book: the version picked in the form (ebook, print, audiobook) goes on the new book."""
+            if req.get("format") and not r.get("existing"):
+                writes.set_version(conn, login, r["id"], req["format"])
             return r
 
         def route_write(self, method, path, req):
@@ -654,11 +660,13 @@ def make_handler(app):
                     return self.send(200, app.fill.lookup(req.get("title"), req.get("author"), req.get("isbn")))
                 if path == "/api/epub-add" and method == "POST":
                     return self.send(200, self.epub_add(conn, login, req))
+                if req.get("format") and path in ("/api/add-manual", "/api/add", "/api/epub-add"):
+                    writes.edition_format(req["format"], "version")       # refused before anything is added
                 if path == "/api/add-manual" and method == "POST":
-                    return self.send(200, writes.add_manual(conn, login, req))
+                    return self.send(200, self.with_version(conn, login, writes.add_manual(conn, login, req), req))
                 if path == "/api/add" and method == "POST":
-                    return self.send(200, app.fill.add(conn, login, req.get("token"), req.get("index"),
-                                                       req.get("status") or "planned"))
+                    return self.send(200, self.with_version(conn, login, app.fill.add(
+                        conn, login, req.get("token"), req.get("index"), req.get("status") or "planned"), req))
                 m = re.fullmatch(r"/api/items/" + UUID + r"/fill", path)
                 if m and method == "POST":
                     res = app.fill.fill_missing(conn, login, m.group(1))

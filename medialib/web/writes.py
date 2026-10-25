@@ -145,9 +145,7 @@ def edit_item(conn, login, pid, body):
                     if not 1 <= cols["pages"] <= 20000:
                         raise BadRequest("pages must be between 1 and 20000")
             elif k == "format":
-                if v not in (None, "") and v not in FORMATS:
-                    raise BadRequest("format must be one of " + ", ".join(FORMATS))
-                cols["format"] = v or None
+                cols["format"] = edition_format(v)
             elif k == "description":
                 cols["description"] = text(v, "description", max_len=100000)
             else:
@@ -172,6 +170,24 @@ def edit_item(conn, login, pid, body):
                 key = kind + "s"
                 if key in body:
                     set_tags(conn, ids["id"], kind, body[key])
+
+
+def edition_format(v, field="format"):
+    if v not in (None, "") and v not in FORMATS:
+        raise BadRequest("{} must be one of {}".format(field, ", ".join(FORMATS)))
+    return v or None
+
+
+def set_version(conn, login, pid, fmt):
+    """A new book's version (the edition's format), chosen when adding it; the
+    reading opened by adding it as Reading or Read gets it as its medium."""
+    fmt = edition_format(fmt, "version")
+    if not fmt:
+        return
+    edit_item(conn, login, pid, {"edition": {"format": fmt}})
+    with tx(conn, login):
+        conn.execute("UPDATE library.consumption SET medium = %s WHERE item_id = %s AND medium IS NULL AND deleted_at IS NULL",
+                     (fmt, ids_for(conn, pid)["id"]))
 
 
 def set_authors(conn, item, names):
@@ -264,12 +280,14 @@ def set_status(conn, login, pid, body):
                               " state IN ('in_progress', 'paused') AND deleted_at IS NULL", (item,)).fetchone()
         if status == cur:
             return
+        medium = edition_medium(conn, ids["edition_id"])
         if status in ("in_progress", "paused"):
             if open_r:
                 conn.execute("UPDATE library.consumption SET state = %s WHERE id = %s", (status, open_r["id"]))
             else:
                 conn.execute("INSERT INTO library.consumption (item_id, edition_id, state, started_on, started_precision,"
-                             " source) VALUES (%s, %s, %s, %s, %s, 'owner')", (item, ids["edition_id"], status, when, prec))
+                             " medium, source) VALUES (%s, %s, %s, %s, %s, %s, 'owner')",
+                             (item, ids["edition_id"], status, when, prec, medium))
         elif status in ("completed", "dropped"):
             if open_r:
                 if open_r["started_on"] and open_r["started_on"] > period_end(when, prec):
@@ -278,11 +296,19 @@ def set_status(conn, login, pid, body):
                              (status, when, prec, open_r["id"]))
             else:
                 conn.execute("INSERT INTO library.consumption (item_id, edition_id, state, ended_on, ended_precision,"
-                             " source) VALUES (%s, %s, %s, %s, %s, 'owner')", (item, ids["edition_id"], status, when, prec))
+                             " medium, source) VALUES (%s, %s, %s, %s, %s, %s, 'owner')",
+                             (item, ids["edition_id"], status, when, prec, medium))
         elif status == "planned" and open_r:
             # back to "to read": the open reading is set aside, not lost
             conn.execute("UPDATE library.consumption SET deleted_at = now() WHERE id = %s", (open_r["id"],))
         conn.execute("UPDATE library.entry SET status = %s, status_changed_at = now() WHERE item_id = %s", (status, item))
+
+
+def edition_medium(conn, edition_id):
+    """A new reading is read in the book's version, when one is set."""
+    if edition_id is None:
+        return None
+    return conn.execute("SELECT format FROM catalog.edition WHERE id = %s", (edition_id,)).fetchone()["format"]
 
 
 def reading_cols(conn, body):
@@ -300,6 +326,8 @@ def reading_cols(conn, body):
             cols["language"] = lang(conn, v, "language")
         elif k == "note":
             cols["note"] = text(v, "note", max_len=20000)
+        elif k == "medium":
+            cols["medium"] = edition_format(v, "read as")
         else:
             raise BadRequest("unknown reading field " + k)
     if cols.get("state") in ("in_progress", "paused"):
@@ -311,6 +339,8 @@ def add_reading(conn, login, pid, body):
     with tx(conn, login):
         ids = ids_for(conn, pid)
         cols = reading_cols(conn, dict({"state": "completed"}, **body))
+        if "medium" not in body:
+            cols["medium"] = edition_medium(conn, ids["edition_id"])
         cols.update(item_id=ids["id"], edition_id=ids["edition_id"], source="owner")
         names = list(cols)
         conn.execute("INSERT INTO library.consumption ({}) VALUES ({})".format(", ".join(names), ", ".join(["%s"] * len(names))),
