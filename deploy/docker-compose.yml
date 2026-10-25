@@ -98,6 +98,8 @@ services:
       MEDIALIB_COOKIE_SECURE: "1"
       MEDIALIB_READER_USER: ${READER_USER:-reader}       # reading apps (Readest): OPDS + KOReader sync login
       MEDIALIB_READER_PASSWORD_FILE: /run/secrets/reader.pw
+      MEDIALIB_FIND_URL: ${BOOK_FIND_URL:-}              # optional "find this book" link for books without a file ({q} = title + author)
+      MEDIALIB_FIND_LABEL: ${BOOK_FIND_LABEL:-}
     secrets:
       - source: ml_app_pw
         target: ml_app.pw
@@ -105,6 +107,8 @@ services:
         target: ml_readonly.pw
       - source: reader_pw
         target: reader.pw
+      - source: google_books_key
+        target: google-books.key
     volumes:
       - ./media:/media
       - ./state:/state
@@ -140,6 +144,8 @@ services:
         target: ml_app.pw
       - source: ml_readonly_pw
         target: ml_readonly.pw
+      - source: google_books_key
+        target: google-books.key
     volumes:
       - ./media:/media
       - ./out:/out
@@ -169,3 +175,5 @@ secrets:
     file: ./secrets/ml_readonly.pw
   reader_pw:
     file: ./secrets/reader.pw
+  google_books_key:                     # optional: a Google Books API key, or an empty file (Google then stays off)
+    file: ./secrets/google-books.key

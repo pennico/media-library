@@ -1,5 +1,6 @@
 """Read queries for the console. Library and detail use the app role;
 statistics use the read-only role (stats.* views only)."""
+import collections
 import datetime
 
 KINDS = ("book", "movie", "series")
@@ -22,6 +23,10 @@ SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locke
          WHERE ct.item_id = i.id AND ct.role = 'author' ORDER BY ct.position LIMIT 1) AS author_sort,
        (SELECT array_agg(t.name::text ORDER BY it.position) FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id
          WHERE it.item_id = i.id AND t.kind = 'genre' AND t.deleted_at IS NULL) AS genres,
+       (SELECT array_agg(it.tag_id ORDER BY it.position) FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id
+         WHERE it.item_id = i.id AND t.kind = 'genre' AND t.deleted_at IS NULL) AS cat_ids,
+       EXISTS (SELECT 1 FROM catalog.edition_file f JOIN catalog.edition fe ON fe.id = f.edition_id
+                WHERE fe.work_id = i.id AND f.storage = 'store' AND f.deleted_at IS NULL) AS has_file,
        (SELECT max(c.ended_on) FROM library.consumption c
          WHERE c.item_id = i.id AND c.state = 'completed' AND c.deleted_at IS NULL) AS last_read,
        (SELECT count(*) FROM library.consumption c
@@ -67,6 +72,7 @@ def summary(r):
         "pages": r["pages"], "lang": r["language"], "origLang": r["original_language"],
         "published": r["first_published"] or r["published"], "added": r["added_at"].date().isoformat(),
         "hasReview": r["has_review"], "cover": thumb_url(r["cover_sha"], 320),
+        "cats": r["cat_ids"] or [], "hasFile": r["has_file"],
     }
 
 
@@ -75,7 +81,35 @@ def library(conn):
     shelves = [{k: (r[k] if k != "id_pub" else None) for k in r if k not in ("id", "id_pub")} | {"id": r["id_pub"]}
                for r in conn.execute(SHELVES).fetchall()]
     langs = {r["code"]: r["name_en"] for r in conn.execute("SELECT code, name_en FROM catalog.language")}
-    return {"items": items, "shelves": shelves, "languages": langs}
+    return {"items": items, "shelves": shelves, "languages": langs, "categories": categories(conn),
+            "trash": conn.execute("SELECT count(*) AS n FROM catalog.media_item WHERE deleted_at IS NOT NULL"
+                                  " AND kind IN ('book', 'movie', 'series')").fetchone()["n"]}
+
+
+def categories(conn):
+    """The genre tree: groups (parent null, with children) and the categories in them;
+    old flat genres with no group are listed as groups of their own."""
+    rows = conn.execute("""SELECT t.id, t.name, t.parent_id, t.position,
+                                  EXISTS (SELECT 1 FROM library.tag c WHERE c.parent_id = t.id AND c.deleted_at IS NULL) AS is_group
+                             FROM library.tag t WHERE t.kind = 'genre' AND t.deleted_at IS NULL
+                            ORDER BY t.parent_id NULLS FIRST, t.position NULLS LAST, t.name""").fetchall()
+    return [{"id": r["id"], "name": r["name"], "parent": r["parent_id"], "group": r["is_group"]} for r in rows]
+
+
+def trash(conn, days=30):
+    rows = conn.execute("""
+        SELECT i.public_id::text AS id, i.kind, i.title, i.deleted_at,
+               (SELECT string_agg(p.name, ', ' ORDER BY ct.position) FROM catalog.contribution ct
+                  JOIN catalog.person p ON p.id = ct.person_id
+                 WHERE ct.item_id = i.id AND ct.role IN ('author', 'director', 'creator')) AS authors,
+               (SELECT cv.sha256 FROM catalog.cover cv LEFT JOIN catalog.edition e ON e.id = cv.edition_id
+                 WHERE cv.is_chosen AND cv.deleted_at IS NULL AND (cv.item_id = i.id OR e.work_id = i.id) LIMIT 1) AS cover_sha
+          FROM catalog.media_item i
+         WHERE i.deleted_at IS NOT NULL AND i.kind IN ('book', 'movie', 'series')
+         ORDER BY i.deleted_at DESC""").fetchall()
+    return [{"id": r["id"], "kind": r["kind"], "title": r["title"], "authors": r["authors"] or "",
+             "deletedAt": iso(r["deleted_at"]), "purgeOn": iso((r["deleted_at"] + datetime.timedelta(days=days)).date()),
+             "cover": thumb_url(r["cover_sha"], 320)} for r in rows]
 
 
 def item_id(conn, pid):
@@ -139,7 +173,7 @@ def detail(conn, pid):
                              ORDER BY coalesce(ended_on, started_on, 'infinity'::date) DESC, id DESC""", (iid,)).fetchall()
     people = conn.execute("""SELECT p.name, p.sort_name FROM catalog.contribution ct JOIN catalog.person p ON p.id = ct.person_id
                               WHERE ct.item_id = %s AND ct.role = 'author' ORDER BY ct.position""", (iid,)).fetchall()
-    tags = conn.execute("""SELECT t.kind, t.name FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id
+    tags = conn.execute("""SELECT t.id, t.kind, t.name FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id
                             WHERE it.item_id = %s AND t.deleted_at IS NULL ORDER BY t.kind, it.position""", (iid,)).fetchall()
     shelves = conn.execute("""SELECT s.public_id::text AS id, s.name, s.kind,
                                      EXISTS (SELECT 1 FROM library.shelf_item si WHERE si.shelf_id = s.id AND si.item_id = %s) AS member
@@ -164,6 +198,7 @@ def detail(conn, pid):
                           for e in eds if not e["is_primary"]],
         "authorsList": [{"name": p["name"], "sort": p["sort_name"]} for p in people],
         "genreList": [t["name"] for t in tags if t["kind"] == "genre"],
+        "genreIds": [t["id"] for t in tags if t["kind"] == "genre"],
         "tagList": [t["name"] for t in tags if t["kind"] == "tag"],
         "readings": [{"id": r["id_pub"], "state": r["state"], "started": iso(r["started_on"]),
                       "startedPrecision": r["started_precision"], "ended": iso(r["ended_on"]),
@@ -248,3 +283,48 @@ def reading_apps(conn):
                          "candidates": u["candidates"], "seen": iso(u["seen_at"])} for u in unclear],
         },
     }
+
+
+def library_stats(ro, scope="all"):
+    """Visuals → Library: what the books are (any status), from stats.library_book.
+    scope: all | read | unread."""
+    where = {"all": "true", "read": "status = 'completed'", "unread": "status <> 'completed'"}[scope]
+    rows = ro.execute("SELECT * FROM stats.library_book WHERE " + where).fetchall()
+    langs, authors, groups, cats, buckets = (collections.Counter() for _ in range(5))
+    years = []
+    for r in rows:
+        langs[r["original_language"]] += 1
+        for a in dict.fromkeys(r["authors"] or []):
+            authors[a] += 1
+        for g in dict.fromkeys(r["groups"] or []):
+            groups[g] += 1
+        for c in dict.fromkeys(r["categories"] or []):
+            cats[c] += 1
+        if r["released"] is not None:
+            years.append(r["released"])
+            buckets[release_bucket(r["released"])] += 1
+    order = sorted(buckets, key=lambda b: BUCKET_ORDER.get(b, int(b[:4]) if b[:4].isdigit() else 0))
+    return {
+        "scope": scope,
+        "tiles": {"books": len(rows), "authors": len(authors), "languages": len([k for k in langs if k]),
+                  "categories": len(cats), "oldest": min(years) if years else None, "newest": max(years) if years else None,
+                  "noRelease": len(rows) - len(years)},
+        "languages": [{"lang": k, "books": n} for k, n in langs.most_common()],
+        "authors": [{"name": k, "books": n} for k, n in authors.most_common(15)],
+        "groups": [{"name": k, "books": n} for k, n in groups.most_common()],
+        "categories": [{"name": k, "books": n} for k, n in cats.most_common()],
+        "released": [{"label": b, "books": buckets[b]} for b in order],
+    }
+
+
+BUCKET_ORDER = {"Antiquity": -1000, "Before 1700": 1000, "1700s": 1700, "1800s": 1800}
+
+
+def release_bucket(year):
+    if year < 500:
+        return "Antiquity"
+    if year < 1700:
+        return "Before 1700"
+    if year < 1900:
+        return "{}00s".format(year // 100)
+    return "{}s".format(year // 10 * 10)

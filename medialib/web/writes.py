@@ -502,9 +502,12 @@ def add_manual(conn, login, body):
             raise BadRequest("pages must be between 1 and 20000")
     publisher = text(body.get("publisher"), "publisher")
     if isbn:
-        row = conn.execute("""SELECT i.public_id::text AS id FROM catalog.external_id x JOIN catalog.edition e ON e.id = x.edition_id
+        row = conn.execute("""SELECT i.public_id::text AS id, i.deleted_at IS NOT NULL AS trashed
+                                FROM catalog.external_id x JOIN catalog.edition e ON e.id = x.edition_id
                                JOIN catalog.media_item i ON i.id = e.work_id
-                              WHERE x.provider = 'isbn13' AND x.value = %s AND i.deleted_at IS NULL""", (isbn,)).fetchone()
+                              WHERE x.provider = 'isbn13' AND x.value = %s""", (isbn,)).fetchone()
+        if row and row["trashed"]:
+            raise BadRequest("that book is in the trash: restore it from Trash")
         if row:
             return {"id": row["id"], "existing": True}
     with tx(conn, login):
@@ -530,7 +533,7 @@ def add_manual(conn, login, body):
 
 # ------------------------------------------------------------ uploads
 
-def upload_cover(conn, login, pid, data, store):
+def upload_cover(conn, login, pid, data, store, note="uploaded by you"):
     """The owner's own cover image (JPEG/PNG/WebP, checked by Pillow)."""
     from ..covers import CoverError
     try:
@@ -548,8 +551,8 @@ def upload_cover(conn, login, pid, data, store):
             conn.execute("UPDATE catalog.cover SET is_chosen = true WHERE id = %s", (row["id"],))
         else:
             conn.execute("INSERT INTO catalog.cover ({}, source, local_path, sha256, mime, width, height, bytes, fetched_at,"
-                         " is_chosen, note) VALUES (%s, 'owner', %s, %s, %s, %s, %s, %s, now(), true, 'uploaded by you')".format(col),
-                         (owner_id, info["local_path"], info["sha256"], info["mime"], info["width"], info["height"], info["bytes"]))
+                         " is_chosen, note) VALUES (%s, 'owner', %s, %s, %s, %s, %s, %s, now(), true, %s)".format(col),
+                         (owner_id, info["local_path"], info["sha256"], info["mime"], info["width"], info["height"], info["bytes"], note))
 
 
 def check_epub(path):
@@ -594,3 +597,133 @@ def attach_file(conn, login, pid, tmp_path, sha, media_dir):
         conn.execute("INSERT INTO catalog.edition_file (edition_id, format, storage, rel_path, size_bytes, sha256, kosync_md5, added_at)"
                      " VALUES (%s, 'epub', 'store', %s, %s, %s, %s, now())",
                      (ids["edition_id"], rel, os.path.getsize(dest), sha, md5))
+
+
+# ------------------------------------------------------------------- trash
+
+TRASH_DAYS = 30
+
+
+def _trashed(conn, pid):
+    row = conn.execute("SELECT id, title FROM catalog.media_item WHERE public_id = %s AND deleted_at IS NOT NULL"
+                       " AND kind IN ('book', 'movie', 'series')", (pid,)).fetchone()
+    if not row:
+        raise LookupError("no such item in the trash")
+    return row
+
+
+def trash_item(conn, login, pid):
+    """Move to the trash: hidden everywhere, back with restore_item for 30 days."""
+    with tx(conn, login):
+        ids = ids_for(conn, pid)
+        if ids["kind"] not in ("book", "movie", "series"):
+            raise BadRequest("only books, movies and series go to the trash")
+        conn.execute("UPDATE library.entry SET deleted_at = now() WHERE item_id = %s", (ids["id"],))
+        conn.execute("UPDATE catalog.media_item SET deleted_at = now() WHERE id = %s", (ids["id"],))
+
+
+def restore_item(conn, login, pid):
+    with tx(conn, login):
+        row = _trashed(conn, pid)
+        conn.execute("UPDATE catalog.media_item SET deleted_at = NULL WHERE id = %s", (row["id"],))
+        conn.execute("UPDATE library.entry SET deleted_at = NULL WHERE item_id = %s", (row["id"],))
+
+
+def remove_media(media_dir, paths):
+    """Files nothing points at any more (EPUBs, covers and their thumbnails)."""
+    import glob
+    import os
+    for rel in paths:
+        full = os.path.normpath(os.path.join(media_dir, rel))
+        if not full.startswith(os.path.normpath(media_dir) + os.sep):
+            continue
+        try:
+            os.remove(full)
+        except OSError:
+            pass
+        if rel.startswith("covers/"):
+            sha = os.path.splitext(os.path.basename(rel))[0]
+            for thumb in glob.glob(os.path.join(media_dir, "thumbs", sha + "-*.jpg")):
+                try:
+                    os.remove(thumb)
+                except OSError:
+                    pass
+
+
+def purge_item(conn, client, item_id, media_dir):
+    """Delete one trashed item for good (database function, then its files)."""
+    with db.write_tx(conn, "owner", client, reason="deleted for good"):
+        paths = [r["path"] for r in conn.execute("SELECT path FROM library.purge_item(%s)", (item_id,)).fetchall()]
+    remove_media(media_dir, paths)
+    return paths
+
+
+def purge_now(conn, login, pid, media_dir):
+    row = _trashed(conn, pid)
+    purge_item(conn, "console:" + (login or "unknown"), row["id"], media_dir)
+    return row["title"]
+
+
+def purge_trash(conn, media_dir, days=TRASH_DAYS, apply=False, log=print):
+    """Everything in the trash for longer than `days` goes for good (cron, daily)."""
+    rows = conn.execute("SELECT id, title, deleted_at FROM catalog.media_item WHERE deleted_at < now() - make_interval(days => %s)"
+                        " AND kind IN ('book', 'movie', 'series') ORDER BY deleted_at", (days,)).fetchall()
+    for r in rows:
+        if apply:
+            purge_item(conn, "trash", r["id"], media_dir)
+        log("{} {} (in the trash since {:%Y-%m-%d})".format("deleted" if apply else "would delete", r["title"],
+                                                            r["deleted_at"]))
+    if not rows:
+        log("nothing in the trash older than {} days".format(days))
+    return len(rows)
+
+
+# --------------------------------------------------------- add from an EPUB
+
+def epub_summary(meta, filename=None):
+    """What the file says, cleaned for the console (and kept beside the upload)."""
+    from .. import epubmeta
+    title, authors = meta.get("title"), list(meta.get("authors") or [])
+    if epubmeta.junk_title(title) and filename:
+        guess_t, guess_a = epubmeta.title_from_filename(filename)
+        title, authors = guess_t or title, authors or ([guess_a] if guess_a else [])
+    return {"title": title, "subtitle": meta.get("subtitle"), "authors": authors, "language": meta.get("language"),
+            "isbns": list(dict.fromkeys((meta.get("isbns") or []) + (meta.get("source_isbns") or []))),
+            "publisher": meta.get("publisher"), "published": meta.get("published"), "series": meta.get("series"),
+            "seriesIndex": meta.get("series_index"), "description": (meta.get("description") or "")[:600] or None,
+            "subjects": (meta.get("subjects") or [])[:10], "hasCover": bool(meta.get("cover"))}
+
+
+def add_from_epub(conn, login, path, summary, sha, media_dir, store, fill=None, token=None, index=None, status="planned"):
+    """Create the book (a picked candidate, or what the file says), then attach
+    the file and, if the book has no cover yet, the cover inside the EPUB."""
+    from .. import epubmeta
+    if index is not None:
+        r = fill.add(conn, login, token, index, status)
+    else:
+        language = summary.get("language")
+        if language and not conn.execute("SELECT 1 AS x FROM catalog.language WHERE code = %s", (language,)).fetchone():
+            language = None
+        r = add_manual(conn, login, {"title": summary.get("title"), "authors": summary.get("authors") or [],
+                                     "language": language, "published": summary.get("published"),
+                                     "publisher": summary.get("publisher"),
+                                     "isbn": (summary.get("isbns") or [None])[0], "status": status})
+    pid = r["id"]
+    meta = epubmeta.read(path)                 # the cover bytes are not kept in the summary
+    attach_file(conn, login, pid, path, sha, media_dir)
+    ids = ids_for(conn, pid)
+    if not conn.execute("SELECT 1 AS x FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id"
+                        " WHERE it.item_id = %s AND t.kind = 'genre'", (ids["id"],)).fetchone():
+        from .. import categories
+        cats = categories.classify([], summary.get("subjects") or [])[0]
+        if cats:
+            with db.write_tx(conn, "categorize", "console:" + (login or "unknown"), reason="categories from the EPUB"):
+                categories.assign(conn, ids["id"], cats)
+    has_cover = conn.execute("SELECT 1 AS x FROM catalog.cover WHERE is_chosen AND deleted_at IS NULL"
+                             " AND (edition_id = %s OR item_id = %s)", (ids["edition_id"], ids["id"])).fetchone()
+    if not has_cover and meta.get("cover"):
+        try:
+            upload_cover(conn, login, pid, meta["cover"]["data"], store, note="from the EPUB")
+        except BadRequest:
+            pass                                # not a usable image: the book stays without a cover
+    return dict(r, id=pid)

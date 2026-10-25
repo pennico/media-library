@@ -11,13 +11,18 @@ looks like a bookshelf.
   including re-reads and dates as precise as you know them (year, month or day).
 - **Visuals**: statistics per year and month, pages, ratings, authors,
   genres, languages and a reading calendar, all read through a read-only role.
-- **Add a book** from Apple Books (cover and basics) and Open Library (ISBN,
-  pages, publisher), or by hand. Upload a cover or an EPUB (stored by sha256,
-  with its Readest/KOReader id).
+- **Add a book** from Apple Books (cover and basics), Open Library (ISBN,
+  pages, publisher) and Google Books (with a key), from an EPUB file (its own
+  metadata and cover), or by hand. Upload a cover or an EPUB (stored by
+  sha256, with its Readest/KOReader id).
 - **Readest**: an OPDS catalog of your ebooks and KOReader-protocol position
   sync; reading in Readest moves a book to Reading and, at the end, to Read.
 - **Joplin review notes** (one note per book or film: rating, review, date,
   collections) flow in hourly from a Joplin sync folder.
+- **Categories** in two levels (Fiction / Non-fiction and their kinds), filled
+  from your own labels and the providers' subjects.
+- **Read** EPUBs in the browser, or follow a configurable search link for
+  books you don't have a file of yet. Deleted books wait 30 days in a Trash.
 - **Import** from Yamtrack and Calibre-Web Automated without losing data: every
   source field is imported or listed as dropped, with the reason, and a
   completeness report checks that nothing went missing.
@@ -32,7 +37,7 @@ looks like a bookshelf.
   (shared with [agent-console](https://github.com/pennico/agent-console) if
   you use it).
 
-Status: 0.2.0, used daily by its author. Movies and series have their schema
+Status: 0.3.0, used daily by its author. Movies and series have their schema
 and views (Joplin notes add them; no TMDB lookup yet).
 
 ## Docs
@@ -41,7 +46,7 @@ and views (Joplin notes add them; no TMDB lookup yet).
 |---|---|
 | [`docs/INSTALL.md`](docs/INSTALL.md) | install, update, backups, rollback |
 | [`DESIGN.md`](DESIGN.md) | needs, PostgreSQL vs MySQL, schema, integrity and operations, import mapping |
-| [`DECISIONS.md`](DECISIONS.md) | design decisions (cited in the code as D1…D35) |
+| [`DECISIONS.md`](DECISIONS.md) | design decisions (cited in the code as D1…D42) |
 | [`SECURITY.md`](SECURITY.md) | security model and how to report a problem |
 | [`CHANGELOG.md`](CHANGELOG.md) | releases |
 
@@ -50,8 +55,9 @@ and views (Joplin notes add them; no TMDB lookup yet).
 | Path | What |
 |---|---|
 | `migrations/NNNN_*.sql` | the schema, forward-only, one transaction each |
-| `medialib/` | Python package: `config`, `db` (audited write transactions), `bootstrap`, `migrate`, `importer/`, `fill/` (metadata providers), `feeds/` (Joplin notes, KOReader sync), `web/` (server, auth, queries, writes, OPDS, reading-app login), `adopt`, `covers`, `files`, `text` |
+| `medialib/` | Python package: `config`, `db` (audited write transactions), `bootstrap`, `migrate`, `importer/`, `fill/` (metadata providers), `categories`, `epubmeta`, `feeds/` (Joplin notes, KOReader sync), `web/` (server, auth, queries, writes, OPDS, reading-app login), `adopt`, `covers`, `files`, `text` |
 | `web/index.html` | the console: one file, no build step |
+| `web/reader.html`, `web/reader.js`, `web/vendor/foliate-js/` | the EPUB reader (foliate-js vendored, see `VENDORED.md`) |
 | `tests/` | one test per database rule, importer, metadata fill, web API |
 | `tools/devdb.py` | development PostgreSQL 18.6 without root (PGDG packages in `.devdb/`) |
 | `tools/restore_drill.py` | dump/restore + point-in-time recovery drill on the dev cluster |

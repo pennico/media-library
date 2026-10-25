@@ -6,6 +6,8 @@
     python -m medialib serve [--host 0.0.0.0] [--port 8099]
     python -m medialib joplin (--dir DIR | --tar FILE|-) [--apply] [--offline]
     python -m medialib adopt-files SNAPSHOT_DIR [--apply]
+    python -m medialib categorize [--apply] [--offline] [--out DIR]
+    python -m medialib purge-trash [--days 30] [--apply]
 """
 import argparse
 import sys
@@ -38,6 +40,13 @@ def main(argv=None):
     f = sub.add_parser("adopt-files", help="copy the imported CWA ebook files into the store (dry run unless --apply)")
     f.add_argument("snapshot")
     f.add_argument("--apply", action="store_true")
+    c = sub.add_parser("categorize", help="move every book onto the category tree (dry run unless --apply)")
+    c.add_argument("--apply", action="store_true")
+    c.add_argument("--offline", action="store_true", help="your labels only; no Google Books / Open Library subjects")
+    c.add_argument("--out", default="out", help="report directory")
+    t = sub.add_parser("purge-trash", help="delete for good what is in the trash for longer than --days (dry run unless --apply)")
+    t.add_argument("--days", type=int, default=30)
+    t.add_argument("--apply", action="store_true")
     a = ap.parse_args(argv)
     cfg = config.from_env(**({"db_name": a.db} if a.db else {}))
     if a.cmd == "bootstrap":
@@ -66,6 +75,19 @@ def main(argv=None):
     elif a.cmd == "adopt-files":
         from . import adopt
         return adopt.main(cfg, a.snapshot, apply=a.apply)
+    elif a.cmd == "categorize":
+        from . import categories, db
+        subjects = None
+        if not a.offline:
+            from .fill import service
+            subjects = categories.subjects_online(service.make(cfg.media_dir))
+        with db.connect(cfg, db.ROLE_APP) as conn:
+            categories.run(conn, subjects, apply=a.apply, out_dir=a.out)
+    elif a.cmd == "purge-trash":
+        from . import db
+        from .web import writes
+        with db.connect(cfg, db.ROLE_APP) as conn:
+            writes.purge_trash(conn, cfg.media_dir, days=a.days, apply=a.apply)
     elif a.cmd == "serve":
         from .web import server
         server.serve(cfg, host=a.host, port=a.port, **server.from_env(cfg))

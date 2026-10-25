@@ -26,6 +26,7 @@ for f in postgres ml_migrator ml_app ml_readonly; do
 done
 python3 app/deploy/make-password.py secrets/console-password   # the unlock password
 ( umask 077; python3 -c 'import secrets; a = "abcdefghjkmnpqrstuvwxyz23456789"; print("-".join("".join(secrets.choice(a) for _ in range(4)) for _ in range(5)))' > secrets/reader.pw )   # reading apps
+( umask 077; : > secrets/google-books.key )   # optional: a Google Books API key (empty = Google stays off)
 cp app/deploy/env.example .env && chmod 600 .env && "${EDITOR:-nano}" .env
 cp app/deploy/docker-compose.yml docker-compose.yml
 ```
@@ -72,6 +73,17 @@ docker compose run --rm tools import /snapshot --apply --out /out   # commit; ag
 The report (`out/import-*.md`) lists every check, every field that was
 dropped and why, and anything that couldn't be matched. Running the import
 again later keeps the values you changed in the console.
+
+## 3b. Categories
+
+```bash
+docker compose run --rm tools categorize            # dry run: out/categorize-*.md says what and why
+docker compose run --rm tools categorize --apply
+```
+
+Your own genre labels decide where they can; Apple Books genres and Open
+Library subjects (and Google Books with a key) fill in the rest. Run it once
+after an import; new books get their category when added.
 
 ## 4. Console
 
@@ -123,6 +135,20 @@ app/ops/joplin-sync.sh --dry-run        # what it would do
 Notes it can't match show on the console's Sync page, with the closest
 candidates; add an `isbn:` line or add the book in the console.
 
+## 6b. Trash, reader, find link
+
+Deleted books stay in the Trash 30 days. Add the daily purge:
+
+```bash
+( crontab -l 2>/dev/null
+  echo "40 3 * * * cd $BASE && flock -n /tmp/medialib-purge.lock docker compose exec -T app python -m medialib purge-trash --apply > $BASE/out/purge.log 2>&1"
+) | crontab -
+```
+
+**Read** in a book's panel opens the built-in reader (`/read`). For books with
+no file, `BOOK_FIND_URL` in `.env` (with `{q}` for title + author) and
+`BOOK_FIND_LABEL` add a search link; leave them empty for none.
+
 ## 7. Backups
 
 ```bash
@@ -170,7 +196,9 @@ docker compose build && docker compose run --rm tools migrate && docker compose 
 
 Migrations are forward-only and each runs in one transaction; a changed
 migration file stops the run. From 0.1.0 to 0.2.0: create `secrets/reader.pw`
-first (step 1); the compose file needs it.
+first (step 1); the compose file needs it. To 0.3.0: create
+`secrets/google-books.key` (empty is fine), run `categorize` once (3b) and
+add the purge line (6b).
 
 ## Upgrades
 

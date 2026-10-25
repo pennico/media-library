@@ -43,11 +43,19 @@ def verify(conn, snap, p, w):
     """Checks after writing (same transaction). Each -> {name, ok, detail}."""
     out = []
     q = lambda sql, *a: conn.execute(sql, a).fetchall()  # noqa: E731
+    # what the owner deleted (in the trash or for good) is not expected back
+    gone = """SELECT m.source_key FROM ingest.id_map m
+               WHERE m.source = %s AND m.target_table = %s
+                 AND NOT EXISTS (SELECT 1 FROM catalog.media_item i WHERE i.deleted_at IS NULL AND i.id = {})"""
+    gone_books = {r["source_key"] for r in q(gone.format("m.target_id"), "yamtrack.app_book", "catalog.media_item")}
+    gone_cwa = {x[1] for wk in w.skipped for e in wk["editions"] for x in e["ext_ids"] if x[0] == "cwa_book"}
     mapped = {r["source_key"]: r["target_id"] for r in q(
         "SELECT source_key, target_id FROM ingest.id_map WHERE source = 'yamtrack.app_book'"
         " AND target_table = 'catalog.media_item'")}
     bad = []
     for b in snap.yt_books.values():
+        if str(b["id"]) in gone_books:
+            continue
         iid = mapped.get(str(b["id"]))
         e = conn.execute("SELECT * FROM library.entry WHERE item_id = %s", (iid,)).fetchone() if iid else None
         if not e:
@@ -72,10 +80,10 @@ def verify(conn, snap, p, w):
                 "ok": not bad, "detail": "{} entries checked".format(len(snap.yt_books)), "problems": bad})
     linked = [cid for cid, link in snap.links.items() if link.get("media") and not link.get("ignore")]
     have = {r["value"] for r in q("SELECT value FROM catalog.external_id WHERE provider = 'cwa_book'")}
-    missing = sorted((c for c in linked if c not in have), key=int)
+    missing = sorted((c for c in linked if c not in have and c not in gone_cwa), key=int)
     out.append({"name": "every linked CWA record landed (external id cwa_book)", "ok": not missing,
                 "detail": "{} linked records".format(len(linked)), "problems": missing})
-    planned_files = [f for wk in p["works"] for e in wk["editions"] for f in e["files"]]
+    planned_files = [f for wk in p["works"] if wk not in w.skipped for e in wk["editions"] for f in e["files"]]
     n_files = conn.execute("SELECT count(*) AS n FROM catalog.edition_file WHERE deleted_at IS NULL").fetchone()["n"]
     out.append({"name": "every CWA file of an imported book landed", "ok": n_files >= len(planned_files),
                 "detail": "{} planned, {} in the database".format(len(planned_files), n_files), "problems": []})
@@ -95,8 +103,9 @@ def verify(conn, snap, p, w):
     out.append({"name": "audit chain intact", "ok": chain["first_bad"] is None,
                 "detail": "{} rows checked".format(chain["checked"]), "problems": []})
     entries = conn.execute("SELECT count(*) AS n FROM library.entry WHERE deleted_at IS NULL").fetchone()["n"]
-    out.append({"name": "one entry per planned work", "ok": entries >= len(p["works"]),
-                "detail": "{} works planned, {} entries".format(len(p["works"]), entries), "problems": []})
+    out.append({"name": "one entry per planned work", "ok": entries >= len(p["works"]) - len(w.skipped),
+                "detail": "{} works planned, {} deleted by you, {} entries".format(len(p["works"]), len(w.skipped), entries),
+                "problems": []})
     return out
 
 
@@ -177,6 +186,7 @@ def run(cfg, snapshot_dir, apply=False, offline=False, out_dir="out", log=print)
 
 TITLES = [
     ("not_imported", "Not imported (CWA ignore list)"),
+    ("deleted_by_owner", "Deleted by you (in the trash, or for good): not brought back"),
     ("unlogged_to_planned", "Yamtrack items with no log entry, imported as to read / to watch (owner answer)"),
     ("cwa_only_to_planned", "CWA books missing from Yamtrack, imported as to read (owner answer)"),
     ("superseded", "Older Yamtrack editions kept as extra editions of the logged book"),

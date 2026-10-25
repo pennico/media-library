@@ -1,9 +1,10 @@
 """Metadata providers for adding books (DESIGN.md §7).
 
 The easiest path: Apple Books (iTunes Search, no key) for the cover and
-basics, Open Library (by ISBN, or a title/author search) for the rest.
-Google Books, Wikidata and DBC (Danish libraries) are stubs behind the same
-interface, so they can be added later without touching the callers.
+basics, Open Library (by ISBN, or a title/author search) for the rest, and
+Google Books for categories and editions the others miss. Wikidata and DBC
+(Danish libraries) are stubs behind the same interface, so they can be added
+later without touching the callers.
 
 Every provider takes a `fetch(url) -> parsed JSON` function, so tests run
 offline on recorded answers and the service can cache every response.
@@ -18,7 +19,22 @@ from .. import text
 
 APPLE_STORES = ("dk", "it", "us")
 APPLE_SIZE = "1400x1400bb"
-JUNK = re.compile(r"\b(summary|study guide|analysis of|workbook|guide to|sparknotes|cliffsnotes)\b")
+JUNK = re.compile(r"\b(summary|summari[sz]ed|study guide|analysis of|workbook|guide to|sparknotes|cliffsnotes"
+                  r"|key takeaways|conversation starters|quick read|book notes)\b")
+# summary mills that publish under a brand ("Speedy Reads", "Turbo-Learning", "Moscow Press" summaries)
+JUNK_AUTHOR = re.compile(r"\b(reads|summar(y|ies)|learning|study guides?|book notes)$")
+GOOGLE_ID = re.compile(r"[A-Za-z0-9_-]{12}")          # catalog.provider 'google_books'
+GOOGLE_COVER = "w1200-h1800"                           # fife= size; never larger than the original
+# ISO 639-1 (Google Books, EPUB dc:language) -> the ISO 639-3 codes of catalog.language
+ISO_639_1 = {"it": "ita", "da": "dan", "en": "eng", "fr": "fra", "de": "deu", "pt": "por", "es": "spa",
+             "ca": "cat", "pl": "pol", "cs": "ces", "hu": "hun", "ru": "rus", "el": "ell", "la": "lat",
+             "he": "heb", "iw": "heb", "ar": "ara", "tr": "tur", "ja": "jpn", "zh": "zho", "ko": "kor",
+             "hi": "hin", "no": "nor", "nb": "nob", "nn": "nor", "sv": "swe", "fi": "fin", "is": "isl",
+             "nl": "nld"}
+# Open Library subjects that describe the copy or a list, not the book
+OL_NOISE = {"accessible book", "protected daisy", "in library", "lending library", "large type books",
+            "internet archive wishlist", "open library staff picks", "overdrive", "fiction, general"}
+OL_TAG = re.compile(r"[a-z_]+:\S")                     # 'nyt:hardcover-fiction=2021-03-21', 'award:...'
 
 
 @dataclasses.dataclass
@@ -46,9 +62,24 @@ class Candidate:
 
 # ------------------------------------------------------------------ matching
 
+def head_title(title):
+    """'The Silk Roads: A New History' -> 'The Silk Roads' (as written)."""
+    return re.split(r"\s*[:(–—]|\s+-\s+", str(title or ""))[0].strip()
+
+
 def main_title(title):
     """'The Silk Roads: A New History' -> 'the silk roads' (apple_covers.py)."""
-    return text.norm(re.split(r"\s*[:(–—]|\s+-\s+", str(title or ""))[0])
+    return text.norm(head_title(title))
+
+
+def language3(code):
+    """'it' / 'it-IT' / 'pt_BR' / 'ita' / 'Italian' -> ISO 639-3; 'und' and unknown -> None."""
+    key = re.split(r"[-_]", str(code or "").strip().lower(), maxsplit=1)[0]
+    if key in ISO_639_1:
+        return ISO_639_1[key]
+    if key in ("und", "mul", "zxx", "mis"):
+        return None
+    return text.language_code(key if len(key) == 3 else str(code or ""))
 
 
 def _numbers(t):
@@ -87,7 +118,7 @@ def authors_agree(wanted, got):
 
 def score(query_title, query_authors, cand):
     """0..1; 0 when the title or the author clearly disagree (never a guess)."""
-    if JUNK.search(text.norm(cand.title)):
+    if JUNK.search(text.norm(cand.title)) or (cand.authors and all(JUNK_AUTHOR.search(text.norm(a)) for a in cand.authors)):
         return 0.0
     s = title_score(query_title, cand.title) if query_title else 0.8
     if s < 1.0 and _numbers(main_title(query_title or "")) != _numbers(main_title(cand.title)):
@@ -206,12 +237,13 @@ class OpenLibrary(Provider):
             published=_partial_str(pd), pages=ed.get("number_of_pages"),
             publisher=(ed.get("publishers") or [None])[0], description=desc,
             cover_url="https://covers.openlibrary.org/b/id/{}-L.jpg".format(covers[0]) if covers else None,
-            subjects=[s for s in (wk.get("subjects") or [])[:8] if isinstance(s, str)],
+            subjects=_ol_subjects(wk.get("subjects") or ed.get("subjects")),
             work_id=work.rsplit("/", 1)[-1] if work else None, raw={"edition": ed, "work": wk})
 
     def search(self, title, author=None, limit=5):
         q = {"title": main_title(title), "limit": limit,
-             "fields": "key,title,author_name,first_publish_year,isbn,cover_i,language,edition_key,number_of_pages_median"}
+             "fields": "key,title,author_name,first_publish_year,isbn,cover_i,language,edition_key,"
+                       "number_of_pages_median,subject,edition_count,readinglog_count"}
         if author:
             q["author"] = author
         res = self.fetch("{}/search.json?{}".format(self.BASE, urllib.parse.urlencode(q))) or {}
@@ -227,14 +259,105 @@ class OpenLibrary(Provider):
                 published=str(d["first_publish_year"]) if d.get("first_publish_year") else None,
                 pages=d.get("number_of_pages_median"),
                 cover_url="https://covers.openlibrary.org/b/id/{}-L.jpg".format(d["cover_i"]) if d.get("cover_i") else None,
+                subjects=_ol_subjects(d.get("subject")),
                 work_id=(d.get("key") or "").rsplit("/", 1)[-1] or None, raw=d))
         return out
 
 
+def _ol_subjects(values, limit=15):
+    """Open Library subjects without the library and list tags, at most `limit`."""
+    out = []
+    for s in values or []:
+        s = s.strip() if isinstance(s, str) else ""
+        if s and len(s) <= 100 and not OL_TAG.match(s) and s.lower() not in OL_NOISE \
+                and s.lower() not in (o.lower() for o in out):
+            out.append(s)
+        if len(out) >= limit:
+            break
+    return out
+
+
 class GoogleBooks(Provider):
-    """Stub: needs an API key (keyless calls share one quota and fail with 429)."""
+    """Books API v1, one request per search or ISBN (no per-result calls).
+
+    Without a key Google answers 429 to everything: keyless calls share one
+    Google project whose daily quota is 0 (checked 2026-10-25). With
+    `api_key` the key is part of the URL, so it also lands in the fetch
+    cache. Subjects are Google's categories as given ('Fiction / Literary')."""
     name = "google"
-    available = False
+    BASE = "https://www.googleapis.com/books/v1/volumes"
+
+    def __init__(self, fetch, api_key=None):
+        super().__init__(fetch)
+        self.api_key = api_key
+
+    def _volumes(self, q, limit):
+        params = {"q": q, "printType": "books", "maxResults": max(1, min(int(limit), 40))}
+        if self.api_key:
+            params["key"] = self.api_key
+        res = self.fetch(self.BASE + "?" + urllib.parse.urlencode(params)) or {}
+        return [it for it in res.get("items") or []
+                if isinstance(it, dict) and isinstance((it.get("volumeInfo") or {}).get("title"), str)]
+
+    def _cand(self, it):
+        v = it["volumeInfo"]
+        ids = [("google_books", it["id"])] if GOOGLE_ID.fullmatch(str(it.get("id") or "")) else []
+        isbns = [text.normalize_isbn(x.get("identifier")) for x in v.get("industryIdentifiers") or []
+                 if isinstance(x, dict) and x.get("type") in ("ISBN_13", "ISBN_10")]
+        ids += [("isbn13", i) for i in dict.fromkeys(i for i in isbns if i)]
+        pages = v.get("pageCount")
+        strings = lambda key: [s.strip() for s in v.get(key) or [] if isinstance(s, str) and s.strip()]  # noqa: E731
+        return Candidate(
+            provider="google", title=v["title"].strip(),        # the subtitle stays in raw
+            authors=list(dict.fromkeys(strings("authors"))), ids=ids,
+            language=language3(v.get("language")), published=_google_date(v.get("publishedDate")),
+            pages=pages if isinstance(pages, int) and pages > 0 else None,
+            publisher=str(v.get("publisher") or "").strip("\"' ") or None,
+            description=text.html_to_text(v.get("description")) if isinstance(v.get("description"), str) else None,
+            cover_url=_google_cover(v.get("imageLinks")),
+            subjects=list(dict.fromkeys(strings("categories"))), raw=it)
+
+    def search(self, title, author=None, limit=5):
+        head = head_title(title).replace('"', "")
+        if not head:
+            return []
+        q = 'intitle:"{}"'.format(head)
+        last = re.sub(r"[\"()]", "", text.first_last(author or "")).split()
+        if last:
+            q += " inauthor:" + last[-1]
+        return [self._cand(it) for it in self._volumes(q, limit)]
+
+    def by_isbn(self, isbn13):
+        cands = [self._cand(it) for it in self._volumes("isbn:" + isbn13, 5)]
+        for c in cands:                     # the volume that lists this ISBN
+            if ("isbn13", isbn13) in c.ids:
+                return c
+        for c in cands:                     # or one that lists no ISBN at all
+            if not any(p == "isbn13" for p, _ in c.ids):
+                c.ids.append(("isbn13", isbn13))
+                return c
+        return None
+
+
+def _google_date(value):
+    """'2021' / '2021-03' / '2021-03-02' (as given) -> the same, validated."""
+    m = re.match(r"[12][0-9]{3}(?:-[0-9]{2}(?:-[0-9]{2})?)?", str(value or ""))
+    return _partial_str(text.parse_partial_date(m.group(0))) if m else None
+
+
+def _google_cover(links):
+    """The largest image link over https, without the page-curl effect. For
+    the search's thumbnails, fife= asks for a bigger image: zoom=0/2/3 answer
+    an 'image not available' placeholder for volumes without a preview."""
+    links = links if isinstance(links, dict) else {}
+    key = next((k for k in ("extraLarge", "large", "medium", "small", "thumbnail", "smallThumbnail")
+                if isinstance(links.get(k), str) and links[k].startswith("http")), None)
+    if not key:
+        return None
+    url = re.sub(r"^http://", "https://", links[key]).replace("&edge=curl", "")
+    if key in ("thumbnail", "smallThumbnail") and "/books/content?" in url and "fife=" not in url:
+        url = url.replace("zoom=5", "zoom=1") + "&fife=" + GOOGLE_COVER
+    return url
 
 
 class Wikidata(Provider):

@@ -44,6 +44,15 @@ have no cookie, so they skip the Origin and `X-Console-Action` checks;
 they can read the catalog and files and store reading positions, which move
 a book's status. The console shows the password only after unlocking.
 
+**The EPUB reader** (`/read`) runs under its own Content-Security-Policy:
+scripts only from the server (`script-src 'self'`, no inline), book sections
+in blob: frames that inherit it, so scripts inside an EPUB don't run. EPUB
+metadata is read in memory with entity-free XML parsing and size caps.
+
+**Deleting for good** goes through one database function with the table
+owner's rights; the app role still has no hard DELETE, and the audit log
+keeps what was removed.
+
 **Joplin notes** come in as a read-only tar stream of the sync folder; the
 app gets no credentials for wherever Joplin syncs to.
 

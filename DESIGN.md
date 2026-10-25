@@ -1102,3 +1102,99 @@ templates skipped), and writes them as the owner, client `joplin:<note id>`
   date describes the latest reading already there.
 - **Runs** are `ingest.run` rows (tool `joplin`, a `summary`); the health check
   wants the last one ok and under 3 hours old once the feed exists.
+
+---
+
+## 14. Trash, categories, metadata fill v2, reading in the browser (0.3.0, 2026-10-25)
+
+### 14.1 Trash
+
+Deleting a book in the console moves it to the **Trash** (the soft delete
+every table has: `media_item.deleted_at` + `entry.deleted_at`): hidden from
+the shelf, the statistics, OPDS, kosync and the Joplin feed, restorable for
+**30 days** (D36). Then `medialib purge-trash` (daily cron) deletes it for good
+through `library.purge_item()`, a `SECURITY DEFINER` function, because the app
+role has no hard `DELETE`. It removes the readings, shelf places (renumbered),
+tags, covers, document aliases, files, contributions, ids, editions and the
+item, plus Readest positions of its documents. It returns the media files no
+other row uses, which the caller deletes from disk with their thumbnails.
+"Delete now" in the Trash does the same at once. `audit.change` keeps the
+history (op `D` rows with the old values), and `ingest.id_map` keeps the
+source ids, so **a re-import does not bring a deleted book back** (reported
+as "deleted by you"). A Joplin note whose book was deleted for good is set
+aside (`state = 'deleted'`) until the note changes. Adding a book whose ISBN
+is in the Trash says so instead of creating a twin.
+
+### 14.2 Categories
+
+Genres get a group above them (migration 0013, `library.tag.parent_id`, two
+levels enforced by a trigger). **Fiction**: Novel, Historical fiction, Crime &
+mystery, Science fiction, Fantasy, Horror, Short stories, Drama & poetry,
+Graphic novels, Satire & humour. **Non-fiction**: History, Biography & memoir,
+Philosophy, Psychology & self-help, Science & nature, Economics & business,
+Politics & society, Essays & criticism, Religion & spirituality, Art &
+culture, Travel. A book carries one or two categories, or a group alone.
+
+`medialib categorize` (once, from `setup.sh`; `medialib/categories.py`, D37)
+moves every book onto the tree:
+1. **Your labels decide** when they can ("Novel | Sci-Fi" → Science fiction;
+   "Fiction | Philosophy" → Novel, philosophy being a theme in a novel).
+2. Where they say only "Fiction"/"Non-fiction", nothing, or something broad
+   ("Social Science", "Strategy"), **provider subjects** decide: Apple Books
+   genres (Italian and Danish store names included), Open Library subjects,
+   and Google Books categories when a key is set. Each source's first genre
+   weighs most, and a specific genre beats "Novel" only with real support.
+3. Labels that are no category (Open Library's "Brides", "Suicide victims")
+   become plain tags. Labels no book uses any more leave the list.
+Genres you set in the console are never touched. The run writes a report
+(`out/categorize-*.md`: before, after and why, per book). New books get
+their category the same way when added (search or EPUB) or through **Fill
+missing**. The console shows the tree in the left pane and as a picker on the
+toolbar, and the editor offers it grouped.
+
+### 14.3 Metadata fill v2
+
+- **Google Books** provider (D38). The keyless API answers 429 (shared quota
+  0), so it stays off unless `secrets/google-books.key` holds a key; a
+  failing provider never breaks a lookup. The cache never stores the key.
+- **Title-only search**: the same edition from several providers or stores
+  is shown once ("Apple + Open Library"), with at most three editions per
+  book. Summary products are dropped by title ("Summarized for Busy People")
+  and by publisher-like author ("Speedy Reads", "Turbo-Learning"). With no
+  author, the book most people mean comes first (Open Library reading logs
+  and editions, Apple ratings).
+- **Add from an EPUB** (D39): `medialib/epubmeta.py` reads the OPF safely
+  (in memory, entity-free, size caps, a repair pass for broken XML): title,
+  authors and roles, language, ISBNs (also the print ISBN in `dc:source`),
+  publisher, date, description, subjects, series and the cover. The book is
+  looked up by ISBN, then by title and author. You pick a match, or add it
+  "as the file says"; the file is attached, the EPUB's cover is used when the
+  sources have none, and its subjects give the category.
+
+### 14.4 Reading and finding books
+
+- **Read** (D40): `/read?file=<id>` is an in-browser EPUB reader
+  (`web/reader.html`, `web/reader.js`, foliate-js 78914ae vendored with
+  zip.js; MIT/BSD). It has pages, a table of contents and font size, keeps the
+  position per file in the browser, and works in light and dark. Its own
+  CSP keeps a book's scripts from running: `script-src 'self'` only, with
+  sections in blob: iframes that inherit it, and `frame-ancestors 'self'`,
+  which Safari needs. **Download** still serves the file; on iPhone and Mac it
+  opens in Books.
+- **Find** (D41): a book with no file shows a search link, set by
+  `BOOK_FIND_URL` (`{q}` = title + first author) and `BOOK_FIND_LABEL`. It
+  is empty by default, so the public code links nowhere until you configure it.
+
+### 14.5 Visuals: My reading | The library
+
+Visuals gets a switch. **My reading** is what was there: per year and month,
+pages, ratings, the calendar. **The library** (`stats.library_book`, D42)
+counts the books themselves, all of them, the read ones or the unread ones:
+categories, original language, authors and release decade (first
+published, else the edition's year).
+
+### 14.6 The shelf
+
+The grid stands on light wooden shelves: each cover sits on a board, and the
+boards of one row meet across the gaps (walnut in dark mode). It is CSS only,
+with no images.

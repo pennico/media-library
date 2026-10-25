@@ -2,6 +2,26 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-10-25
+
+- **Trash**: deleting a book moves it to the Trash for 30 days (restore or
+  delete now); a daily `purge-trash` then removes it and its files for good.
+  A re-import doesn't bring deleted books back.
+- **Categories**: two levels, Fiction and Non-fiction with their categories,
+  in the left pane, a toolbar picker and the editor. `medialib categorize`
+  moves existing books onto the tree from your labels and provider subjects
+  (a report says why for each book); new books get theirs on arrival.
+- **Metadata fill**: Google Books (with an API key), Apple genres and Open
+  Library subjects for categories, title-only search with one row per edition
+  and summary products dropped, and **add from an EPUB** (its own metadata,
+  cover and file).
+- **Read in the browser**: a built-in EPUB reader (foliate-js), plus a
+  configurable "find this book" link for books without a file.
+- **Visuals**: My reading / The library (categories, original language,
+  authors, release decades).
+- A light wooden shelf under the covers.
+- Migration 0013. Fixed: the reading calendar counted deleted books.
+
 ## [0.2.0] - 2026-10-25
 
 Readest and Joplin reach the library directly.

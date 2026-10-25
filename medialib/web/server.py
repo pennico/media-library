@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import tempfile
 import threading
 import time
@@ -46,6 +47,15 @@ THUMB_WIDTHS = (160, 320, 640)
 SHA_RE = re.compile(r"^/thumbs/([0-9a-f]{64})-(\d+)\.jpg$")
 COVER_RE = re.compile(r"^/covers/([0-9a-f]{2})/([0-9a-f]{64})\.(jpg|png|webp)$")
 UUID = r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+       " img-src 'self' data: https://*.mzstatic.com https://covers.openlibrary.org https://books.google.com;"
+       " frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+# The EPUB reader (web/reader.js): book sections render in blob: iframes that inherit this policy, which is
+# what keeps a book's own scripts from running. No 'unsafe-inline' scripts; frame-ancestors 'self' (Safari).
+READER_CSP = ("default-src 'none'; script-src 'self'; style-src 'unsafe-inline' blob:; img-src blob: data:;"
+              " font-src blob: data:; media-src blob:; connect-src 'self'; frame-src blob:; base-uri 'none';"
+              " form-action 'none'; frame-ancestors 'self'")
+READER_JS = re.compile(r"^/(reader\.js|vendor/foliate-js/(vendor/)?[a-z-]+\.js)$")
 DOC = r"([0-9a-f]{32})"
 # database rules, in words (anything else shows the database's own message)
 FRIENDLY = {
@@ -62,7 +72,7 @@ FRIENDLY = {
 
 class App:
     def __init__(self, cfg, owner_login, origin, password_file, passkeys_file, state_dir, cookie_secure=True,
-                 reader_user="", reader_password_file=None):
+                 reader_user="", reader_password_file=None, find_url="", find_label=""):
         self.cfg = cfg
         kw = {"autocommit": True, "row_factory": dict_row}
         self.pool = ConnectionPool(cfg.dsn(db.ROLE_APP), min_size=1, max_size=4, kwargs=kw, open=True,
@@ -71,8 +81,10 @@ class App:
                                       name="readonly")
         self.auth = auth_mod.Auth(owner_login, origin, password_file, passkeys_file, state_dir)
         self.reader = reader.Reader(reader_user, reader_password_file)
+        # "find this book" link for books without a file: a URL template with {q}, e.g. a search page
+        self.find = {"url": find_url, "label": find_label or "Search"} if "{q}" in (find_url or "") else None
         self.store = CoverStore(cfg.media_dir, log=lambda *_: None)
-        self.fill = fill_service.Fill(self.store, fill_service.http_fetcher(os.path.join(cfg.media_dir, "cache", "http")))
+        self.fill = fill_service.make(cfg.media_dir, self.store)
         self.cookie_secure = cookie_secure
         self.cookie_name = "__Host-ml_session" if cookie_secure else "ml_session"
         self.thumb_lock = threading.Lock()
@@ -96,7 +108,7 @@ def make_handler(app):
 
         # ------------------------------------------------------ responses
 
-        def send(self, code, body, ctype="application/json", cache=None, cookie=None):
+        def send(self, code, body, ctype="application/json", cache=None, cookie=None, csp=CSP):
             data = body if isinstance(body, bytes) else json.dumps(body, default=str).encode()
             self.send_response(code)
             self.send_header("Content-Type", ctype)
@@ -104,10 +116,7 @@ def make_handler(app):
             self.send_header("X-Frame-Options", "DENY")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
-            self.send_header("Content-Security-Policy",
-                             "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
-                             " img-src 'self' data: https://*.mzstatic.com https://covers.openlibrary.org;"
-                             " frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+            self.send_header("Content-Security-Policy", csp)
             self.send_header("Cache-Control", cache or "no-store")
             if cookie is not None:
                 self.send_header("Set-Cookie", cookie)
@@ -156,6 +165,10 @@ def make_handler(app):
                     return self.kosync_get(path)
                 if path in ("/", "/index.html"):
                     return self.static("index.html", "text/html; charset=utf-8")
+                if path == "/read":
+                    return self.static("reader.html", "text/html; charset=utf-8", csp=READER_CSP)
+                if READER_JS.match(path):
+                    return self.static(path.lstrip("/"), "text/javascript; charset=utf-8", cache="public, max-age=3600")
                 if path == "/healthz":
                     return self.healthz()
                 if path == "/api/health":
@@ -164,14 +177,21 @@ def make_handler(app):
                     return self.session()
                 if path == "/api/library":
                     with app.pool.connection() as conn:
-                        return self.send(200, queries.library(conn))
+                        return self.send(200, dict(queries.library(conn), find=app.find, google=app.fill.google.available))
+                if path == "/api/trash":
+                    with app.pool.connection() as conn:
+                        return self.send(200, {"items": queries.trash(conn, writes.TRASH_DAYS), "days": writes.TRASH_DAYS})
                 m = re.fullmatch(r"/api/items/" + UUID, path)
                 if m:
                     with app.pool.connection() as conn:
                         d = queries.detail(conn, m.group(1))
                     return self.send(200, d) if d else self.error(404, "No such item.")
                 if path == "/api/stats":
+                    q = urllib.parse.parse_qs(query)
                     with app.ro_pool.connection() as ro:
+                        if q.get("view", [""])[0] == "library":
+                            scope = q.get("scope", ["all"])[0]
+                            return self.send(200, queries.library_stats(ro, scope if scope in ("all", "read", "unread") else "all"))
                         return self.send(200, queries.stats(ro, "book"))
                 if path == "/api/reading-apps":
                     with app.pool.connection() as conn:
@@ -192,10 +212,10 @@ def make_handler(app):
                 return self.error(503, "Database error: {}".format(e.diag.message_primary or type(e).__name__))
             return self.error(404, "Not found.")
 
-        def static(self, name, ctype):
+        def static(self, name, ctype, csp=CSP, cache=None):
             try:
                 with open(os.path.join(WEB_DIR, name), "rb") as fh:
-                    return self.send(200, fh.read(), ctype)
+                    return self.send(200, fh.read(), ctype, csp=csp, cache=cache)
             except OSError:
                 return self.error(404, name + " missing")
 
@@ -401,6 +421,10 @@ def make_handler(app):
                 return self.error(403, "Cross-origin request refused.")
             if self.headers.get("X-Console-Action") != "1":
                 return self.error(403, "Missing X-Console-Action header.")
+            if method == "POST" and path == "/api/epub":
+                if not app.auth.session_until(self.token()):
+                    return self.error(401, "Locked: unlock first (sessions last 30 minutes).")
+                return self.guarded(self.epub_upload)
             m = re.fullmatch(r"/api/items/" + UUID + r"/(cover-upload|file)", path)
             if m and method == "POST":
                 if not app.auth.session_until(self.token()):
@@ -481,6 +505,87 @@ def make_handler(app):
                 if os.path.exists(tmp):
                     os.remove(tmp)
 
+        def receive(self, prefix, limit):
+            """Stream the request body into media/tmp; returns (path, sha256)."""
+            n = int(self.headers.get("Content-Length", "0") or 0)
+            if n <= 0:
+                raise writes.BadRequest("empty upload")
+            if n > limit:
+                raise writes.BadRequest("too large: the limit is {} MB".format(limit // (1024 * 1024)))
+            tmpdir = os.path.join(app.cfg.media_dir, "tmp")
+            os.makedirs(tmpdir, exist_ok=True)
+            for old in glob.glob(os.path.join(tmpdir, "epub-*")):           # unfinished adds
+                if time.time() - os.path.getmtime(old) > 2 * 3600:
+                    os.remove(old)
+            fd, tmp = tempfile.mkstemp(dir=tmpdir, prefix=prefix)
+            h, left = hashlib.sha256(), n
+            try:
+                with os.fdopen(fd, "wb") as out:
+                    while left:
+                        chunk = self.rfile.read(min(1 << 20, left))
+                        if not chunk:
+                            raise writes.BadRequest("the upload was cut short")
+                        out.write(chunk)
+                        h.update(chunk)
+                        left -= len(chunk)
+            except BaseException:
+                os.remove(tmp)
+                raise
+            return tmp, h.hexdigest()
+
+        def epub_upload(self):
+            """Step 1 of "add from an EPUB": keep the file for an hour or two,
+            read what it says about itself, and look the book up."""
+            from .. import epubmeta
+            tmp, sha = self.receive("epub-up-", MAX_EBOOK)
+            try:
+                writes.check_epub(tmp)
+                with app.pool.connection() as conn:
+                    dup = conn.execute("""SELECT i.public_id::text AS id, i.title FROM catalog.edition_file f
+                                           JOIN catalog.edition e ON e.id = f.edition_id JOIN catalog.media_item i ON i.id = e.work_id
+                                          WHERE f.sha256 = %s AND f.deleted_at IS NULL AND i.deleted_at IS NULL""", (sha,)).fetchone()
+                if dup:
+                    return self.send(200, {"existing": {"id": dup["id"], "title": dup["title"]}})
+                try:
+                    meta = epubmeta.read(tmp)
+                except epubmeta.EpubError as e:
+                    raise writes.BadRequest(str(e)) from None
+                name = urllib.parse.unquote(self.headers.get("X-File-Name", ""))[:300]
+                summary = writes.epub_summary(meta, name)
+                upload = secrets.token_hex(16)
+                final = os.path.join(app.cfg.media_dir, "tmp", "epub-{}.epub".format(upload))
+                os.replace(tmp, final)
+                with open(final[:-5] + ".json", "w", encoding="utf-8") as fh:
+                    json.dump({"summary": summary, "sha256": sha}, fh)
+                look = app.fill.epub_lookup(summary) if summary.get("title") or summary.get("isbns") else \
+                    {"token": None, "candidates": [], "how": "nothing to search with"}
+                return self.send(200, {"upload": upload, "meta": summary, "token": look["token"],
+                                       "candidates": look["candidates"], "how": look["how"]})
+            finally:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+
+        def epub_add(self, conn, login, req):
+            upload = str(req.get("upload") or "")
+            if not re.fullmatch(r"[0-9a-f]{32}", upload):
+                raise writes.BadRequest("no such upload")
+            base = os.path.join(app.cfg.media_dir, "tmp", "epub-" + upload)
+            try:
+                with open(base + ".json", encoding="utf-8") as fh:
+                    kept = json.load(fh)
+            except OSError:
+                raise writes.BadRequest("that upload has expired: choose the file again") from None
+            status = req.get("status") or "planned"
+            if status not in ("planned", "in_progress", "completed"):
+                raise writes.BadRequest("status must be planned, in_progress or completed")
+            index = req.get("index")
+            r = writes.add_from_epub(conn, login, base + ".epub", kept["summary"], kept["sha256"], app.cfg.media_dir,
+                                     app.store, app.fill, req.get("token"), index, status)
+            for ext in (".epub", ".json"):
+                if os.path.exists(base + ext):
+                    os.remove(base + ext)
+            return r
+
         def route_write(self, method, path, req):
             login = self.login()
             with app.pool.connection() as conn:
@@ -490,6 +595,8 @@ def make_handler(app):
                     return self.send(200, queries.detail(conn, m.group(1)))
                 if path == "/api/lookup" and method == "POST":
                     return self.send(200, app.fill.lookup(req.get("title"), req.get("author"), req.get("isbn")))
+                if path == "/api/epub-add" and method == "POST":
+                    return self.send(200, self.epub_add(conn, login, req))
                 if path == "/api/add-manual" and method == "POST":
                     return self.send(200, writes.add_manual(conn, login, req))
                 if path == "/api/add" and method == "POST":
@@ -507,6 +614,15 @@ def make_handler(app):
                     else:
                         writes.choose_cover(conn, login, m.group(1), req, app.store)
                     return self.send(200, queries.detail(conn, m.group(1)))
+                m = re.fullmatch(r"/api/items/" + UUID + r"/(trash|restore|purge)", path)
+                if m and method == "POST":
+                    if m.group(2) == "trash":
+                        writes.trash_item(conn, login, m.group(1))
+                    elif m.group(2) == "restore":
+                        writes.restore_item(conn, login, m.group(1))
+                    else:
+                        writes.purge_now(conn, login, m.group(1), app.cfg.media_dir)
+                    return self.send(200, {"ok": True})
                 m = re.fullmatch(r"/api/readings/" + UUID, path)
                 if m and method in ("PATCH", "DELETE"):
                     writes.edit_reading(conn, login, m.group(1), req, delete=(method == "DELETE"))
@@ -653,4 +769,5 @@ def from_env(cfg):
                 state_dir=env.get("MEDIALIB_STATE_DIR", "/state"),
                 cookie_secure=env.get("MEDIALIB_COOKIE_SECURE", "1") != "0",
                 reader_user=env.get("MEDIALIB_READER_USER", ""),
-                reader_password_file=env.get("MEDIALIB_READER_PASSWORD_FILE", "/run/secrets/reader.pw"))
+                reader_password_file=env.get("MEDIALIB_READER_PASSWORD_FILE", "/run/secrets/reader.pw"),
+                find_url=env.get("MEDIALIB_FIND_URL", ""), find_label=env.get("MEDIALIB_FIND_LABEL", ""))

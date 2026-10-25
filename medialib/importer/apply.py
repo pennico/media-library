@@ -37,6 +37,7 @@ class Writer:
         self.report = report
         self.log = log
         self.counts = collections.Counter()
+        self.skipped = []          # works the owner deleted (trash or for good): not brought back
         self._source = None
         self.stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
@@ -296,6 +297,14 @@ class Writer:
         item_cols = dict(w["item"], kind=w["kind"])
         item_prov = dict(w["item_prov"])
         existing = self.map_get(w["key"], "catalog.media_item")
+        if existing is not None:
+            row = self.one("SELECT deleted_at FROM catalog.media_item WHERE id = %s", existing)
+            if row is None or row["deleted_at"] is not None:
+                self.skipped.append(w)
+                self.counts[("catalog.media_item", "deleted_by_owner")] += 1
+                self.report.add("deleted_by_owner", title=title,
+                                state="deleted for good" if row is None else "in the trash")
+                return
         locked = bool(existing and self.one("SELECT locked FROM catalog.media_item WHERE id = %s", existing)["locked"])
         default_src = w["item_prov"]["title"]["src"]
         item_id = self.upsert("catalog.media_item", w["key"], {k: v for k, v in item_cols.items() if k != "kind"},

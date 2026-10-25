@@ -22,7 +22,6 @@ Each run:
    console, and prints it.
 """
 import datetime
-import os
 
 from psycopg.types.json import Jsonb
 
@@ -134,8 +133,11 @@ def resolve(conn, fill, nid, entry, prev, library, search, apply):
     """-> (item id or None to create from the note, how). Raises Unclear."""
     kind = entry["kind"]
     if prev and prev["item_id"] and prev["title"] == entry["title"] and prev["kind"] == kind:
-        if conn.execute("SELECT 1 AS x FROM catalog.media_item WHERE id = %s AND deleted_at IS NULL",
-                        (prev["item_id"],)).fetchone():
+        row = conn.execute("SELECT deleted_at IS NOT NULL AS trashed FROM catalog.media_item WHERE id = %s",
+                           (prev["item_id"],)).fetchone()
+        if row and row["trashed"]:
+            raise Unclear("its book is in the trash: restore it, or delete it for good to let the note go")
+        if row:
             return prev["item_id"], "as before"
     ids = entry["ids"]
     client = "joplin:" + nid
@@ -458,7 +460,7 @@ def changed_notes(items, notebook, state):
         prev = state.get(note["id"])
         updated = note.get("updated_time", "")
         same = prev is not None and prev["updated_time"] == updated
-        if same and prev["state"] == "synced":
+        if same and prev["state"] in ("synced", "deleted"):
             continue
         created = note.get("user_created_time") or note.get("created_time")
         entry = notes.parse_note(note["title"], note["body"], path[1:], created=created)
@@ -536,10 +538,8 @@ def main(cfg, source_dir=None, tar=None, apply=False, offline=False, notebook=NO
         raise SystemExit("no notebook named {!r} in the sync folder ({} items read)".format(notebook, len(items)))
     fill = None
     if not offline:
-        from ..covers import CoverStore
         from ..fill import service
-        fill = service.Fill(CoverStore(cfg.media_dir, log=lambda *_: None),
-                            service.http_fetcher(os.path.join(cfg.media_dir, "cache", "http")))
+        fill = service.make(cfg.media_dir)
     with db.connect(cfg, db.ROLE_APP) as conn:
         summary = run(conn, items, fill, apply=apply, notebook=notebook)
     print(format_summary(summary))

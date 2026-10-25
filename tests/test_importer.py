@@ -219,3 +219,27 @@ def test_locked_item_is_untouched(imported):
         with pytest.raises(Exception, match="locked"):
             with tx(conn, source="openlibrary", client="test"):
                 conn.execute("UPDATE catalog.edition SET pages = 1 WHERE work_id = %s", (item,))
+
+
+@needs_snapshot
+def test_reimport_leaves_deleted_books_deleted(imported):
+    from medialib.web import writes
+    c = imported["cfg"]
+    with db.connect(c) as conn:
+        def by_cwa(cid):
+            return conn.execute("SELECT i.id, i.public_id::text AS pid FROM catalog.media_item i JOIN catalog.external_id x"
+                                " ON x.edition_id IN (SELECT id FROM catalog.edition WHERE work_id = i.id)"
+                                " WHERE x.provider = 'cwa_book' AND x.value = %s", (cid,)).fetchone()
+        trashed, purged = by_cwa("13"), by_cwa("17")        # Summary of Sapiens, Your Erroneous Zones
+        writes.trash_item(conn, "owner@test", trashed["pid"])
+        writes.trash_item(conn, "owner@test", purged["pid"])
+        writes.purge_item(conn, "test", purged["id"], c.media_dir)
+    again = run.run(c, SNAPSHOT, apply=True, offline=True, out_dir=imported["out"], log=lambda *_: None)
+    assert all(ch["ok"] for ch in again["checks"]), [ch for ch in again["checks"] if not ch["ok"]]
+    states = sorted(r["state"] for r in again["report"]["deleted_by_owner"])
+    assert states == ["deleted for good", "in the trash"]
+    with db.connect(c) as conn:
+        assert conn.execute("SELECT deleted_at FROM catalog.media_item WHERE id = %s", (trashed["id"],)).fetchone()["deleted_at"]
+        assert not conn.execute("SELECT 1 AS x FROM catalog.media_item WHERE title LIKE 'Your Erroneous Zones%%'"
+                                " AND deleted_at IS NULL").fetchone()
+        writes.restore_item(conn, "owner@test", trashed["pid"])

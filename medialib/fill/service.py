@@ -10,6 +10,7 @@ one already in the library (DESIGN.md §7).
   to a value the owner set (provenance guard), and this code skips such
   fields before trying.
 """
+import collections
 import datetime
 import hashlib
 import json
@@ -23,13 +24,30 @@ import urllib.request
 
 from psycopg.types.json import Jsonb
 
-from .. import db, text
+from .. import categories, db, text
 from ..covers import CoverError
 from . import providers as P
 
 USER_AGENT = "media-library/0.1 (personal library; contact: owner)"
 CACHE_DAYS = 30
 MIN_SCORE = 0.82
+
+
+def completeness(c):
+    """How much a candidate knows: breaks ties between equally good matches."""
+    return sum(bool(x) for x in (c.cover_url, c.pages, c.published, c.publisher, c.language,
+                                 any(p == "isbn13" for p, _ in c.ids)))
+
+
+def work_key(c):
+    return P.main_title(c.title), P.last_name(c.authors[0]) if c.authors else ""
+
+
+def popularity(c):
+    """Open Library's reading logs and editions, Apple's ratings: rough, only to order look-alikes."""
+    r = c.raw or {}
+    return 1 + int(r.get("readinglog_count") or 0) + 10 * int(r.get("edition_count") or 0) \
+        + 20 * int(r.get("userRatingCount") or 0)
 
 
 class FillError(ValueError):
@@ -61,11 +79,28 @@ def http_fetcher(cache_dir, pause=0.4, timeout=20):
             finally:
                 time.sleep(pause)
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path + ".tmp", "w", encoding="utf-8") as fh:
-            json.dump({"url": url, "at": time.time(), "body": body}, fh)
+        with open(path + ".tmp", "w", encoding="utf-8") as fh:      # never an API key on disk
+            json.dump({"url": re.sub(r"([?&]key=)[^&]+", r"\1…", url), "at": time.time(), "body": body}, fh)
         os.replace(path + ".tmp", path)
         return body
     return fetch
+
+
+def google_key(path=None):
+    """The optional Google Books API key (a secrets file; keyless calls get 429)."""
+    path = path or os.environ.get("MEDIALIB_GOOGLE_BOOKS_KEY_FILE", "/run/secrets/google-books.key")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read().strip() or None
+    except OSError:
+        return None
+
+
+def make(media_dir, store=None):
+    """The Fill the app, the feeds and the CLI use: disk-cached lookups, Google with a key."""
+    from ..covers import CoverStore
+    return Fill(store or CoverStore(media_dir, log=lambda *_: None),
+                http_fetcher(os.path.join(media_dir, "cache", "http")), google_key=google_key())
 
 
 def _raise(e):
@@ -73,10 +108,13 @@ def _raise(e):
 
 
 class Fill:
-    def __init__(self, store, fetch):
+    def __init__(self, store, fetch, google_key=None):
         self.store = store
         self.apple = P.AppleBooks(fetch)
         self.ol = P.OpenLibrary(fetch)
+        # Google answers 429 to keyless calls (shared quota 0): only with a key
+        self.google = P.GoogleBooks(fetch, api_key=google_key)
+        self.google.available = bool(google_key)
         self._lookups = {}
         self._lock = threading.Lock()
 
@@ -90,8 +128,8 @@ class Fill:
             isbn13 = text.normalize_isbn(isbn)
             if not isbn13:
                 raise FillError("that is not a valid ISBN")
-            for p in (self.ol, self.apple):
-                c = p.by_isbn(isbn13)
+            for p in self.providers(self.ol, self.apple, self.google):
+                c = self.safe(p.by_isbn, isbn13)
                 if c:
                     c.score = 1.0
                     cands.append(c)
@@ -99,13 +137,43 @@ class Fill:
             if not title:
                 raise FillError("give a title (and an author if you know it) or an ISBN")
             wanted = [author] if author else []
-            for p in (self.apple, self.ol):
-                for c in p.search(title, author, limit=6):
+            for p in self.providers(self.apple, self.ol, self.google):
+                for c in self.safe(p.search, title, author, limit=6) or []:
                     c.score = P.score(title, wanted, c)
                     if c.score >= MIN_SCORE:
                         cands.append(c)
-        cands.sort(key=lambda c: (-c.score, c.provider != "apple"))
+        if isbn or author:
+            cands.sort(key=lambda c: (-c.score, c.provider != "apple", -completeness(c)))
+        else:
+            # title only: the book most people mean first (its readers and editions across the sources)
+            pop = collections.Counter()
+            for c in cands:
+                pop[work_key(c)] += popularity(c)
+            cands.sort(key=lambda c: (-c.score, -pop[work_key(c)], c.provider != "apple", -completeness(c)))
         return self._remember(cands)
+
+    @staticmethod
+    def safe(fn, *args, **kw):
+        """One provider failing (quota, outage) leaves the others' answers."""
+        try:
+            return fn(*args, **kw)
+        except FillError:
+            return None
+
+    @staticmethod
+    def providers(*ps):
+        """The providers that work (a failing one only means fewer candidates)."""
+        return [p for p in ps if getattr(p, "available", True)]
+
+    def epub_lookup(self, meta):
+        """Candidates for the book an EPUB describes: its ISBNs first, then title + author."""
+        for isbn in list(dict.fromkeys((meta.get("isbns") or []) + (meta.get("source_isbns") or [])))[:3]:
+            r = self.lookup(isbn=isbn)
+            if r["candidates"]:
+                return dict(r, how="the ISBN in the file ({})".format(isbn))
+        if meta.get("title"):
+            return dict(self.lookup(meta["title"], (meta.get("authors") or [None])[0]), how="title and author")
+        return dict(self._remember([]), how="nothing to search with")
 
     def lookup_edition(self, olid):
         """An Open Library edition id (OL..M) -> the same answer as lookup()."""
@@ -117,13 +185,32 @@ class Fill:
         return self._remember([c] if c else [])
 
     def _remember(self, cands):
+        """Keep the candidates for add(); show one per edition (the same ISBN
+        from several providers once), at most three editions of one book,
+        twelve in all. `also` names the providers that agree."""
+        cands = cands[:40]
         token = secrets.token_urlsafe(12)
         with self._lock:
             now = time.time()
             for k in [k for k, (t, _) in self._lookups.items() if now - t > 1800]:
                 del self._lookups[k]
-            self._lookups[token] = (now, cands[:12])
-        return {"token": token, "candidates": [dict(c.as_dict(), index=i) for i, c in enumerate(cands[:12])]}
+            self._lookups[token] = (now, cands)
+        shown, seen, per_work = [], {}, collections.Counter()
+        for i, c in enumerate(cands):
+            keys = [tuple(x) for x in c.ids if x[0] in ("isbn13", "apple_books", "openlibrary_edition", "google_books")]
+            dup = next((seen[k] for k in keys if k in seen), None)
+            if dup is not None:                 # the same edition again (another provider, another store)
+                if c.provider != shown[dup]["provider"] and c.provider not in shown[dup]["also"]:
+                    shown[dup]["also"].append(c.provider)
+                continue
+            work = work_key(c)
+            if per_work[work] >= 3 or len(shown) >= 12:
+                continue
+            per_work[work] += 1
+            for k in keys:
+                seen[k] = len(shown)
+            shown.append(dict(c.as_dict(), index=i, also=[]))
+        return {"token": token, "candidates": shown}
 
     def _picked(self, token, index):
         with self._lock:
@@ -145,6 +232,8 @@ class Fill:
             if getattr(chosen, f):
                 merged[f] = (getattr(chosen, f), chosen.provider)
         ids = list(chosen.ids)
+        id_src = {tuple(i): chosen.provider for i in chosen.ids}
+        subjects = list(chosen.subjects or [])
         covers = [(chosen.cover_url, chosen.provider)] if chosen.cover_url else []
         best = {}       # the best agreeing candidate of each OTHER provider (never a second edition of the same one)
         for o in others:
@@ -159,12 +248,18 @@ class Fill:
                     merged[f] = (getattr(o, f), o.provider)
             if not merged["authors"][0] and o.authors:
                 merged["authors"] = (o.authors, o.provider)
-            ids += [i for i in o.ids if i not in ids]
+            for i in o.ids:
+                if i not in ids:
+                    ids.append(i)
+                    id_src[tuple(i)] = o.provider
+            subjects += [x for x in (o.subjects or []) if x not in subjects]
             if o.cover_url:
                 covers.append((o.cover_url, o.provider))
         # Apple first for the cover (D18 order: owner > apple > openlibrary)
         covers.sort(key=lambda c: c[1] != "apple")
         merged["ids"] = list(dict.fromkeys(ids))
+        merged["id_src"] = id_src
+        merged["subjects"] = subjects
         merged["covers"] = covers
         return merged
 
@@ -177,9 +272,11 @@ class Fill:
         m = self._merge(chosen, all_cands)
         # already in the library? (same ISBN / Open Library edition / Apple id)
         for prov, val in m["ids"]:
-            row = conn.execute("""SELECT i.public_id::text AS id FROM catalog.external_id x
+            row = conn.execute("""SELECT i.public_id::text AS id, i.deleted_at IS NOT NULL AS trashed FROM catalog.external_id x
                                   JOIN catalog.edition e ON e.id = x.edition_id JOIN catalog.media_item i ON i.id = e.work_id
-                                 WHERE x.provider = %s AND x.value = %s AND i.deleted_at IS NULL""", (prov, val)).fetchone()
+                                 WHERE x.provider = %s AND x.value = %s""", (prov, val)).fetchone()
+            if row and row["trashed"]:
+                raise FillError("that book is in the trash: restore it from Trash")
             if row:
                 return {"id": row["id"], "existing": True}
         cover = None
@@ -231,7 +328,7 @@ class Fill:
                 if conn.execute("SELECT 1 AS x FROM catalog.external_id WHERE provider = %s AND value = %s",
                                 (prov_code, value)).fetchone():
                     continue
-                src = "apple" if prov_code == "apple_books" else "openlibrary"
+                src = m["id_src"].get((prov_code, value), "openlibrary")
                 db.set_source(conn, src)
                 conn.execute("INSERT INTO catalog.external_id (provider, value, edition_id, source) VALUES (%s, %s, %s, %s)",
                              (prov_code, value, eid, src))
@@ -253,6 +350,11 @@ class Fill:
                                  " ON CONFLICT DO NOTHING", (eid, src, url))
             db.set_source(conn, "owner")
             conn.execute("INSERT INTO library.entry (item_id, status) VALUES (%s, %s)", (iid["id"], status))
+            cats, _, _, _ = categories.classify([], m["subjects"])
+            if cats:
+                db.set_source(conn, "categorize")
+                categories.assign(conn, iid["id"], cats)
+                db.set_source(conn, "owner")
             if status in ("in_progress", "completed"):
                 d = datetime.date.today()
                 conn.execute("INSERT INTO library.consumption (item_id, edition_id, state, started_on, started_precision,"
@@ -289,7 +391,7 @@ class Fill:
             " WHERE ct.item_id = %s AND ct.role = 'author' ORDER BY ct.position", (it["id"],))]
         cands = []
         if ids.get("isbn13"):
-            cands += [c for c in (self.ol.by_isbn(ids["isbn13"]), self.apple.by_isbn(ids["isbn13"])) if c]
+            cands += [c for c in (self.safe(p.by_isbn, ids["isbn13"]) for p in self.providers(self.ol, self.apple, self.google)) if c]
         elif ids.get("openlibrary_edition"):
             c = self.ol.by_edition(ids["openlibrary_edition"])
             if c:
@@ -297,13 +399,13 @@ class Fill:
         for c in cands:
             c.score = 1.0
         if not cands:
-            for p in (self.apple, self.ol):
-                for c in p.search(it["title"], authors[0] if authors else None, limit=5):
+            for p in self.providers(self.apple, self.ol, self.google):
+                for c in self.safe(p.search, it["title"], authors[0] if authors else None, limit=5) or []:
                     c.score = P.score(it["title"], authors, c)
                     if c.score >= 0.9 and (authors or c.provider == "openlibrary"):
                         cands.append(c)
         if not cands:
-            return {"changes": [], "note": "no confident match at Apple Books or Open Library"}
+            return {"changes": [], "note": "no confident match at Apple Books, Open Library or Google Books"}
         cands.sort(key=lambda c: (-c.score, c.provider != "openlibrary"))
         m = self._merge(cands[0], cands)
         has_cover = conn.execute("SELECT 1 AS x FROM catalog.cover WHERE edition_id = %s AND is_chosen AND deleted_at IS NULL",
@@ -349,11 +451,18 @@ class Fill:
                 if prov_code in ids or conn.execute("SELECT 1 AS x FROM catalog.external_id WHERE provider = %s AND value = %s",
                                                     (prov_code, value)).fetchone():
                     continue
-                src = "apple" if prov_code == "apple_books" else "openlibrary"
+                src = m["id_src"].get((prov_code, value), "openlibrary")
                 db.set_source(conn, src)
                 conn.execute("INSERT INTO catalog.external_id (provider, value, edition_id, source) VALUES (%s, %s, %s, %s)",
                              (prov_code, value, it["edition_id"], src))
                 changes.append({"field": prov_code, "value": value, "from": src})
+            has_cats = conn.execute("SELECT 1 AS x FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id"
+                                    " WHERE it.item_id = %s AND t.kind = 'genre'", (it["id"],)).fetchone()
+            cats, _, _, _ = categories.classify([], m["subjects"])
+            if cats and not has_cats:
+                db.set_source(conn, "categorize")
+                categories.assign(conn, it["id"], cats)
+                changes.append({"field": "category", "value": ", ".join(cats), "from": "subjects"})
             if cover:
                 db.set_source(conn, cover["source"])
                 conn.execute("INSERT INTO catalog.cover (edition_id, source, source_url, local_path, sha256, mime, width, height,"
