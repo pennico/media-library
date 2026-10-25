@@ -2,6 +2,14 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-10-25
+
+- The wood covers the whole page: a wooden top rail, the left pane and the
+  shelves on the wood, panels and cards as paper, and a warm palette to
+  match. The shelves run from the left pane to the window edge.
+- A button at the top left hides the left pane (remembered per browser).
+- The cover opening is slower (about 1.6 s).
+
 ## [0.3.1] - 2026-10-25
 
 - **Bookcase**: the book area is a wooden case (light wood, walnut in dark

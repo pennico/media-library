@@ -6,17 +6,20 @@
 <title>Media Library</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-/* Layout: agent-console family. Left pane (Database | Visuals, then Books / Movies / Series and collections), main area with
-   a toolbar, the cover grid or list, and a detail pane on the right (a sheet on phones). Charts: one green, recessive axes. */
+/* Layout: agent-console family. Left pane (Database | Visuals, then Books / Movies / Series and collections; it can be
+   hidden), main area with a toolbar, the cover grid or list, and a detail pane on the right (a sheet on phones).
+   Look: a wooden bookcase across the whole page (light wood by day, walnut at night) with paper panels and cards on it;
+   the colours are warm to match. Charts: one green, recessive axes. */
 :root {
-  --bg: #f4f5f2; --panel: #ffffff; --sunk: #eceee9; --fg: #1c221f; --muted: #5f6964; --line: #d8dcd5;
-  --sel: #e3ebe6; --accent: #2f6f5b; --accent-soft: #dcebe4; --on-accent: #ffffff;
-  --ok: #2f8a5f; --ok-soft: #e1f0e7; --warn: #9a6514; --warn-soft: #f6ead4; --bad: #c2412d; --bad-soft: #f6dfda;
-  --chart: #16805a; --grid: #e3e6e0; --shadow: rgb(0 0 0 / 0.14);
+  --bg: #f6efe2; --panel: #fcf8f0; --sunk: #f2e9d9; --fg: #2b2118; --muted: #6e5a43; --line: #e2d5bf;
+  --sel: #f0e3c8; --accent: #2f6f5b; --accent-soft: #dfeadf; --on-accent: #ffffff;
+  --ok: #2f8a5f; --ok-soft: #e1f0e2; --warn: #9a6514; --warn-soft: #f6ead4; --bad: #c2412d; --bad-soft: #f6dfda;
+  --chart: #16805a; --grid: #ebe1cf; --shadow: rgb(60 35 10 / 0.16);
+  --head-a: #f8eed9; --head-b: #efe0c2; --head-edge: #cdb081; --nav-sel: rgb(255 250 240 / 0.75); --nav-hover: rgb(255 250 240 / 0.4);
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   /* the bookcase: light wood by day, walnut at night; the grain is SVG noise stretched along the boards */
-  --wall: #f0e3c9; --wall-side: rgb(150 105 50 / 0.12); --wood-edge: rgb(120 84 40 / 0.22);
+  --wall: #f0e3c9; --wood-edge: rgb(120 84 40 / 0.22);
   --board-top: #f7ebd2; --board-lip: rgb(255 255 255 / 0.55); --board: #dcbc8c; --board-dark: #c39f6b; --board-shadow: rgb(95 60 20 / 0.5);
   --wood-ink: #33261a; --wood-muted: #6b5236; --book-shadow: rgb(70 45 15 / 0.35); --blank: #f7f0e2; --page-a: #e2d4b8; --page-b: #fbf7ee;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0022 0.07' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.29 0 0 0 0 0.12 0.9 0 0 0 -0.37'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
@@ -24,21 +27,23 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #121614; --panel: #1a1f1c; --sunk: #222824; --fg: #e2e7e4; --muted: #98a29c; --line: #303833;
-  --sel: #26322c; --accent: #7cc4a9; --accent-soft: #23362f; --on-accent: #10201a;
-  --ok: #5cc28f; --ok-soft: #1f3529; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
-  --chart: #3aa877; --grid: #2a312d; --shadow: rgb(0 0 0 / 0.5);
-  --wall: #402e20; --wall-side: rgb(0 0 0 / 0.3); --wood-edge: rgb(0 0 0 / 0.5);
+  --bg: #1f1812; --panel: #2a2119; --sunk: #33281e; --fg: #efe5d6; --muted: #c0aa8f; --line: #47392b;
+  --sel: #3e3024; --accent: #7cc4a9; --accent-soft: #2b3a30; --on-accent: #10201a;
+  --ok: #5cc28f; --ok-soft: #233528; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
+  --chart: #3aa877; --grid: #3a2e23; --shadow: rgb(0 0 0 / 0.5);
+  --head-a: #4e3a29; --head-b: #3f2e20; --head-edge: #24180f; --nav-sel: rgb(255 235 210 / 0.11); --nav-hover: rgb(255 235 210 / 0.06);
+  --wall: #402e20; --wood-edge: rgb(0 0 0 / 0.5);
   --board-top: #80603f; --board-lip: rgb(255 220 180 / 0.22); --board: #5f4430; --board-dark: #44301f; --board-shadow: rgb(0 0 0 / 0.75);
   --wood-ink: #f1e6d6; --wood-muted: #c9b498; --book-shadow: rgb(0 0 0 / 0.6); --blank: #2f2620; --page-a: #2a221b; --page-b: #3a3027;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0022 0.07' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.03 0 0 0 0 0.015 0 0 0 0 0.0 1.15 0 0 0 -0.44'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0016 0.09' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.6 0 0 0 0 0.42 0 0 0 0 0.26 0.55 0 0 0 -0.24'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
   --grain-fine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='120'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.35' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.02 0 0 0 0 0.01 0 0 0 0 0.0 1.2 0 0 0 -0.45'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"); color-scheme: dark; } }
 :root[data-theme="dark"] {
-  --bg: #121614; --panel: #1a1f1c; --sunk: #222824; --fg: #e2e7e4; --muted: #98a29c; --line: #303833;
-  --sel: #26322c; --accent: #7cc4a9; --accent-soft: #23362f; --on-accent: #10201a;
-  --ok: #5cc28f; --ok-soft: #1f3529; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
-  --chart: #3aa877; --grid: #2a312d; --shadow: rgb(0 0 0 / 0.5);
-  --wall: #402e20; --wall-side: rgb(0 0 0 / 0.3); --wood-edge: rgb(0 0 0 / 0.5);
+  --bg: #1f1812; --panel: #2a2119; --sunk: #33281e; --fg: #efe5d6; --muted: #c0aa8f; --line: #47392b;
+  --sel: #3e3024; --accent: #7cc4a9; --accent-soft: #2b3a30; --on-accent: #10201a;
+  --ok: #5cc28f; --ok-soft: #233528; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
+  --chart: #3aa877; --grid: #3a2e23; --shadow: rgb(0 0 0 / 0.5);
+  --head-a: #4e3a29; --head-b: #3f2e20; --head-edge: #24180f; --nav-sel: rgb(255 235 210 / 0.11); --nav-hover: rgb(255 235 210 / 0.06);
+  --wall: #402e20; --wood-edge: rgb(0 0 0 / 0.5);
   --board-top: #80603f; --board-lip: rgb(255 220 180 / 0.22); --board: #5f4430; --board-dark: #44301f; --board-shadow: rgb(0 0 0 / 0.75);
   --wood-ink: #f1e6d6; --wood-muted: #c9b498; --book-shadow: rgb(0 0 0 / 0.6); --blank: #2f2620; --page-a: #2a221b; --page-b: #3a3027;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0022 0.07' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.03 0 0 0 0 0.015 0 0 0 0 0.0 1.15 0 0 0 -0.44'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0016 0.09' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.6 0 0 0 0 0.42 0 0 0 0 0.26 0.55 0 0 0 -0.24'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
@@ -46,18 +51,22 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--panel); }
+body { background-color: var(--wall); background-image: var(--grain); color: var(--fg); font: 14px/1.45 var(--sans); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--head-a); }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .muted { color: var(--muted); }
 .mono { font-family: var(--mono); font-size: 12px; }
 .app { display: grid; grid-template-columns: 232px minmax(0, 1fr); grid-template-rows: auto 1fr; min-height: 100%; }
+.app.noside { grid-template-columns: minmax(0, 1fr); } .app.noside > aside.side { display: none; }
+.iconbtn { border: 0; background: none; color: var(--muted); padding: 5px 6px; border-radius: 7px; display: inline-grid; place-items: center; }
+.iconbtn:hover { background: var(--nav-hover); color: var(--fg); }
 
 /* header */
-header.top { grid-column: 1 / -1; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--panel);
-  border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+header.top { grid-column: 1 / -1; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: linear-gradient(to bottom, var(--head-a), var(--head-b)); box-shadow: 0 4px 10px -6px var(--board-shadow);   /* the top rail */
+  border-bottom: 1px solid var(--head-edge); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
   padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .brand { font-weight: 650; font-size: 15px; white-space: nowrap; }
 .search { position: relative; flex: 0 1 300px; min-width: 150px; }
@@ -89,7 +98,7 @@ header.top { grid-column: 1 / -1; position: sticky; top: env(safe-area-inset-top
 @media (max-width: 760px) { .search { flex-basis: 100%; order: 5; } .keybar { margin-left: 0; } }
 
 /* left pane */
-aside.side { border-right: 1px solid var(--line); background: var(--panel); padding: 14px 12px; display: flex; flex-direction: column; gap: 16px;
+aside.side { border-right: 1px solid var(--wood-edge); box-shadow: 4px 0 10px -8px var(--board-shadow); padding: 14px 12px; display: flex; flex-direction: column; gap: 16px;
   position: sticky; top: calc(env(safe-area-inset-top, 0px) + 52px); align-self: start; height: calc(100vh - 52px - env(safe-area-inset-top, 0px)); overflow: auto; }
 .seg { display: grid; grid-template-columns: repeat(3, auto); gap: 2px; padding: 3px; background: var(--sunk); border-radius: 10px; }
 .seg button { border: 0; background: none; border-radius: 7px; padding: 6px 4px; font-size: 13px; font-weight: 600; min-width: 0; color: var(--muted); }
@@ -97,8 +106,8 @@ aside.side { border-right: 1px solid var(--line); background: var(--panel); padd
 .navlist { display: flex; flex-direction: column; gap: 2px; }
 .navlist h3 { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 6px 4px; font-weight: 500; }
 .nav { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: none; border-radius: 7px; padding: 6px 8px; }
-.nav:hover { background: var(--sunk); }
-.nav[aria-current="true"] { background: var(--sel); font-weight: 600; }
+.nav:hover { background: var(--nav-hover); }
+.nav[aria-current="true"] { background: var(--nav-sel); font-weight: 600; box-shadow: 0 1px 2px var(--shadow); }
 .nav .n { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .nav .ico { width: 16px; text-align: center; color: var(--muted); }
 .newshelf { display: flex; gap: 6px; padding: 4px 6px 0; }
@@ -118,7 +127,7 @@ aside.side { border-right: 1px solid var(--line); background: var(--panel); padd
 main { min-width: 0; padding-block: 16px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 @media (max-width: 760px) {
   .app { grid-template-columns: minmax(0, 1fr); }
-  aside.side { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); flex-direction: row; flex-wrap: wrap; gap: 8px; align-items: center; }
+  aside.side { position: static; height: auto; border-right: 0; box-shadow: none; border-bottom: 1px solid var(--wood-edge); padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); flex-direction: row; flex-wrap: wrap; gap: 8px; align-items: center; }
   aside.side .seg { flex: 1 1 100%; }
   aside.side .navlist { flex-direction: row; flex-wrap: wrap; gap: 4px; }
   aside.side .navlist h3, .side-foot, .newshelf { display: none; }
@@ -146,12 +155,12 @@ select, .toolbar input[type=search] { padding: 4px 8px; border: 1px solid var(--
 .lib { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
 .lib.withdetail { grid-template-columns: minmax(0, 1fr) 400px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--cw, 124px), 1fr)); gap: 22px 18px; padding: 4px 9px 0; }
-/* the bookcase (old iBooks, lighter): the whole book area is wood, and every row of covers stands on a board across
-   the case; layoutShelves() puts the boards under the rows, and empty ones down to the bottom of the case */
-.shelfwrap { position: relative; overflow: hidden; border-radius: 12px; padding: 22px 0 14px; min-height: calc(100vh - 150px);
-  background-color: var(--wall); background-image: var(--grain), linear-gradient(to right, var(--wall-side), transparent 8%, transparent 92%, var(--wall-side));
-  box-shadow: inset 0 0 0 1px var(--wood-edge), inset 0 12px 18px -12px var(--wood-edge); }
-.shelfwrap .grid { position: relative; z-index: 1; padding: 0 22px; }
+/* the bookcase (old iBooks, lighter): the page is the wood, and every row of covers stands on a board that runs from
+   the left pane to the window edge (to the info panel when it is open); layoutShelves() puts the boards under the
+   rows, and empty ones down to the bottom of the case */
+.shelfwrap { position: relative; padding: 22px 0 14px; min-height: calc(100vh - 150px); margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); }
+.lib:not(.withdetail) .shelfwrap { margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px))); }
+.shelfwrap .grid { position: relative; z-index: 1; padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
 .boards { position: absolute; inset: 0; pointer-events: none; }
 .board { position: absolute; left: 0; right: 0; height: 18px; box-shadow: 0 10px 14px -8px var(--board-shadow);
   background: var(--grain-fine), linear-gradient(to bottom, var(--board-top) 0 5px, var(--board-lip) 5px 6px, var(--board) 6px, var(--board-dark) 17px, rgb(0 0 0 / 0.25) 17px); }
@@ -178,7 +187,7 @@ select, .toolbar input[type=search] { padding: 4px 8px; border: 1px solid var(--
 .book.drop-before .cov { box-shadow: -6px 0 0 -2px var(--accent), 0 2px 6px var(--shadow); }
 .ghost { position: fixed; z-index: 60; width: 90px; pointer-events: none; transform: rotate(-3deg); opacity: .92; }
 .ghost img { width: 100%; border-radius: 3px 6px 6px 3px; box-shadow: 0 10px 24px var(--shadow); }
-.listbox { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.listbox { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 22px -14px var(--board-shadow); }
 table.list { border-collapse: collapse; width: 100%; font-size: 13px; }
 table.list th, table.list td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 table.list td.wrap { white-space: normal; min-width: 180px; }
@@ -193,6 +202,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .empty { color: var(--muted); padding: 30px 0; }
 
 .detail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 66px); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+  box-shadow: 0 12px 30px -14px var(--board-shadow);
   max-height: calc(100vh - 86px); overflow: auto; min-width: 0; }
 .detail .head { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; }
 .detail h2 { font-size: 16.5px; margin: 0 0 4px; text-wrap: balance; }
@@ -251,17 +261,17 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; 
   .detail { position: fixed; inset: auto 0 0 0; top: auto; max-height: 86vh; border-radius: 14px 14px 0 0; z-index: 40; box-shadow: 0 -8px 30px var(--shadow);
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
   .grid { --cw: 100px; gap: 16px 10px; } .grid.s { --cw: 76px; } .grid.l { --cw: 136px; }
-  .shelfwrap { padding-top: 16px; } .shelfwrap .grid { padding: 0 12px; }
+  .shelfwrap { padding-top: 16px; }
 }
 
 /* visuals */
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
-.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; box-shadow: 0 6px 16px -10px var(--board-shadow); }
 .tile .label { color: var(--muted); font-size: 12.5px; }
 .tile .value { font-size: 24px; font-weight: 650; margin-top: 2px; }
 .tile .sub { color: var(--muted); font-size: 12px; }
 .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 14px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; box-shadow: 0 8px 22px -14px var(--board-shadow); }
 .card.wide { grid-column: 1 / -1; }
 .card h3 { margin: 0; font-size: 14px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
 .card h3 .btn { margin-left: auto; }
@@ -323,8 +333,9 @@ body.fb-pane .detail { visibility: hidden; }
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app" id="app">
   <header class="top">
+    <button class="iconbtn" id="side-toggle" aria-controls="side" aria-expanded="true" title="Hide the side panel"><svg viewBox="0 0 16 16" width="17" height="17" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.5v11" stroke="currentColor" stroke-width="1.3"/></svg></button>
     <span class="brand">Media library</span>
     <div class="search"><input id="search" type="search" placeholder="Search  /" aria-label="Search books, authors, genres" autocomplete="off" spellcheck="false">
       <div class="search-pop" id="search-pop" role="listbox" aria-label="Search results" hidden></div></div>
@@ -375,7 +386,7 @@ const statusLabel = (kind, s) => (LABEL[kind] || LABEL.book)[s] || s;
 let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, STATS = null, READING = null;
 const st = {sec: "database", kind: "book", shelf: null, filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
   listSort: null, err: "", unlockMsg: "", syncTab: "readest", readerPw: null, cat: null, view: "shelf", trash: null,
-  confirmTrash: false, vtab: "me", vscope: "all", LSTATS: null};
+  confirmTrash: false, vtab: "me", vscope: "all", LSTATS: null, side: true};
 function load(key, dflt) { try { const v = localStorage.getItem("ml-" + key); return v == null ? dflt : JSON.parse(v); } catch (e) { return dflt; } }
 function save(key, v) { try { localStorage.setItem("ml-" + key, JSON.stringify(v)); } catch (e) {} }
 const langName = c => c ? (LIB.languages[c] || c) : "";
@@ -486,6 +497,11 @@ async function setPref(key, value) {
 }
 
 // ---------------------------------------------------------------- render
+// the left pane can be hidden (remembered per browser); the button stays in the header to bring it back
+function applySide() {
+  $("app").classList.toggle("noside", !st.side);
+  const b = $("side-toggle"); b.setAttribute("aria-expanded", String(st.side)); b.title = st.side ? "Hide the side panel" : "Show the side panel";
+}
 function render() {
   for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-selected", String(b.dataset.sec === st.sec));
   $("v-database").hidden = st.sec !== "database"; $("v-visuals").hidden = st.sec !== "visuals"; $("v-sync").hidden = st.sec !== "sync";
@@ -673,6 +689,8 @@ async function openDetail(id, quiet) {
 function closeDetail() { st.selected = null; st.detail = null; st.editing = false; renderDatabase(); }
 // Opening a book from the shelf, as in the old iBooks: a copy of its cover lifts off, flies to the info panel and
 // swings open on its spine; the panel shows through as the page fades. Without animation under "Reduce motion".
+// The timeline in ms: the flight, then the cover opening ([delay, duration]), the page fading, the copy going.
+const OPEN_MS = {fly: 720, cover: [440, 980], page: [900, 560], gone: [1340, 260]};
 async function openBook(btn) {
   const cov = btn.querySelector(".cov");
   if (!cov || !Element.prototype.animate || matchMedia("(prefers-reduced-motion: reduce)").matches) return openDetail(btn.dataset.id);
@@ -693,12 +711,12 @@ async function openBook(btn) {
   const from = `translate(${a.left - p.left}px, ${a.top - p.top}px) scale(${a.width / w}, ${a.height / h})`;
   Object.assign(fly.style, px({left: p.left, top: p.top, width: w, height: h}), {transformOrigin: "0 0", transform: from});
   const anims = [
-    fly.animate([{transform: from}, {transform: "none"}], {duration: 420, easing: "cubic-bezier(.3, .7, .2, 1)", fill: "forwards"}),
-    fly.querySelector(".fb-cover").animate([{transform: "rotateY(0deg)"}, {transform: "rotateY(-180deg)"}], {delay: 260, duration: 560, easing: "cubic-bezier(.45, 0, .25, 1)", fill: "forwards"}),
-    fly.querySelector(".fb-page").animate([{opacity: 1}, {opacity: 0}], {delay: 500, duration: 320, fill: "forwards"}),
-    fly.animate([{opacity: 1}, {opacity: 0}], {delay: 740, duration: 160, fill: "forwards"}),
+    fly.animate([{transform: from}, {transform: "none"}], {duration: OPEN_MS.fly, easing: "cubic-bezier(.3, .7, .2, 1)", fill: "forwards"}),
+    fly.querySelector(".fb-cover").animate([{transform: "rotateY(0deg)"}, {transform: "rotateY(-180deg)"}], {delay: OPEN_MS.cover[0], duration: OPEN_MS.cover[1], easing: "cubic-bezier(.45, 0, .25, 1)", fill: "forwards"}),
+    fly.querySelector(".fb-page").animate([{opacity: 1}, {opacity: 0}], {delay: OPEN_MS.page[0], duration: OPEN_MS.page[1], fill: "forwards"}),
+    fly.animate([{opacity: 1}, {opacity: 0}], {delay: OPEN_MS.gone[0], duration: OPEN_MS.gone[1], fill: "forwards"}),
   ];
-  setTimeout(() => { if (openBook.run !== run) return; document.body.classList.remove("fb-pane"); $("detail")?.animate([{opacity: 0}, {opacity: 1}], {duration: 320, easing: "ease-out"}); }, 420);
+  setTimeout(() => { if (openBook.run !== run) return; document.body.classList.remove("fb-pane"); $("detail")?.animate([{opacity: 0}, {opacity: 1}], {duration: 500, easing: "ease-out"}); }, OPEN_MS.fly);
   await Promise.allSettled(anims.map(x => x.finished));
   done();
 }
@@ -839,6 +857,7 @@ async function afterItemChange(detail) {
 const splitList = (s, sep) => s.split(sep).map(x => x.trim()).filter(Boolean);
 document.addEventListener("click", async e => {
   const t = e.target.closest("button, [data-id], input[type=checkbox]"); if (!t) return;
+  if (t.id === "side-toggle") { st.side = !st.side; save("side", st.side); applySide(); return; }
   if (t.matches(".seg button")) { st.sec = t.dataset.sec; save("sec", st.sec); if (st.sec === "visuals") { try { STATS = await api.stats(); } catch (er) { STATS = null; } }
     if (st.sec === "sync") { READING = null; render(); await loadReading(); } render(); return; }
   if (t.dataset.vtab) { st.vtab = t.dataset.vtab; save("vtab", st.vtab); renderVisuals(); return; }
@@ -1524,6 +1543,7 @@ function makePreviewApi(P) {
 st.sec = load("sec", "database"); st.kind = load("kind", "book"); st.shelf = load("shelf", null); st.syncTab = load("synctab", "readest"); st.vtab = load("vtab", "me");
 const hashSec = location.hash.slice(1); if (["database", "visuals", "sync"].includes(hashSec)) st.sec = hashSec;
 if (!["database", "visuals", "sync"].includes(st.sec)) st.sec = "database";
+st.side = load("side", true) !== false; applySide();
 refresh();
 </script>
 </body>

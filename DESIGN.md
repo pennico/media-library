@@ -1198,18 +1198,24 @@ counts the books themselves, all of them, the read ones or the unread ones:
 categories, original language, authors and release decade (first
 published, else the edition's year).
 
-### 14.6 The bookcase (0.3.1)
+### 14.6 The bookcase (0.3.1, whole page 0.3.2)
 
-After the old iBooks, lighter (D44). The whole book area is a wooden case
-(light wood by day, walnut in dark mode; the grain is SVG noise in a
-`data:` image, nothing downloaded), and each row of covers stands on a board
-that runs across the case; `layoutShelves()` places the boards under the rows
-it measures, plus empty ones down to the bottom of the case, and redoes it
-when the grid changes size. The covers keep their spacing (closer than in
-iBooks), with a spine shadow on the left edge.
+After the old iBooks, lighter (D44). The whole page is wood (light wood by
+day, walnut in dark mode; the grain is SVG noise in a `data:` image, nothing
+downloaded): the header is a wooden top rail, the left pane sits on the wood,
+and panels, cards, the list and the forms are paper on it. The rest of the
+palette is warm to match (paper and ink instead of grey-green; the green
+accent stays). Each row of covers stands on a board that runs from the left
+pane to the window edge (to the info panel when it is open);
+`layoutShelves()` places the boards under the rows it measures, plus empty
+ones down to the bottom of the case, and redoes it when the grid changes
+size. The covers keep their spacing (closer than in iBooks), with a spine
+shadow on the left edge. The left pane can be hidden with the button at the
+top left (remembered per browser).
 
 Pointing at a cover lifts it off the board, a little larger, with a glint.
 Clicking one opens it: a copy of the cover flies to the info panel (a
 transform, so the compositor runs it), swings open on its spine, and the
-panel shows through as the page fades; the book's place on the shelf stays
-empty until the copy is gone. With "Reduce motion" the panel just opens.
+panel shows through as the page fades, about 1.6 s in all (`OPEN_MS`); the
+book's place on the shelf stays empty until the copy is gone. With "Reduce
+motion" the panel just opens.
