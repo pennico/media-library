@@ -109,6 +109,8 @@ services:
         target: reader.pw
       - source: google_books_key
         target: google-books.key
+      - source: tmdb_key
+        target: tmdb.key
     volumes:
       - ./media:/media
       - ./state:/state
@@ -117,7 +119,7 @@ services:
       - ${AGENT_CONSOLE_STATE}:/agent-console-state:ro
     ports:
       - "127.0.0.1:8099:8099"
-    networks: [db, egress]               # egress: Apple Books / Open Library lookups, cover downloads
+    networks: [db, egress]               # egress: Apple Books / Open Library / TMDB lookups, cover and poster downloads
     cap_drop: [ALL]
     mem_limit: 256m
     pids_limit: 100
@@ -146,6 +148,8 @@ services:
         target: ml_readonly.pw
       - source: google_books_key
         target: google-books.key
+      - source: tmdb_key
+        target: tmdb.key
     volumes:
       - ./media:/media
       - ./out:/out
@@ -177,3 +181,5 @@ secrets:
     file: ./secrets/reader.pw
   google_books_key:                     # optional: a Google Books API key, or an empty file (Google then stays off)
     file: ./secrets/google-books.key
+  tmdb_key:                             # optional: a TMDB API key (v3), or an empty file (adding movies/series by search then stays off)
+    file: ./secrets/tmdb.key

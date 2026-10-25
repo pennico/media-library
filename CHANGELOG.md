@@ -2,6 +2,28 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-10-25
+
+- **Movies and series**: the Database and Visuals pages work for them as they
+  do for books. Shelf, list, filters and the detail panel show the director
+  or creators, cast, runtime or seasons, countries and posters; a series is
+  one card with its seasons listed (each with its poster, episodes and what
+  you did with it). Visuals: watched over time (movies or seasons, or
+  hours), ratings, directors / creators, genres, where you watched, country,
+  original language, the watching calendar, and the library view.
+- **Watches per season**: a watch of a series can name its season, the
+  episodes seen and where it was watched (Netflix, Prime Video, HBO Max,
+  cinema…). Migration 0014.
+- **TMDB**: "+ Add movie / series" searches TMDB, and Fill missing fills a
+  movie's or series' empty fields from it. Needs a key in
+  `secrets/tmdb.key` (empty = off).
+- **Import a watch history**: `medialib import-watch FILE.json` (dry run
+  unless `--apply`) adds movies and series with their watches, tags and
+  collections from a file made from viewing-history exports (DESIGN.md
+  §15.3); a second run changes nothing.
+- The Filter pane's facets follow the kind: Where you watched, Country and
+  Tags for movies and series; Released instead of Published.
+
 ## [0.5.1] - 2026-10-25
 
 - List view row editing also covers **categories** (a checklist by group,

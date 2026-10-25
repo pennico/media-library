@@ -275,6 +275,10 @@ textarea { min-height: 110px; resize: vertical; }
 .hist .when { color: var(--muted); font-size: 11.5px; }
 .desc { color: var(--muted); font-size: 12.5px; white-space: pre-wrap; }
 details.more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+.seasons { display: flex; flex-direction: column; gap: 8px; }
+.season { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 13px; }
+.season img, .season .noimg { width: 36px; height: 54px; object-fit: cover; border-radius: 2px 4px 4px 2px; background: var(--sunk); display: block; }
+.season.unseen img { opacity: .55; } .season .pill { padding: 0 8px; font-size: 11.5px; }
 @media (max-width: 1100px) { .lib.withdetail { grid-template-columns: minmax(0, 1fr) 340px; } }
 @media (max-width: 900px) {
   .lib.withdetail { grid-template-columns: minmax(0, 1fr); }
@@ -489,11 +493,30 @@ const LABEL = {
 LABEL.series = LABEL.movie;
 const STATUS_ORDER = ["planned", "in_progress", "completed", "paused", "dropped"];
 const SRC = {yamtrack: "Yamtrack", cwa: "CWA", apple: "Apple", openlibrary: "Open Library", owner: "you", tmdb: "TMDB",
-  derived: "computed", system: "system", kosync: "Readest"};
+  derived: "computed", system: "system", kosync: "Readest", netflix: "Netflix", prime_video: "Prime Video", google_play: "Google Play",
+  categorize: "category rules"};
 const SORTS = [["manual", "Manual"], ["title", "Title"], ["author", "Author"], ["added", "Date added"], ["finished", "Date read"],
   ["rating", "Rating"], ["published", "Published"], ["pages", "Pages"], ["language", "Language"], ["status", "Status"], ["genre", "Genre"], ["version", "Version"]];
-const statusLine = i => i.status === "completed" ? statusLabel(i.kind, i.status) + (i.year ? " " + i.year : "")
-  : statusLabel(i.kind, i.status) + (i.year ? " · " + (i.kind === "book" ? "read " : "watched ") + i.year : "");
+// the sorts as a kind names them: a movie has a director, a release and a runtime, no version
+const sortsFor = kind => !SCREEN(kind) ? SORTS : SORTS.filter(([k]) => k !== "version").map(([k, l]) =>
+  [k, {author: makerLabel(kind, 1), finished: "Date watched", published: "Released", pages: AMOUNT[kind][0], language: "Original language"}[k] || l]);
+const statusLine = i => (i.status === "completed" ? statusLabel(i.kind, i.status) + (i.year ? " " + i.year : "")
+  : statusLabel(i.kind, i.status) + (i.year ? " · " + (i.kind === "book" ? "read " : "watched ") + i.year : "")) + seasonsNote(i);
+// Movies and series: who made it, how long it runs, what a watch is called; the same console otherwise
+const SCREEN = k => k === "movie" || k === "series";
+const NOUN = {book: ["book", "books"], movie: ["movie", "movies"], series: ["series", "series"]};
+const noun = (kind, n) => NOUN[kind || "book"][n === 1 ? 0 : 1];
+const MAKER = {book: "Author", movie: "Director", series: "Creator"};
+const makerLabel = (kind, n) => MAKER[kind || "book"] + (n === 1 ? "" : "s");
+const platformName = c => (LIB.platforms || []).find(p => p[0] === c)?.[1] || c || "";
+const fmtRuntime = m => m ? (m >= 60 ? Math.floor(m / 60) + " h" + (m % 60 ? " " + m % 60 + " min" : "") : m + " min") : "";
+// "Pages" for a book, the runtime of a movie, the number of seasons of a series (the same sort, slider and column)
+const amount = i => i.kind === "movie" ? i.runtime : i.kind === "series" ? i.seasons : i.pages;
+const AMOUNT = {book: ["Pages", n => n + " p."], movie: ["Runtime", n => fmtRuntime(n)], series: ["Seasons", n => n + " season" + (n === 1 ? "" : "s")]};
+function seasonsNote(i) {
+  const w = i.seasonWatches; if (!w) return "";
+  return " · " + w.done + (i.seasons ? "/" + i.seasons : "") + " season" + ((i.seasons || w.done) === 1 ? "" : "s") + (w.dropped ? ", " + w.dropped + " abandoned" : "");
+}
 const DESC_FIRST = ["finished", "rating", "added", "pages", "published"];   // newest / highest first when picked
 const statusLabel = (kind, s) => (LABEL[kind] || LABEL.book)[s] || s;
 // A book's version: the edition's format (what you have), else the medium of the latest reading. Paper covers
@@ -548,6 +571,8 @@ const serverApi = {
   lookup(body) { return this.send("POST", "api/lookup", body); },
   add(token, index, status, format) { return this.send("POST", "api/add", {token, index, status, format}); },
   fill(id) { return this.send("POST", "api/items/" + id + "/fill", {}); },
+  tmdbSearch(kind, query, year) { return this.send("POST", "api/tmdb/search", {kind, query, year}); },
+  tmdbAdd(kind, tmdb, status) { return this.send("POST", "api/tmdb/add", {kind, tmdb, status}); },
   addManual(body) { return this.send("POST", "api/add-manual", body); },
   async uploadCover(id, file) {
     const r = await fetch("api/items/" + id + "/cover-upload", {method: "POST", headers: {"Content-Type": file.type || "application/octet-stream", "X-Console-Action": "1"}, body: file});
@@ -682,7 +707,7 @@ const catIds = ids => ids.flatMap(id => [id, ...(LIB.categories || []).filter(c 
 // --------------------------------------------------------------- filters
 // The Filter pane: each facet narrows the list; values inside one facet add up (Italian or French). Dates compare
 // as text keys at the chosen detail: "2024", "2024-03" or "2024-03-12"; a reading known to the year only has no month.
-const NOF = () => ({status: [], langs: [], olangs: [], versions: [], cats: [], read: null, added: null, pub: null, rating: null, pages: null, file: null, review: null});
+const NOF = () => ({status: [], langs: [], olangs: [], versions: [], cats: [], platforms: [], countries: [], tags: [], read: null, added: null, pub: null, rating: null, pages: null, file: null, review: null});
 const G_LEN = {year: 4, month: 7, day: 10}, G_RANK = {year: 0, month: 1, day: 2};
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const readKeys = (i, g) => (i.reads || []).filter(r => r[0] && G_RANK[r[1]] >= G_RANK[g]).map(r => r[0].slice(0, G_LEN[g]));
@@ -701,30 +726,34 @@ function fMatch(i, skip, f = st.f) {
   if (!has("olangs", f.olangs) && !f.olangs.includes(i.origLang || "")) return false;
   if (!has("versions", f.versions) && !f.versions.includes(versionOf(i) || "")) return false;
   if (!has("cats", f.cats)) { const ids = catIds(f.cats); if (!(i.cats || []).some(c => ids.includes(c))) return false; }
+  for (const k of ["platforms", "countries", "tags"]) if (!has(k, f[k] || []) && !(i[k] || []).some(x => f[k].includes(x))) return false;
   for (const k of ["read", "added"]) {
     const r = f[k]; if (skip === k || !r) continue;
     if (!DATE_KEYS[k](i, r.g).some(x => x >= r.from && x <= r.to)) return false;
   }
   if (skip !== "pub" && f.pub && !(i.published != null && i.published >= f.pub[0] && i.published <= f.pub[1])) return false;
   if (skip !== "rating" && f.rating && !(i.rating != null && Math.floor(i.rating) >= f.rating[0] && Math.floor(i.rating) <= f.rating[1])) return false;
-  if (skip !== "pages" && f.pages && !(i.pages != null && i.pages >= f.pages[0] && i.pages <= f.pages[1])) return false;
+  if (skip !== "pages" && f.pages && !(amount(i) != null && amount(i) >= f.pages[0] && amount(i) <= f.pages[1])) return false;
   if (skip !== "file" && f.file != null && !!i.hasFile !== f.file) return false;
   if (skip !== "review" && f.review && !i.hasReview) return false;
   return true;
 }
 // the active filters, each with a label and how to take it off (the chips under the toolbar)
 function activeFilters(f = st.f) {
-  const out = [], range = (a, b, fmt) => a === b ? fmt(a) : fmt(a) + "–" + fmt(b);
-  for (const v of f.status) out.push(["status:" + v, statusLabel("book", v)]);
+  const out = [], range = (a, b, fmt) => a === b ? fmt(a) : fmt(a) + "–" + fmt(b), k = st.kind, screen = SCREEN(k);
+  for (const v of f.status) out.push(["status:" + v, statusLabel(k, v)]);
+  for (const c of f.platforms || []) out.push(["platforms:" + c, "On " + platformName(c)]);
+  for (const c of f.countries || []) out.push(["countries:" + c, countryName(c)]);
+  for (const t of f.tags || []) out.push(["tags:" + t, t]);
   for (const v of f.versions) out.push(["versions:" + v, versionLabel(v || null)]);
   for (const c of f.langs) out.push(["langs:" + c, (c ? langName(c) : "Language not recorded")]);
   for (const c of f.olangs) out.push(["olangs:" + c, "Original: " + (c ? langName(c) : "not recorded")]);
   for (const c of f.cats) out.push(["cats:" + c, catName(c)]);
-  if (f.read) out.push(["read", "Read " + range(f.read.from, f.read.to, fmtKey)]);
+  if (f.read) out.push(["read", (screen ? "Watched " : "Read ") + range(f.read.from, f.read.to, fmtKey)]);
   if (f.added) out.push(["added", "Added " + range(f.added.from, f.added.to, fmtKey)]);
-  if (f.pub) out.push(["pub", "Published " + range(f.pub[0], f.pub[1], fmtYear)]);
+  if (f.pub) out.push(["pub", (screen ? "Released " : "Published ") + range(f.pub[0], f.pub[1], fmtYear)]);
   if (f.rating) out.push(["rating", "Rated " + range(f.rating[0], f.rating[1], String)]);
-  if (f.pages) out.push(["pages", range(f.pages[0], f.pages[1], String) + " pages"]);
+  if (f.pages) out.push(["pages", range(f.pages[0], f.pages[1], AMOUNT[k]?.[1] || String)]);
   if (f.file != null) out.push(["file", f.file ? "Has an EPUB" : "No EPUB"]);
   if (f.review) out.push(["review", "Has a review"]);
   return out;
@@ -738,7 +767,7 @@ function clearFilter(key) {
 const saveF = () => save("filter", st.f);
 // The pane filters the shelf in the Database, and every chart on the Visuals page (its own filter, kept apart)
 const FC = () => st.sec === "visuals"
-  ? {f: st.vf, win: st.vfwin, items: () => LIB.items.filter(i => i.kind === "book"), pre: () => true, save: () => save("vfilter", st.vf),
+  ? {f: st.vf, win: st.vfwin, items: () => LIB.items.filter(i => i.kind === st.kind), pre: () => true, save: () => save("vfilter", st.vf),
      redraw: () => renderVisuals(), page: true}
   : {f: st.f, win: st.fwin, items: shelfItems, pre: statusQ, save: saveF, redraw: () => renderDatabase(), page: false};
 // the "find it" link: {q} in the address gets the title and first author, as a search form sends them (spaces as +)
@@ -766,7 +795,7 @@ function sorted(list, prefs) {
   if (sortKey === "manual") return list;
   const coll = new Intl.Collator(prefs.locale === "und" ? undefined : prefs.locale, {numeric: true, sensitivity: "base"});
   const val = {title: i => i.sort, author: i => i.authorSort || "~", added: i => i.added, finished: i => i.year ?? -1, rating: i => i.rating ?? -1,
-    published: i => i.published ?? -99999, pages: i => i.pages ?? -1, language: i => langName(i.lang) || "~", status: i => STATUS_ORDER.indexOf(i.status),
+    published: i => i.published ?? -99999, pages: i => amount(i) ?? -1, language: i => langName(SCREEN(i.kind) ? i.origLang : i.lang) || "~", status: i => STATUS_ORDER.indexOf(i.status),
     genre: i => i.genres[0] || "~", version: i => versionOf(i) ? VERSIONS.findIndex(x => x[0] === versionOf(i)) : 9}[sortKey] || (i => i.sort);
   const out = [...list].sort((a, b) => {
     const x = val(a), y = val(b);
@@ -796,12 +825,13 @@ function renderDatabase() {
       <button class="btn small" id="filter-btn" aria-expanded="${st.fpane}" aria-controls="fpane" title="Filter by language, version, category, dates, rating…">Filter${active.length ? `<span class="fbadge">${active.length}</span>` : ""}</button>
       <div class="tools">
         <input type="search" id="filter-q" placeholder="Filter this list" value="${esc(st.q)}" aria-label="Filter this list">
-        <select id="sort" aria-label="Sort">${SORTS.map(([k, l]) => `<option value="${k}" ${(st.listSort?.key || prefs.sort) === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <select id="sort" aria-label="Sort">${sortsFor(kind).map(([k, l]) => `<option value="${k}" ${(st.listSort?.key || prefs.sort) === k ? "selected" : ""}>${l}</option>`).join("")}</select>
         <button class="btn small" id="sortdir" aria-label="Sort direction" title="Sort direction" ${manual ? "disabled" : ""}>${(st.listSort ? st.listSort.desc : prefs.desc) ? "↓" : "↑"}</button>
         ${prefs.layout === "grid" ? `<span class="segsmall" role="group" aria-label="Cover size">${["s", "m", "l"].map(s => `<button id="size-${s}" data-size="${s}" aria-pressed="${prefs.size === s}">${s.toUpperCase()}</button>`).join("")}</span>` : ""}
         <span class="segsmall" role="group" aria-label="Layout"><button id="lay-grid" data-layout="grid" aria-pressed="${prefs.layout === "grid"}">Grid</button><button id="lay-list" data-layout="list" aria-pressed="${prefs.layout === "list"}">List</button></span>
         ${shelf.kind === "manual" && canEdit() ? `<button class="btn small" id="shelf-menu">Collection…</button>` : ""}
-        ${kind === "book" ? `<button class="btn small primary" id="add-book" title="Find a book at Apple Books and Open Library and add it">+ Add book</button>` : ""}
+        ${kind === "book" ? `<button class="btn small primary" id="add-book" title="Find a book at Apple Books and Open Library and add it">+ Add book</button>`
+          : LIB.tmdb ? `<button class="btn small primary" id="add-screen" title="Find it at TMDB and add it">+ Add ${noun(kind, 1)}</button>` : ""}
       </div>
     </div>
     ${active.length ? `<div class="activef" role="group" aria-label="Active filters">${active.map(([k, label]) => `<button class="chip" data-fclear="${esc(k)}" title="Remove this filter">${esc(label)}<span aria-hidden="true">×</span></button>`).join("")}<button class="linkbtn" data-fclear="*">Clear all</button></div>` : ""}
@@ -860,17 +890,21 @@ async function renderTrash() {
 }
 const LIST_COLS = [["cover", "", null], ["title", "Title", "title"], ["author", "Author", "author"], ["status", "Status", "status"], ["rating", "Rating", "rating"],
   ["finished", "Read", "finished"], ["pages", "Pages", "pages"], ["language", "Language", "language"], ["version", "Version", "version"], ["genre", "Genre", "genre"], ["added", "Added", "added"]];
+// a movie's or series' list: the same columns, named for it (the version column says where it was watched)
+const listCols = kind => !SCREEN(kind) ? LIST_COLS : LIST_COLS.map(([c, l, k]) =>
+  [c, {author: makerLabel(kind, 1), finished: "Watched", pages: AMOUNT[kind][0], language: "Original", version: "Where"}[c] || l, c === "version" ? null : k]);
+const amountText = i => amount(i) == null ? "" : i.kind === "movie" ? fmtRuntime(i.runtime) : String(amount(i));
 function listHtml(list, prefs) {
-  const key = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc, edit = canEdit();
+  const key = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc, edit = canEdit(), screen = SCREEN(st.kind);
   if (!edit) st.rowEdit = null;
-  const head = LIST_COLS.map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : `<th></th>${edit ? `<th><span class="sr-only">Edit</span></th>` : ""}`).join("");
+  const head = listCols(st.kind).map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : c !== "cover" ? `<th>${label}</th>` : `<th></th>${edit ? `<th><span class="sr-only">Edit</span></th>` : ""}`).join("");
   return `<div class="listbox"><table class="list"><thead><tr>${head}</tr></thead><tbody>${list.map(i => st.rowEdit === i.id ? rowEditHtml(i) : `<tr data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}">
     <td>${listCover(i)}</td>
     ${edit ? `<td class="acts"><button class="btn small" id="le-edit-${i.id}" data-ledit="${i.id}" aria-label="Edit ${esc(i.title)} here" title="Edit this row">✎</button></td>` : ""}
     <td class="wrap"><b>${esc(i.title)}</b></td><td>${esc(i.authors || "—")}</td>
     <td><span class="dot ${i.status}" style="display:inline-block;margin-right:6px"></span>${esc(statusLabel(i.kind, i.status))}</td>
-    <td class="num">${i.rating ?? ""}</td><td class="num">${i.year ?? ""}</td><td class="num">${i.pages ?? ""}</td>
-    <td>${esc(langName(i.lang))}</td><td>${versionOf(i) ? `<span class="vico">${VICON[versionOf(i)]}</span> ${versionLabel(versionOf(i))}` : ""}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`).join("")}</tbody></table></div>`;
+    <td class="num">${i.rating ?? ""}</td><td class="num">${i.year ?? ""}</td><td class="num">${esc(amountText(i))}</td>
+    <td>${esc(langName(screen ? i.origLang : i.lang))}</td><td>${screen ? esc((i.platforms || []).map(platformName).join(", ")) : versionOf(i) ? `<span class="vico">${VICON[versionOf(i)]}</span> ${versionLabel(versionOf(i))}` : ""}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`).join("")}</tbody></table></div>`;
 }
 const listCover = i => `<button class="lcov" data-open="${i.id}" aria-label="Open ${esc(i.title)}" title="Open the details">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}</button>`;
 // one row as a small form: title, authors, status, rating, pages, language, version (the rest is in the panel)
@@ -881,13 +915,13 @@ function rowEditHtml(i) {
     <td>${listCover(i)}</td>
     <td class="acts"><span class="rowbtns"><button class="btn small primary" data-lesave="${i.id}">Save</button><button class="btn small" data-lecancel="1">Cancel</button></span></td>
     <td><input class="le wide" id="le-title" value="${esc(i.title)}" aria-label="Title" maxlength="1000"></td>
-    <td><input class="le wide" id="le-authors" value="${esc(i.authors)}" aria-label="Authors, separated by commas"></td>
+    <td><input class="le wide" id="le-authors" value="${esc(i.authors)}" aria-label="${makerLabel(i.kind)}, separated by commas"></td>
     <td><select class="le" id="le-status" aria-label="Status">${STATUS_ORDER.map(x => `<option value="${x}" ${i.status === x ? "selected" : ""}>${L[x]}</option>`).join("")}</select></td>
     <td><select class="le num" id="le-rating" aria-label="Rating"><option value="">—</option>${Array.from({length: 11}, (_, n) => `<option ${i.rating != null && Math.round(i.rating) === n ? "selected" : ""}>${n}</option>`).join("")}</select></td>
     <td class="num">${i.year ?? ""}</td>
-    <td>${book ? `<input class="le num" id="le-pages" value="${i.pages ?? ""}" inputmode="numeric" aria-label="Pages">` : ""}</td>
-    <td>${book ? `<select class="le" id="le-lang" aria-label="Language">${langOptions(i.lang)}</select>` : esc(langName(i.lang))}</td>
-    <td>${book ? `<select class="le" id="le-format" aria-label="Version"><option value="">—</option>${fmts}</select>` : ""}</td>
+    <td>${book ? `<input class="le num" id="le-pages" value="${i.pages ?? ""}" inputmode="numeric" aria-label="Pages">` : esc(amountText(i))}</td>
+    <td>${book ? `<select class="le" id="le-lang" aria-label="Language">${langOptions(i.lang)}</select>` : esc(langName(i.origLang))}</td>
+    <td>${book ? `<select class="le" id="le-format" aria-label="Version"><option value="">—</option>${fmts}</select>` : esc((i.platforms || []).map(platformName).join(", "))}</td>
     <td class="lecats"><button type="button" class="le lecat-btn" id="le-cats" aria-expanded="false" aria-haspopup="true" title="Categories">${esc(st.rowCats.join(", ") || "—")} ▾</button></td>
     <td><input type="date" class="le" id="le-added" value="${esc(i.added)}" max="${new Date().toISOString().slice(0, 10)}" aria-label="Added"></td></tr>`;
 }
@@ -965,6 +999,16 @@ function dualHtml(key, label, cur) {
     <div class="dual-val">${dualVals(D, lo, hi, !cur)}</div>`;
 }
 const dualVals = (D, lo, hi, any) => `<b>${esc(D.fmt(D.dom[lo]))}</b><span class="muted">${any ? "any" : ""}</span><b>${esc(D.fmt(D.dom[hi]))}</b>`;
+// a facet of list values (where you watched, countries, tags): the values the items have, most common first
+function facetSec(key, title, items, label, count) {
+  const vals = [...new Set(items.flatMap(i => i[key] || []))];
+  if (!vals.length) return "";
+  const f = FC().f, rows = vals.map(v => [v, count(key, i => (i[key] || []).includes(v))]).sort((a, b) => b[1] - a[1] || String(label(a[0])).localeCompare(String(label(b[0]))));
+  return `<div class="fsec"><h4>${title}</h4><div class="ftoggles">${rows.map(([v, n]) => { const on = (f[key] || []).includes(v);
+    return `<button class="ftog" data-ftog="${key}" data-fval="${esc(v)}" aria-pressed="${on}" ${!n && !on ? "disabled" : ""}>${esc(label(v))}<span class="n">${n}</span></button>`; }).join("")}</div></div>`;
+}
+const COUNTRY = typeof Intl.DisplayNames === "function" ? new Intl.DisplayNames(["en"], {type: "region"}) : null;
+const countryName = c => { try { return (COUNTRY && c ? COUNTRY.of(c) : c) || c || "Not recorded"; } catch (e) { return c; } };
 function renderFilterPane() {
   let p = $("fpane");
   const btn = $(st.sec === "visuals" ? "vfilter-btn" : "filter-btn");
@@ -974,7 +1018,8 @@ function renderFilterPane() {
   const count = (skip, test) => all.filter(i => fMatch(i, skip, f) && test(i)).length;
   const tog = (facet, val, label, n, cls = "") => { const on = f[facet].includes(val);
     return `<button class="ftog ${cls}" data-ftog="${facet}" data-fval="${esc(val)}" aria-pressed="${on}" ${!n && !on ? "disabled" : ""}>${label}<span class="n">${n}</span></button>`; };
-  const isBook = C.page || st.kind === "book", noun = isBook ? "book" : st.kind === "movie" ? "movie" : "series";
+  const isBook = st.kind === "book", screen = SCREEN(st.kind), kindNoun = n => noun(st.kind, n);
+  if (screen) fLang = "olangs";
   const vers = [...VERSIONS.map(([v, l]) => [v, `<span class="vico">${VICON[v]}</span>${l}`]), ["", "Not set"]];
   const field = fLang === "langs" ? "lang" : "origLang";
   const langs = [...new Set(items.map(i => i[field] || ""))].map(c => [c, count(fLang, i => (i[field] || "") === c)])
@@ -991,27 +1036,28 @@ function renderFilterPane() {
   };
   const nums = key => [...new Set(items.map(i => i[key]).filter(x => x != null))].sort((a, b) => a - b);
   const full = (key, dom) => (lo, hi) => { f[key] = lo === 0 && hi === dom.length - 1 ? null : [dom[lo], dom[hi]]; };
-  const pub = nums("published"), pages = nums("pages"), rating = Array.from({length: 11}, (_, n) => n);
+  const pub = nums("published"), pages = [...new Set(items.map(amount).filter(x => x != null))].sort((a, b) => a - b), rating = Array.from({length: 11}, (_, n) => n);
   FDOM.pub = {dom: pub, fmt: fmtYear, set: full("pub", pub)};
-  FDOM.pages = {dom: pages, fmt: n => n + " p.", set: full("pages", pages)};
+  FDOM.pages = {dom: pages, fmt: AMOUNT[st.kind][1], set: full("pages", pages)};
   FDOM.rating = {dom: rating, fmt: n => n + "/10", set: full("rating", rating)};
   const flag = (k, v, label, n) => `<button class="ftog" data-fflag="${k}:${v}" aria-pressed="${f[k] === (k === "review" ? true : v === "1")}" ${!n && f[k] == null ? "disabled" : ""}>${label}<span class="n">${n}</span></button>`;
   const shown = all.filter(i => fMatch(i, null, f)).length;
   p.innerHTML = `<div class="fp-head">${C.page ? "Page filter <span class=\"muted\" style=\"font-weight:400;font-size:12.5px\">all charts</span>" : "Filter"}<button class="xbtn" id="fp-close" aria-label="Close the filter">✕</button></div>
     <div class="fp-body">
-      ${C.page ? `<div class="fsec"><h4>Status</h4><div class="ftoggles">${STATUS_ORDER.map(v => tog("status", v, esc(statusLabel("book", v)), count("status", i => i.status === v))).join("")}</div></div>` : ""}
+      ${C.page ? `<div class="fsec"><h4>Status</h4><div class="ftoggles">${STATUS_ORDER.map(v => tog("status", v, esc(statusLabel(st.kind, v)), count("status", i => i.status === v))).join("")}</div></div>` : ""}
+      ${screen ? facetSec("platforms", "Where you watched", items, platformName, count) + facetSec("countries", "Country", items, countryName, count) + facetSec("tags", "Tags", items, t => t, count) : ""}
       ${isBook ? `<div class="fsec"><h4>Version</h4><div class="ftoggles">${vers.map(([v, l]) => tog("versions", v, l, count("versions", i => (versionOf(i) || "") === v))).join("")}</div></div>` : ""}
-      <div class="fsec"><h4>Language<span class="segsmall" role="group" aria-label="Which language"><button data-flang="langs" aria-pressed="${fLang === "langs"}">${isBook ? "Of the book" : "Audio"}</button><button data-flang="olangs" aria-pressed="${fLang === "olangs"}">Original</button></span></h4>
+      <div class="fsec"><h4>${screen ? "Original language" : `Language<span class="segsmall" role="group" aria-label="Which language"><button data-flang="langs" aria-pressed="${fLang === "langs"}">Of the book</button><button data-flang="olangs" aria-pressed="${fLang === "olangs"}">Original</button></span>`}</h4>
         <div class="ftoggles">${langs.map(([c, n]) => tog(fLang, c, esc(c ? langName(c) : "Not recorded"), n)).join("") || `<span class="muted">—</span>`}</div></div>
       ${tree.length ? `<div class="fsec"><h4>Category</h4>${tree.map(g => `<div class="fcatgrp">${tog("cats", g.id, esc(g.name), count("cats", i => (i.cats || []).some(c => catIds([g.id]).includes(c))), "grp")}${g.subs.filter(c => c.n).map(c => tog("cats", c.id, esc(c.name), count("cats", i => (i.cats || []).includes(c.id)))).join("")}</div>`).join("")}</div>` : ""}
       ${dateSec("read", isBook ? "Read" : "Watched")}
-      <div class="fsec"><h4>Published</h4>${dualHtml("pub", "Published", f.pub)}</div>
+      <div class="fsec"><h4>${isBook ? "Published" : "Released"}</h4>${dualHtml("pub", isBook ? "Published" : "Released", f.pub)}</div>
       <div class="fsec"><h4>Rating</h4>${dualHtml("rating", "Rating", f.rating)}</div>
-      ${isBook ? `<div class="fsec"><h4>Pages</h4>${dualHtml("pages", "Pages", f.pages)}</div>` : ""}
+      <div class="fsec"><h4>${AMOUNT[st.kind][0]}</h4>${dualHtml("pages", AMOUNT[st.kind][0], f.pages)}</div>
       ${dateSec("added", "Added")}
-      ${isBook ? `<div class="fsec"><h4>Other</h4><div class="ftoggles">${flag("file", "1", "Has an EPUB", count("file", i => i.hasFile))}${flag("file", "0", "No EPUB", count("file", i => !i.hasFile))}${flag("review", "1", "Has a review", count("review", i => i.hasReview))}</div></div>` : ""}
+      <div class="fsec"><h4>Other</h4><div class="ftoggles">${isBook ? flag("file", "1", "Has an EPUB", count("file", i => i.hasFile)) + flag("file", "0", "No EPUB", count("file", i => !i.hasFile)) : ""}${flag("review", "1", "Has a review", count("review", i => i.hasReview))}</div></div>
     </div>
-    <div class="fp-foot"><span><b>${shown}</b> ${noun}${shown === 1 || noun === "series" ? "" : "s"}</span><button class="btn small" data-fclear="*" ${activeFilters(f).length ? "" : "disabled"}>Clear all</button></div>`;
+    <div class="fp-foot"><span><b>${shown}</b> ${kindNoun(shown)}</span><button class="btn small" data-fclear="*" ${activeFilters(f).length ? "" : "disabled"}>Clear all</button></div>`;
   p.querySelector(".fp-body").scrollTop = keep;
   btn.setAttribute("aria-expanded", "true");
   if (matchMedia("(max-width: 760px)").matches) { p.style.left = p.style.top = p.style.maxHeight = ""; return; }
@@ -1132,7 +1178,7 @@ async function openBook(btn) {
   await Promise.allSettled(anims.map(x => x.finished));
   done();
 }
-function srcTag(group, col) { const s = st.detail?.prov?.[group]?.[col]; return s ? `<span class="src" title="where this value came from">${esc(SRC[s] || s)}</span>` : ""; }
+function srcTag(group, col) { const s = group === "screen" ? st.detail?.screen?.prov?.[col] : st.detail?.prov?.[group]?.[col]; return s ? `<span class="src" title="where this value came from">${esc(SRC[s] || s)}</span>` : ""; }
 function renderDetail() {
   const el = $("detail"); if (!el) return;
   const d = st.detail;
@@ -1151,8 +1197,8 @@ function renderDetail() {
   el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button>
     <div class="head"><div class="cov">${coverSrc(chosen?.thumb) ? `<img src="${coverSrc(chosen.thumb)}" alt="Cover of ${esc(d.title)}">` : `<span class="ph">no cover</span>`}</div>
       <div style="min-width:0"><h2>${esc(d.title)}</h2>
-        <div>${d.authorsList.map(a => esc(a.name)).join(", ") || `<span class="muted">no author</span>`}</div>
-        <div class="muted" style="font-size:12.5px;margin-top:4px">${[e?.published ? fmtDate(e.published, e.publishedPrecision) : null, e?.pages ? e.pages + " pages" : null, langName(e?.lang)].filter(Boolean).map(esc).join(" · ")}</div>
+        <div>${d.authorsList.map(a => esc(a.name)).join(", ") || `<span class="muted">no ${makerLabel(d.kind, 1).toLowerCase()}</span>`}</div>
+        <div class="muted" style="font-size:12.5px;margin-top:4px">${(SCREEN(d.kind) ? screenFacts(d) : [e?.published ? fmtDate(e.published, e.publishedPrecision) : null, e?.pages ? e.pages + " pages" : null, langName(e?.lang)]).filter(Boolean).map(esc).join(" · ")}</div>
         ${d.locked ? `<div style="margin-top:6px"><span class="pill warn" title="Automated sources may not change it">locked: tts-ereader copy</span></div>` : ""}
       </div></div>
     ${st.err ? `<p class="err">${esc(st.err)}</p>` : ""}
@@ -1165,12 +1211,13 @@ function renderDetail() {
       ${st.editReview ? `<textarea id="rv-text" aria-label="Review">${esc(d.review || "")}</textarea><div class="row-actions"><button class="btn small" id="rv-cancel">Cancel</button><button class="btn small primary" id="rv-save">Save review</button></div>`
         : d.review ? `<div class="review">${esc(d.review)}</div>` : `<p class="muted" style="margin:0">No review.</p>`}</div>
     <div class="d-sec"><h3>${d.kind === "book" ? "Readings" : "Watches"}${edit ? `<button class="btn small" id="rd-add">Add</button>` : ""}</h3>${readingsHtml(d, edit)}</div>
-    <div class="d-sec"><h3>Details${edit && !st.editing ? `${d.kind === "book" && !d.locked ? `<button class="btn small" id="ed-fill" title="Look up Apple Books and Open Library and fill only the empty fields">Fill missing</button>` : ""}<button class="btn small" id="ed-edit" style="margin-left:4px">Edit</button>` : ""}</h3>${st.editing ? editForm(d) : detailsHtml(d)}</div>
-    ${d.kind === "book" ? `<div class="d-sec"><h3>Collections</h3><div class="shelfchecks">${d.shelves.map(s => `<label><input type="checkbox" id="sh-${s.id}" data-shelfcheck="${s.id}" ${s.member ? "checked" : ""} ${edit && s.kind !== "all" ? "" : "disabled"}> ${esc(s.kind === "all" ? "All books" : s.name)}</label>`).join("")}${d.shelves.length < 2 ? `<span class="muted">Create a collection in the left pane.</span>` : ""}</div></div>` : ""}
-    <div class="d-sec"><h3>Cover${edit ? `<button class="btn small" id="cv-upload" title="JPEG, PNG or WebP, up to 15 MB">Upload a cover</button>` : ""}</h3>
+    ${d.kind === "series" && d.screen?.seasons?.length ? `<div class="d-sec"><h3>Seasons</h3>${seasonsHtml(d)}</div>` : ""}
+    <div class="d-sec"><h3>Details${edit && !st.editing ? `${d.kind === "book" && !d.locked ? `<button class="btn small" id="ed-fill" title="Look up Apple Books and Open Library and fill only the empty fields">Fill missing</button>` : SCREEN(d.kind) && LIB.tmdb && !d.locked ? `<button class="btn small" id="ed-fill" title="Look it up at TMDB and fill only the empty fields">Fill missing</button>` : ""}<button class="btn small" id="ed-edit" style="margin-left:4px">Edit</button>` : ""}</h3>${st.editing ? editForm(d) : SCREEN(d.kind) ? screenDetailsHtml(d) : detailsHtml(d)}</div>
+    <div class="d-sec"><h3>Collections</h3><div class="shelfchecks">${d.shelves.map(s => `<label><input type="checkbox" id="sh-${s.id}" data-shelfcheck="${s.id}" ${s.member ? "checked" : ""} ${edit && s.kind !== "all" ? "" : "disabled"}> ${esc(s.kind === "all" ? "All " + noun(d.kind) : s.name)}</label>`).join("")}${d.shelves.length < 2 ? `<span class="muted">Create a collection in the left pane.</span>` : ""}</div></div>
+    <div class="d-sec"><h3>${SCREEN(d.kind) ? "Poster" : "Cover"}${edit ? `<button class="btn small" id="cv-upload" title="JPEG, PNG or WebP, up to 15 MB">Upload ${SCREEN(d.kind) ? "a poster" : "a cover"}</button>` : ""}</h3>
       ${d.covers.length ? `<div class="covers">${d.covers.map(c => `<button id="cv-${c.id}" data-cover="${c.id}" aria-pressed="${c.chosen}" ${edit ? "" : "disabled"} title="${esc(c.note || "")}">
       <div class="cov">${coverSrc(c.thumb) ? `<img src="${coverSrc(c.thumb)}" alt="">` : `<span class="ph">${esc(SRC[c.source] || c.source)}<br>not downloaded</span>`}</div>${esc(SRC[c.source] || c.source)}${c.chosen ? " · used" : ""}</button>`).join("")}</div>
-      <p class="muted" style="font-size:12px;margin:6px 0 0">Click a cover to use it.</p>` : `<p class="muted" style="margin:0">No cover yet.</p>`}
+      <p class="muted" style="font-size:12px;margin:6px 0 0">Click ${SCREEN(d.kind) ? "a poster" : "a cover"} to use it.</p>` : `<p class="muted" style="margin:0">No ${SCREEN(d.kind) ? "poster" : "cover"} yet.</p>`}
       <input type="file" id="cv-file" accept="image/jpeg,image/png,image/webp" hidden></div>
     ${d.kind === "book" ? `<div class="d-sec"><h3>Ebook files${edit ? `<button class="btn small" id="fl-upload" title="An .epub file, up to 500 MB">Upload EPUB</button>` : ""}</h3>
       ${d.files.length ? d.files.map(f => `<div class="reading"><span>${esc(f.format.toUpperCase())} · ${f.mb} MB${f.storage === "cwa" ? ` <span class="src">in CWA</span>` : ""}</span>
@@ -1192,24 +1239,65 @@ function versionHtml(d, edit) {
 }
 const mediumLabel = m => (FORMATS.find(f => f[0] === m)?.[1] || m || "").toLowerCase();
 function readingsHtml(d, edit) {
-  const L = LABEL[d.kind];
-  const rows = d.readings.map(r => st.readingEdit === r.id ? readingForm(r) : `<div class="reading"><span>${esc(L[r.state] || r.state)}${r.ended ? " " + esc(fmtDate(r.ended, r.endedPrecision)) : ""}${r.endedPrecision === "year" ? ` <span class="muted">(year only)</span>` : ""}</span>
-    <span class="sub">${[r.started ? "started " + fmtDate(r.started, r.startedPrecision) : null, r.lang ? "in " + langName(r.lang) : null, r.medium ? "as " + mediumLabel(r.medium) : null, r.progress != null ? r.progress + "%" : null, r.note].filter(Boolean).map(esc).join(" · ")}${r.source !== "owner" ? `<span class="src">${esc(SRC[r.source] || r.source)}</span>` : ""}</span>
+  const L = LABEL[d.kind], eps = r => { const s = (d.screen?.seasons || []).find(x => x.number === r.season); return r.episodes != null ? r.episodes + (s?.episodes ? "/" + s.episodes : "") + " episodes" : null; };
+  const rows = d.readings.map(r => st.readingEdit === r.id ? readingForm(r) : `<div class="reading"><span>${r.season != null ? `<b>Season ${r.season}</b> · ` : ""}${esc(L[r.state] || r.state)}${r.ended ? " " + esc(fmtDate(r.ended, r.endedPrecision)) : ""}${r.endedPrecision === "year" ? ` <span class="muted">(year only)</span>` : ""}</span>
+    <span class="sub">${[r.started && r.started !== r.ended ? "started " + fmtDate(r.started, r.startedPrecision) : null, eps(r), r.platform ? "on " + platformName(r.platform) : null, r.lang ? "in " + langName(r.lang) : null, r.medium ? "as " + mediumLabel(r.medium) : null, r.progress != null ? r.progress + "%" : null, r.note].filter(Boolean).map(esc).join(" · ")}${r.source !== "owner" ? `<span class="src">${esc(SRC[r.source] || r.source)}</span>` : ""}</span>
     ${edit ? `<span class="acts"><button class="btn small" id="rd-e-${r.id}" data-redit="${r.id}">Edit</button></span>` : ""}</div>`).join("");
   return (st.readingEdit === "new" ? readingForm(null) : "") + (rows || (st.readingEdit === "new" ? "" : `<p class="muted" style="margin:0">None yet.</p>`));
 }
 function langOptions(sel) { return `<option value="">—</option>` + Object.entries(LIB.languages).sort((a, b) => a[1].localeCompare(b[1])).map(([c, n]) => `<option value="${c}" ${c === sel ? "selected" : ""}>${esc(n)}</option>`).join(""); }
 function readingForm(r) {
-  const L = LABEL[st.detail.kind], id = r ? r.id : "new";
+  const d = st.detail, L = LABEL[d.kind], id = r ? r.id : "new", screen = SCREEN(d.kind);
+  const seasons = (d.screen?.seasons || []).map(s => `<option value="${s.number}" ${r?.season === s.number ? "selected" : ""}>${esc(s.number ? "Season " + s.number : s.name)}${s.episodes ? " · " + s.episodes + " ep." : ""}</option>`).join("");
   return `<form class="rform" id="rform" data-rid="${id}">
     <label class="full">State<select id="rf-state">${["completed", "in_progress", "paused", "dropped"].map(s => `<option value="${s}" ${(r?.state || "completed") === s ? "selected" : ""}>${L[s]}</option>`).join("")}</select></label>
     <label>Started <input id="rf-started" placeholder="YYYY, YYYY-MM or YYYY-MM-DD" value="${esc(partial(r?.started, r?.startedPrecision))}" inputmode="numeric"></label>
     <label>Finished <input id="rf-ended" placeholder="YYYY, YYYY-MM or YYYY-MM-DD" value="${esc(partial(r?.ended, r?.endedPrecision))}" inputmode="numeric"></label>
-    <label>Read in<select id="rf-lang">${langOptions(r?.lang)}</select></label>
-    <label>Read as<select id="rf-medium"><option value="">—</option>${FORMATS.map(([c, l]) => `<option value="${c}" ${(r ? r.medium : st.detail.edition?.format) === c ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    ${screen ? `${d.kind === "series" ? `<label>Season<select id="rf-season"><option value="">The whole series</option>${seasons}</select></label>
+    <label>Episodes seen <input id="rf-episodes" value="${r?.episodes ?? ""}" inputmode="numeric"></label>` : ""}
+    <label class="${d.kind === "series" ? "full" : ""}">Where<select id="rf-platform"><option value="">—</option>${(LIB.platforms || []).map(([c, l]) => `<option value="${c}" ${r?.platform === c ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`
+    : `<label>Read in<select id="rf-lang">${langOptions(r?.lang)}</select></label>
+    <label>Read as<select id="rf-medium"><option value="">—</option>${FORMATS.map(([c, l]) => `<option value="${c}" ${(r ? r.medium : st.detail.edition?.format) === c ? "selected" : ""}>${l}</option>`).join("")}</select></label>`}
     <label class="full">Note <input id="rf-note" value="${esc(r?.note || "")}" maxlength="2000"></label>
     <div class="row-actions full">${r ? `<button type="button" class="btn small danger" id="rf-delete">Delete</button>` : ""}<span style="flex:1"></span><button type="button" class="btn small" id="rf-cancel">Cancel</button><button type="submit" class="btn small primary">Save</button></div>
   </form>`;
+}
+// a movie's or series' line under the title: year, runtime or seasons, original language
+function screenFacts(d) {
+  const x = d.screen || {}, y = (x.released || d.item.firstPublished || "").slice(0, 4);
+  if (d.kind === "movie") return [y, fmtRuntime(x.runtime), langName(d.item.originalLang)];
+  const span = y && x.lastAired && x.lastAired.slice(0, 4) !== y ? y + "–" + (x.status === "ended" || x.status === "canceled" ? x.lastAired.slice(0, 4) : "") : y;
+  return [span, x.seasonCount ? x.seasonCount + " season" + (x.seasonCount === 1 ? "" : "s") : null, langName(d.item.originalLang)];
+}
+function screenDetailsHtml(d) {
+  const x = d.screen || {}, it = d.item, tag = col => srcTag("screen", col);
+  const row = (label, value, src) => value ? `<dt>${label}</dt><dd>${value}${src || ""}</dd>` : "";
+  const STATUS = {returning: "Still running", ended: "Ended", canceled: "Canceled"};
+  return `<dl class="kv">
+    ${row(makerLabel(d.kind, d.authorsList.length), esc(d.authorsList.map(a => a.name).join(", ")))}
+    ${row("Cast", esc((x.cast || []).join(", ")))}
+    ${row("Original", esc([it.originalTitle, langName(it.originalLang)].filter(Boolean).join(" · ")), srcTag("item", "original_language"))}
+    ${row(d.kind === "movie" ? "Released" : "First aired", esc(x.released ? fmtKey(x.released) : fmtDate(it.firstPublished, it.firstPublishedPrecision)), x.released ? tag(d.kind === "movie" ? "release_date" : "first_air_date") : srcTag("item", "first_published"))}
+    ${d.kind === "series" ? row("Last aired", esc(x.lastAired ? fmtKey(x.lastAired) : ""), tag("last_air_date")) + row("Status", esc(STATUS[x.status] || ""), tag("status"))
+      + row("Episodes", esc([x.seasonCount ? x.seasonCount + " season" + (x.seasonCount === 1 ? "" : "s") : null, x.episodeCount ? x.episodeCount + " episodes" : null, x.episodeRuntime ? "about " + fmtRuntime(x.episodeRuntime) + " each" : null].filter(Boolean).join(" · ")), tag("episode_count"))
+      : row("Runtime", esc(fmtRuntime(x.runtime)), tag("runtime_min"))}
+    ${row("Country", esc((x.countries || []).map(countryName).join(", ")), tag("origin_countries"))}
+    ${d.genreList.length ? `<dt>Genres</dt><dd class="tags">${d.genreList.map(g => `<span class="tag genre">${esc(g)}</span>`).join("")}</dd>` : ""}
+    ${d.tagList.length ? `<dt>Tags</dt><dd class="tags">${d.tagList.map(g => `<span class="tag">${esc(g)}</span>`).join("")}</dd>` : ""}
+    ${row("Added", esc(d.added))}
+  </dl>${it.description ? `<details class="more" style="margin-top:8px"><summary>Overview</summary><p class="desc">${esc(it.description)}</p></details>` : ""}`;
+}
+// a series' seasons: each with its poster, episodes and what you did with it
+function seasonsHtml(d) {
+  const L = LABEL.series;
+  return `<div class="seasons">${d.screen.seasons.map(s => {
+    const w = s.watches[s.watches.length - 1], done = w && w.state === "completed", st0 = w ? L[w.state] : "Not watched";
+    const sub = [s.episodes ? (w?.episodes != null ? w.episodes + "/" : "") + s.episodes + " episodes" : null, s.aired ? s.aired.slice(0, 4) : null,
+      w?.platform ? platformName(w.platform) : null, w?.ended ? fmtKey(w.ended.slice(0, 7)) : null].filter(Boolean);
+    return `<div class="season${w ? "" : " unseen"}">${coverSrc(s.poster) ? `<img src="${coverSrc(s.poster)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}
+      <span><b>${esc(s.number ? "Season " + s.number : s.name)}</b>${s.name && s.number && !/^season \d+$/i.test(s.name) ? ` <span class="muted">${esc(s.name)}</span>` : ""}
+      <br><span class="pill ${done ? "ok" : w ? "warn" : "plain"}">${esc(st0)}</span> <span class="muted" style="font-size:12px">${esc(sub.join(" · "))}</span></span></div>`;
+  }).join("")}</div>`;
 }
 function detailsHtml(d) {
   const e = d.edition, it = d.item;
@@ -1241,10 +1329,10 @@ function editForm(d) {
   const inp = (id, label, value, attrs = "") => `<label for="${id}">${label}</label><input id="${id}" value="${esc(value ?? "")}" ${attrs}>`;
   return `<form class="form" id="edform">
     ${inp("ef-title", "Title", it.title, 'required maxlength="1000"')}
-    <label for="ef-authors">Authors</label><input id="ef-authors" value="${esc(d.authorsList.map(a => a.name).join("; "))}" placeholder="Separate with ;">
+    <label for="ef-authors">${makerLabel(d.kind)}</label><input id="ef-authors" value="${esc(d.authorsList.map(a => a.name).join("; "))}" placeholder="Separate with ;">
     ${inp("ef-otitle", "Original title", it.originalTitle)}
     <label for="ef-olang">Original lang.</label><select id="ef-olang">${langOptions(it.originalLang)}</select>
-    ${inp("ef-first", "First published", partial(it.firstPublished, it.firstPublishedPrecision), 'placeholder="YYYY" inputmode="numeric"')}
+    ${inp("ef-first", SCREEN(d.kind) ? "Released" : "First published", partial(it.firstPublished, it.firstPublishedPrecision), 'placeholder="YYYY" inputmode="numeric"')}
     ${d.edition ? `${inp("ef-etitle", "Edition title", e.title)}
     ${inp("ef-sub", "Subtitle", e.subtitle)}
     <label for="ef-lang">Language</label><select id="ef-lang">${langOptions(e.lang)}</select>
@@ -1302,7 +1390,7 @@ document.addEventListener("click", async e => {
   if (t.id === "ra-showpw" || t.dataset.showpw !== undefined) { await act(async () => { st.readerPw = (await api.readerPassword()).password; renderSync(); }); return; }
   if (t.dataset.linkdoc) { const item = $("ld-" + t.dataset.linkdoc)?.value; if (!item) { toast("Pick a book first", true); return; }
     await act(async () => { await api.linkDocument(t.dataset.linkdoc, item); await loadReading(); render(); }, "Linked: the next sync updates that book"); return; }
-  if (t.dataset.gobook) { st.sec = "database"; st.kind = "book"; st.shelf = allShelf("book")?.id; save("sec", st.sec); render(); return openDetail(t.dataset.gobook); }
+  if (t.dataset.gobook) { const k = LIB.items.find(i => i.id === t.dataset.gobook)?.kind || "book"; st.sec = "database"; st.kind = k; st.shelf = allShelf(k)?.id; save("sec", st.sec); render(); return openDetail(t.dataset.gobook); }
   if (t.dataset.kind) { st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; st.f = NOF(); saveF(); st.view = "shelf"; st.pick = null; save("kind", st.kind);
     if (st.sec === "visuals" && st.vtab === "library") st.LSTATS = null; render(); return; }
   if (t.dataset.shelf) { st.shelf = t.dataset.shelf; st.filter = "all"; st.selected = null; st.listSort = null; st.view = "shelf"; save("shelf", st.shelf); render(); return; }
@@ -1328,6 +1416,10 @@ document.addEventListener("click", async e => {
   if (t.id === "shelf-menu") return shelfMenu();
   if (t.dataset.addtab) return addTab(t.dataset.addtab);
   if (t.id === "add-book") { if (!canEdit()) return act(() => 0); return addPanel(); }
+  if (t.id === "add-screen") { if (!canEdit()) return act(() => 0); return addScreenPanel(); }
+  if (t.dataset.tmadd) { const kind = st.kind, status = $("tm-status").value;
+    await act(async () => { const r = await api.tmdbAdd(kind, +t.dataset.tmadd, status); LIB = await api.library();
+      toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }); return; }
   if (t.dataset.addidx !== undefined) { const status = $("ad-status").value, format = $("ad-version").value || null;
     await act(async () => { const r = await api.add(addState.token, +t.dataset.addidx, status, format); LIB = await api.library();
       toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }); return; }
@@ -1386,6 +1478,14 @@ document.addEventListener("submit", async e => {
     catch (er) { box.innerHTML = `<p class="err">${esc(er.message)}</p>`; }
     return;
   }
+  if (f.id === "tmform") {
+    const box = $("tm-results"), q = $("tm-title").value.trim(), year = $("tm-year").value.trim();
+    if (!q) return;
+    box.innerHTML = `<p class="muted">Looking it up at TMDB…</p>`;
+    try { const r = await api.tmdbSearch(st.kind, q, year || null); box.innerHTML = tmdbCandidates(r.candidates); }
+    catch (er) { box.innerHTML = `<p class="err">${esc(er.message)}</p>`; }
+    return;
+  }
   if (f.id === "handform") {
     const body = {title: $("mh-title").value, authors: $("mh-authors").value, language: $("mh-lang").value, published: $("mh-pub").value.trim(),
       pages: $("mh-pages").value.trim(), publisher: $("mh-publisher").value, isbn: $("mh-isbn").value.trim(), status: $("mh-status").value, format: $("mh-version").value || null};
@@ -1395,9 +1495,12 @@ document.addEventListener("submit", async e => {
   if (f.id === "newshelf") { const name = $("newshelf-name").value.trim(); if (!name) return;
     await act(async () => { const r = await api.newShelf(name, st.kind); LIB = await api.library(); st.shelf = r.id; render(); }, "Collection created"); return; }
   if (f.id === "rform") {
-    const body = {state: $("rf-state").value, started: $("rf-started").value.trim(), ended: $("rf-ended").value.trim(), lang: $("rf-lang").value, medium: $("rf-medium").value, note: $("rf-note").value.trim()};
+    const body = {state: $("rf-state").value, started: $("rf-started").value.trim(), ended: $("rf-ended").value.trim(), note: $("rf-note").value.trim()};
+    if ($("rf-lang")) Object.assign(body, {lang: $("rf-lang").value, medium: $("rf-medium").value});
+    if ($("rf-platform")) body.platform = $("rf-platform").value;
+    if ($("rf-season")) Object.assign(body, {season: $("rf-season").value, episodes: $("rf-season").value ? $("rf-episodes").value.trim() : ""});
     const rid = f.dataset.rid;
-    if (await act(async () => { if (rid === "new") await api.addReading(id, body); else await api.editReading(rid, body); await afterItemChange(); }, "Reading saved")) st.readingEdit = null;
+    if (await act(async () => { if (rid === "new") await api.addReading(id, body); else await api.editReading(rid, body); await afterItemChange(); }, SCREEN(st.detail?.kind) ? "Watch saved" : "Reading saved")) st.readingEdit = null;
     renderDetail(); return;
   }
   if (f.id === "edform") {
@@ -1493,6 +1596,31 @@ function addPanel() {
     </form>
     </div>`;
   $("ad-title").focus();
+}
+// add a movie or series: search TMDB (title, and the year when the title is common), pick the right one
+function addScreenPanel() {
+  const kind = st.kind, L = LABEL[kind];
+  st.selected = "__add"; renderDatabase();
+  const d = $("detail"); d.hidden = false; $("lib").classList.add("withdetail");
+  d.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button><h2>Add a ${noun(kind, 1)}</h2>
+    <p class="muted" style="font-size:12.5px;margin:4px 0 12px">Searches TMDB. Its poster, ${kind === "movie" ? "director, runtime" : "creators, seasons"}, cast, genres and countries come with it, each value remembering it came from TMDB.</p>
+    <form class="form" id="tmform">
+      <label for="tm-title">Title</label><input id="tm-title" autocomplete="off">
+      <label for="tm-year">Year</label><input id="tm-year" inputmode="numeric" autocomplete="off" placeholder="helps with common titles">
+      <label for="tm-status">Add as</label><select id="tm-status"><option value="planned">${L.planned}</option><option value="in_progress">${L.in_progress} (from today)</option><option value="completed">${L.completed} (today)</option></select>
+      <div class="row-actions full"><button type="submit" class="btn small primary">Search</button></div>
+    </form>
+    <div id="tm-results" style="margin-top:12px"></div>`;
+  $("tm-title").focus();
+}
+function tmdbCandidates(cands) {
+  if (!cands.length) return `<p class="muted">Nothing found. Try the original title, or the English one.</p>`;
+  return cands.map(c => `<div class="reading" style="grid-template-columns:48px minmax(0,1fr) auto">
+    <div style="grid-row:span 2">${c.poster_url ? `<img src="${esc(c.poster_url)}" alt="" style="width:48px;height:72px;object-fit:cover;border-radius:2px 4px 4px 2px" loading="lazy" referrerpolicy="no-referrer">` : `<span class="noimg" style="display:block;width:48px;height:72px;background:var(--sunk)"></span>`}</div>
+    <span><b>${esc(c.title)}</b>${c.year ? ` <span class="muted">${c.year}</span>` : ""}${c.original_title ? `<br><span class="muted" style="font-size:12px">${esc(c.original_title)}</span>` : ""}</span>
+    <span class="acts" style="grid-row:span 2;grid-column:3"><button class="btn small primary" id="tm-pick-${c.tmdb}" data-tmadd="${c.tmdb}">Add</button></span>
+    <span class="sub" style="grid-column:2">${esc((c.overview || "").slice(0, 160))}${(c.overview || "").length > 160 ? "…" : ""}</span>
+  </div>`).join("");
 }
 const versionSelect = (id, sel) => `<select id="${id}"><option value="">Not set</option>${VERSIONS.map(([, label, code]) => `<option value="${code}" ${sel === code ? "selected" : ""}>${label}</option>`).join("")}</select>`;
 function addTab(tab) {
@@ -1755,7 +1883,7 @@ function shareCard(id, title, note, rows, colName) {
 // ---------------------------------------------------- what the charts count
 // Every chart counts the books the page filter leaves (VB); a Read date in the filter also limits which readings
 // count. A reading: [ended, precision, read in, pages, medium].
-const VB = () => LIB.items.filter(i => i.kind === "book" && fMatch(i, null, st.vf));
+const VB = () => LIB.items.filter(i => i.kind === st.kind && fMatch(i, null, st.vf));
 function readsIn(i) {
   const r = st.vf.read; if (!r) return i.reads || [];
   return (i.reads || []).filter(x => x[0] && G_RANK[x[1]] >= G_RANK[r.g] && x[0].slice(0, G_LEN[r.g]) >= r.from && x[0].slice(0, G_LEN[r.g]) <= r.to);
@@ -1777,6 +1905,9 @@ const PICK_TEST = {
   author: (i, v) => wasRead(i) && authorsOf(i).includes(v),
   genre: (i, v) => wasRead(i) && i.genres.includes(v),
   readin: (i, v) => readsIn(i).some(r => (r[2] || "") === v),
+  platform: (i, v) => readsIn(i).some(r => (r[4] || "") === v),
+  country: (i, v) => wasRead(i) && ((i.countries || [])[0] || "") === v,
+  lcountry: (i, v) => ((i.countries || [])[0] || "") === v,
   original: (i, v) => wasRead(i) && (i.origLang || "") === v,
   lcat: (i, v) => (i.cats || []).some(c => catName(c) === v),
   llang: (i, v) => (i.origLang || "") === v,
@@ -1790,12 +1921,12 @@ function pickList(p) {
 }
 function pickCard() {
   const p = st.pick, list = pickList(p);
-  return `<div class="card wide pick" id="card-pick" aria-live="polite"><h3>${esc(p.label)} <span class="muted">${list.length} book${list.length === 1 ? "" : "s"}</span>
+  return `<div class="card wide pick" id="card-pick" aria-live="polite"><h3>${esc(p.label)} <span class="muted">${list.length} ${noun(st.kind, list.length)}</span>
       ${p.dim !== "day" ? `<button class="btn small" id="pick-db" title="Open the Database with these books filtered">Show in Database</button>` : `<span style="margin-left:auto"></span>`}<button class="xbtn" id="pick-x" aria-label="Clear the selection">✕</button></h3>
     ${list.length ? `<div class="pickshelf">${list.map(i => `<button class="pb" data-gobook="${i.id}" title="${esc(i.title)}${i.authors ? " — " + esc(i.authors) : ""}">
       <div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}</div>
       <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span></button>`).join("")}</div>`
-      : `<p class="muted" style="margin:0">No book with a date or value to match here.</p>`}</div>`;
+      : `<p class="muted" style="margin:0">Nothing with a date or value to match here.</p>`}</div>`;
 }
 // the same books in the Database: the page filter and the pick become the shelf's filters
 function pickToDatabase(p) {
@@ -1811,10 +1942,12 @@ function pickToDatabase(p) {
   else if (p.dim === "readin") many("langs", p.vals || [v]);
   else if (p.dim === "original" || p.dim === "llang") many("olangs", p.vals || [v]);
   else if (p.dim === "lversion") many("versions", p.vals || [v]);
+  else if (p.dim === "platform") many("platforms", (p.vals || [v]).filter(Boolean));
+  else if (p.dim === "country" || p.dim === "lcountry") many("countries", (p.vals || [v]).filter(Boolean));
   else if (p.dim === "lreleased") f.pub = v === "Antiquity" ? [-5000, 499] : v === "Before 1700" ? [500, 1699] : +v.slice(0, 4) < 1900 ? [+v.slice(0, 4), +v.slice(0, 4) + 99] : [+v.slice(0, 4), +v.slice(0, 4) + 9];
-  if (["author", "genre", "original"].includes(p.dim) && !f.status.length && !f.read) f.status = ["completed"];
+  if (["author", "genre", "original", "country"].includes(p.dim) && !f.status.length && !f.read) f.status = ["completed"];
   if (f.status.length === 1) { filter = f.status[0]; f.status = []; }
-  Object.assign(st, {f, q, filter, sec: "database", kind: "book", shelf: allShelf("book")?.id, view: "shelf", selected: null, listSort: null});
+  Object.assign(st, {f, q, filter, sec: "database", kind: st.kind, shelf: allShelf(st.kind)?.id, view: "shelf", selected: null, listSort: null});
   saveF(); save("sec", st.sec); render(); scrollTo({top: 0});
 }
 
@@ -1845,7 +1978,9 @@ function calendarCard(books) {
     : st.cal === "all" ? years.map(y => heatmap(counts, y + "-01-01", y === thisYear ? today : y + "-12-31", y)).join("")
     : heatmap(counts, st.cal + "-01-01", st.cal === thisYear ? today : st.cal + "-12-31");
   const tools = `<select id="cal-span" aria-label="Calendar span" style="margin-left:auto"><option value="last" ${st.cal === "last" ? "selected" : ""}>Last 12 months</option>${years.map(y => `<option ${st.cal === y ? "selected" : ""}>${y}</option>`).join("")}<option value="all" ${st.cal === "all" ? "selected" : ""}>All years</option></select>`;
-  return card("calendar", "Reading calendar", counts.size ? "Days you started, finished or made progress. Click a day for its books." : "Fills in from now on: dated starts, finishes and Readest progress. The imported readings have no days.", body, null, true, tools);
+  const screen = SCREEN(st.kind);
+  return card("calendar", screen ? "Watching calendar" : "Reading calendar", counts.size ? `Days you started${screen ? " or finished a " + (st.kind === "movie" ? "movie" : "season") : ", finished or made progress"}. Click a day for what it was.`
+    : screen ? "Fills in from watches with a day." : "Fills in from now on: dated starts, finishes and Readest progress. The imported readings have no days.", body, null, true, tools);
 }
 
 // ------------------------------------------------------- reading over time
@@ -1873,21 +2008,23 @@ function timeData(books) {
   const keys = [...counts.keys()].sort(), now = new Date().toISOString().slice(0, G_LEN[g]);
   const dom = keys.length ? keyRange(keys[0], keys[keys.length - 1] > now ? keys[keys.length - 1] : now, g) : [];
   let run = 0;
-  const series = dom.map(k => { const e = counts.get(k) || {books: 0, pages: 0}; run += e[T.metric]; return {k, v: e[T.metric], cum: run, e}; });
+  const per = e => SCREEN(st.kind) && T.metric === "pages" ? Math.round(e.pages / 60) : e[T.metric];   // minutes -> hours
+  const series = dom.map(k => { const e = counts.get(k) || {books: 0, pages: 0}; run += per(e); return {k, v: per(e), cum: run, e}; });
   const ax = T.axis[g], lo = ax ? Math.max(0, dom.findIndex(k => k >= ax[0])) : 0, hiF = ax ? dom.findLastIndex(k => k <= ax[1]) : dom.length - 1;
   return {g, dom, series, hidden, lo, hi: hiF < lo ? dom.length - 1 : hiF, counts};
 }
 function timePlot(D) {
-  const T = st.time, g = D.g, unit = T.metric === "pages" ? "pages" : "books";
-  if (!D.dom.length) return `<p class="muted">No readings dated to the ${g} with this filter. Add the month or day when you edit a reading; new readings get their day.</p>`;
+  const T = st.time, g = D.g, screen = SCREEN(st.kind);
+  const unit = T.metric === "pages" ? (screen ? "hours" : "pages") : screen ? (st.kind === "movie" ? "movies" : "seasons") : "books";
+  if (!D.dom.length) return `<p class="muted">No ${screen ? "watches" : "readings"} dated to the ${g} with this filter.${screen ? "" : " Add the month or day when you edit a reading; new readings get their day."}</p>`;
   const rows = D.series.slice(D.lo, D.hi + 1), short = D.hi - D.lo < 24;
   const label = k => g === "year" ? k : g === "month" ? MONTHS[k.slice(5, 7) - 1] + " ’" + k.slice(2, 4) : `${+k.slice(8, 10)} ${MONTHS[k.slice(5, 7) - 1]}${short ? "" : " ’" + k.slice(2, 4)}`;
   const band = {year: 34, month: 26, day: 11}[g], avail = Math.max(300, ($("v-visuals")?.clientWidth || 900) - 34);
   return columnChart("ch-time", rows.map(r => {
     const v = T.cum ? r.cum : r.v;
     return {label: label(r.k), value: v, tip: `<b>${fmtNum(v)}</b> ${unit} ${T.cum ? "up to" : "·"} ${esc(fmtKey(r.k))}`,
-      pick: T.cum ? {dim: "upto", val: g + "@" + r.k, label: "Read up to " + fmtKey(r.k), from: "time"} : {dim: "period", val: g + "@" + r.k, label: "Read in " + fmtKey(r.k), from: "time"}};
-  }), {aria: `${unit} read per ${g}`, width: Math.max(avail, 34 + rows.length * band), sig: [g, T.metric, T.cum, D.lo, D.hi].join("|")});
+      pick: T.cum ? {dim: "upto", val: g + "@" + r.k, label: (screen ? "Watched" : "Read") + " up to " + fmtKey(r.k), from: "time"} : {dim: "period", val: g + "@" + r.k, label: (screen ? "Watched" : "Read") + " in " + fmtKey(r.k), from: "time"}};
+  }), {aria: `${unit} per ${g}`, width: Math.max(avail, 34 + rows.length * band), sig: [g, T.metric, T.cum, D.lo, D.hi].join("|")});
 }
 function timeCard(books) {
   const T = st.time, D = timeData(books), g = D.g;
@@ -1897,12 +2034,13 @@ function timeCard(books) {
       D.lo = lo; D.hi = hi; const el = $("time-plot"); if (el) el.innerHTML = timePlot(D);
     }, done: () => save("time2", st.time)};
   const axis = D.dom.length > 1 ? `<div class="axisctl"><span class="muted">X axis</span><div style="flex:1;min-width:180px">${dualHtml("axis", "X axis", T.axis[g])}</div>${T.axis[g] ? `<button class="linkbtn" data-tm="axis:reset">Full range</button>` : ""}</div>` : "";
-  const ctl = `<div class="ctlrow">${seg("metric", [["books", "Books"], ["pages", "Pages"]])}${seg("cum", [["false", "Per period"], ["true", "Cumulative"]])}${seg("g", [["year", "Year"], ["month", "Month"], ["day", "Day"]])}</div>`;
-  const note = (D.hidden ? `${D.hidden} reading${D.hidden === 1 ? "" : "s"} known to the ${g === "day" ? "year or month" : "year"} only ${D.hidden === 1 ? "isn't" : "aren't"} in this view. ` : "")
-    + (T.metric === "pages" ? "Pages of the edition read, where known. " : "") + "Click a bar for its books.";
-  const title = (T.metric === "pages" ? "Pages" : "Books") + " read over time" + (T.cum ? " (cumulative)" : "");
+  const screen = SCREEN(st.kind), what = screen ? (st.kind === "movie" ? "Movies" : "Seasons") : "Books", much = screen ? "Hours" : "Pages";
+  const ctl = `<div class="ctlrow">${seg("metric", [["books", what], ["pages", much]])}${seg("cum", [["false", "Per period"], ["true", "Cumulative"]])}${seg("g", [["year", "Year"], ["month", "Month"], ["day", "Day"]])}</div>`;
+  const note = (D.hidden ? `${D.hidden} ${screen ? "watch" + (D.hidden === 1 ? "" : "es") : "reading" + (D.hidden === 1 ? "" : "s")} known to the ${g === "day" ? "year or month" : "year"} only ${D.hidden === 1 ? "isn't" : "aren't"} in this view. ` : "")
+    + (T.metric === "pages" ? (screen ? "Runtime of what you watched, where known. " : "Pages of the edition read, where known. ") : "") + "Click a bar for what it was.";
+  const title = (T.metric === "pages" ? much : what) + (screen ? " watched" : " read") + " over time" + (T.cum ? " (cumulative)" : "");
   return card("time", title, note, ctl + axis + `<div id="time-plot">${timePlot(D)}</div>`,
-    ctl + tableView(["Period", "Books", "Pages"], D.dom.slice(D.lo, D.hi + 1).filter(k => D.counts.has(k)).map(k => [fmtKey(k), D.counts.get(k).books, D.counts.get(k).pages])), true);
+    ctl + tableView(["Period", what, much], D.dom.slice(D.lo, D.hi + 1).filter(k => D.counts.has(k)).map(k => [fmtKey(k), D.counts.get(k).books, screen ? Math.round(D.counts.get(k).pages / 60) : D.counts.get(k).pages])), true);
 }
 
 // ----------------------------------------------------------------- pages
@@ -1914,39 +2052,45 @@ function visualsHead(kindLabel, vtabs) {
 }
 const vtile = (label, value, sub) => `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>`;
 function renderVisuals() {
-  const v = $("v-visuals"), kindLabel = KINDS.find(k => k[0] === st.kind)[1];
-  if (st.kind !== "book") {
-    const n = LIB.items.filter(i => i.kind === st.kind).length;
-    v.innerHTML = `<div class="toolbar"><h2>${kindLabel}</h2></div><div class="card"><h3>Nothing to chart yet</h3><p class="note">${n} ${kindLabel.toLowerCase()} in the library, none watched yet. Statistics appear here once you log a watch.</p></div>`;
-    return;
-  }
-  const vtabs = `<span class="segsmall" role="group" aria-label="Which statistics"><button id="vt-me" data-vtab="me" aria-pressed="${st.vtab !== "library"}">My reading</button><button id="vt-library" data-vtab="library" aria-pressed="${st.vtab === "library"}">The library</button></span>`;
+  const v = $("v-visuals"), kind = st.kind, kindLabel = KINDS.find(k => k[0] === kind)[1], screen = SCREEN(kind);
+  const vtabs = `<span class="segsmall" role="group" aria-label="Which statistics"><button id="vt-me" data-vtab="me" aria-pressed="${st.vtab !== "library"}">${screen ? "My watching" : "My reading"}</button><button id="vt-library" data-vtab="library" aria-pressed="${st.vtab === "library"}">The library</button></span>`;
   const books = VB(), head = visualsHead(kindLabel, vtabs);
   if (st.vtab === "library") return renderLibraryStats(v, head, books);
+  // what one "read" is: a book read, a movie watched, a season of a series watched
+  const unit = n => screen ? (kind === "movie" ? noun("movie", n) : "season" + (n === 1 ? "" : "s")) : noun("book", n);
+  const did = screen ? "Watched" : "Read", doing = screen ? "Watching" : "Reading";
   const year = String(new Date().getFullYear()), reads = books.flatMap(i => readsIn(i).map(r => ({i, r})));
   const yr = reads.filter(x => x.r[0].startsWith(year)), rated = yr.filter(x => x.i.rating != null);
   const firstYear = reads.map(x => x.r[0].slice(0, 4)).sort()[0];
   const pk = (dim, val, label, from) => ({dim, val: String(val ?? ""), label, from});
   const lang = c => c ? langName(c) : "not recorded";
   const ratingRows = Array.from({length: 11}, (_, b) => { const n = books.filter(i => i.rating != null && Math.floor(i.rating) === b).length;
-    return {label: String(b), value: n, tip: `<b>${n}</b> books rated ${b}`, pick: pk("rating", b, "Rated " + b + "/10", "ratings")}; });
+    return {label: String(b), value: n, tip: `<b>${n}</b> ${noun(kind, n)} rated ${b}`, pick: pk("rating", b, "Rated " + b + "/10", "ratings")}; });
   const readBooks = books.filter(wasRead);
   const shares = (id, dim, pairs, label) => tally(pairs).map(r => ({label: r.label, value: r.value, pick: pk(dim, r.key, label(r.label), id)}));
   const current = books.filter(i => ["in_progress", "paused"].includes(i.status));
+  const makers = makerLabel(kind).toLowerCase();
   const cards = [
     ["time", timeCard(books)],
-    ["ratings", card("ratings", "Ratings", "Your 0–10 ratings, one per book.", columnChart("ch-ratings", ratingRows, {aria: "Rating distribution"}),
-      tableView(["Rating", "Books"], ratingRows.map(r => [r.label, r.value])))],
-    ["authors", shareCard("authors", "Most read authors", "Books read by each author.", shares("authors", "author", readBooks.flatMap(i => authorsOf(i).map(a => [a, a])), l => "Read: " + l), "Author")],
-    ["genres", shareCard("genres", "Genres", "Books read with each genre.", shares("genres", "genre", readBooks.flatMap(i => i.genres.map(g => [g, g])), l => "Read: " + l), "Genre")],
-    ["readin", shareCard("readin", "Language you read in", "Readings, by the language you read them in.", shares("readin", "readin", reads.map(x => [x.r[2] || "", lang(x.r[2])]), l => "Read in " + l), "Language")],
-    ["original", shareCard("original", "Original language", "Books read, by the language they were written in.", shares("original", "original", readBooks.map(i => [i.origLang || "", lang(i.origLang)]), l => "Read, written in " + l), "Language")],
+    ["ratings", card("ratings", "Ratings", `Your 0–10 ratings, one per ${noun(kind, 1)}.`, columnChart("ch-ratings", ratingRows, {aria: "Rating distribution"}),
+      tableView(["Rating", NOUN[kind][1].replace(/^./, c => c.toUpperCase())], ratingRows.map(r => [r.label, r.value])))],
+    ["authors", shareCard("authors", screen ? "Most watched " + makers : "Most read authors", `${NOUN[kind][1].replace(/^./, c => c.toUpperCase())} ${did.toLowerCase()} by each ${makerLabel(kind, 1).toLowerCase()}.`,
+      shares("authors", "author", readBooks.flatMap(i => authorsOf(i).map(a => [a, a])), l => did + ": " + l), makerLabel(kind, 1))],
+    ["genres", shareCard("genres", "Genres", `${NOUN[kind][1].replace(/^./, c => c.toUpperCase())} ${did.toLowerCase()} with each genre.`, shares("genres", "genre", readBooks.flatMap(i => i.genres.map(g => [g, g])), l => did + ": " + l), "Genre")],
+    ...(screen ? [
+      ["platform", shareCard("platform", "Where you watched", `${unit(2).replace(/^./, c => c.toUpperCase())} watched, by the service or place.`, shares("platform", "platform", reads.map(x => [x.r[4] || "", x.r[4] ? platformName(x.r[4]) : "not recorded"]), l => "Watched on " + l), "Where")],
+      ["country", shareCard("country", "Country", `${NOUN[kind][1].replace(/^./, c => c.toUpperCase())} watched, by the country they come from.`, shares("country", "country", readBooks.flatMap(i => (i.countries || []).slice(0, 1).map(c => [c, countryName(c)])), l => "Watched, from " + l), "Country")],
+    ] : [
+      ["readin", shareCard("readin", "Language you read in", "Readings, by the language you read them in.", shares("readin", "readin", reads.map(x => [x.r[2] || "", lang(x.r[2])]), l => "Read in " + l), "Language")],
+    ]),
+    ["original", shareCard("original", "Original language", `${NOUN[kind][1].replace(/^./, c => c.toUpperCase())} ${did.toLowerCase()}, by their original language.`, shares("original", "original", readBooks.map(i => [i.origLang || "", lang(i.origLang)]), l => did + ", in " + l), "Language")],
     ["calendar", calendarCard(books)],
-    ["current", card("current", "Reading now", "", current.length ? current.map(c => `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.title)}</b><span class="muted">${c.progress != null ? Math.round(c.progress) + "%" : ""}</span></div><div class="muted" style="font-size:12px">${esc(c.authors || "")}</div>${c.progress != null ? `<div class="meter"><div style="width:${c.progress}%"></div></div>` : ""}</div>`).join("") : `<p class="muted">Nothing in progress${activeFilters(st.vf).length ? " among these books" : ". Mark a book as Reading to see it here"}.</p>`, null)],
+    ["current", card("current", doing + " now", "", current.length ? current.map(c => `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.title)}</b><span class="muted">${c.progress != null ? Math.round(c.progress) + "%" : ""}</span></div><div class="muted" style="font-size:12px">${esc(c.authors || "")}</div>${c.progress != null ? `<div class="meter"><div style="width:${c.progress}%"></div></div>` : ""}</div>`).join("") : `<p class="muted">Nothing in progress${activeFilters(st.vf).length ? " among these" : ". Mark one as " + doing + " to see it here"}.</p>`, null)],
   ];
-  paintVisuals(v, head + `<div class="tiles">${vtile("Read in " + year, yr.length, "books")}${vtile("Pages in " + year, yr.reduce((a, x) => a + (x.r[3] || 0), 0).toLocaleString("en"), "")}
-      ${vtile("Average rating " + year, rated.length ? (Math.round(rated.reduce((a, x) => a + x.i.rating, 0) / rated.length * 100) / 100) + "/10" : "—", "of the books rated")}${vtile("Read in total", reads.length, firstYear ? "since " + firstYear : "")}
-      ${vtile("To read", books.filter(i => i.status === "planned").length, "")}${vtile("Reading now", current.length, "")}</div>`, cards);
+  const amountYr = yr.reduce((a, x) => a + (x.r[3] || 0), 0);
+  paintVisuals(v, head + `<div class="tiles">${vtile(did + " in " + year, yr.length, unit(yr.length))}${screen ? vtile("Hours in " + year, Math.round(amountYr / 60).toLocaleString("en"), "where the runtime is known") : vtile("Pages in " + year, amountYr.toLocaleString("en"), "")}
+      ${vtile("Average rating " + year, rated.length ? (Math.round(rated.reduce((a, x) => a + x.i.rating, 0) / rated.length * 100) / 100) + "/10" : "—", "of the " + NOUN[kind][1] + " rated")}${vtile(did + " in total", reads.length, firstYear ? unit(reads.length) + " since " + firstYear : unit(reads.length))}
+      ${vtile(statusLabel(kind, "planned"), books.filter(i => i.status === "planned").length, "")}${vtile(doing + " now", current.length, "")}</div>`, cards);
 }
 // draws the cards with the picked bar's books after its chart, and keeps the sideways scroll of the time chart
 function paintVisuals(v, head, cards) {
@@ -1959,6 +2103,7 @@ function paintVisuals(v, head, cards) {
   if (st.fpane && !fDrag) renderFilterPane();
 }
 function renderLibraryStats(v, head, books) {
+  const kind = st.kind, screen = SCREEN(kind), Noun = NOUN[kind][1].replace(/^./, c => c.toUpperCase());
   const pk = (dim, val, label, from) => ({dim, val: String(val ?? ""), label, from});
   const lang = c => c ? langName(c) : "not recorded";
   const shares = (id, dim, pairs, label) => tally(pairs).map(r => ({label: r.label, value: r.value, pick: pk(dim, r.key, label(r.label), id)}));
@@ -1969,14 +2114,15 @@ function renderLibraryStats(v, head, books) {
     .sort((a, b) => ({Antiquity: -1000, "Before 1700": 1000}[a.key] ?? parseInt(a.key)) - ({Antiquity: -1000, "Before 1700": 1000}[b.key] ?? parseInt(b.key)));
   const cards = [
     ["lcats", shareCard("lcats", "Categories", groups.map(g => `${esc(g.label)} ${g.value}`).join(" · ") || "No categories yet.", cats, "Category")],
-    ["llang", shareCard("llang", "Original language", "The language each book was written in.", shares("llang", "llang", books.map(i => [i.origLang || "", lang(i.origLang)]), l => "Written in " + l), "Language")],
-    ["lversion", shareCard("lversion", "Version", "Paper, ebook or audiobook: the edition you have, else how you last read it.", shares("lversion", "lversion", books.map(i => [versionOf(i) || "", versionLabel(versionOf(i))]), l => l === "Not set" ? "Version not set" : l), "Version")],
-    ["lauthors", shareCard("lauthors", "Authors", "Books in the library by each author.", shares("lauthors", "lauthor", books.flatMap(i => authorsOf(i).map(a => [a, a])), l => l), "Author")],
-    ["lreleased", card("lreleased", "Released", "First published (or this edition's year), by decade.", columnChart("ch-released", released.map(r => ({label: r.label, value: r.value, tip: `<b>${r.value}</b> books · ${esc(r.label)}`, pick: pk("lreleased", r.key, "Released: " + r.label, "lreleased")})), {aria: "Books by release decade"}),
-      tableView(["Released", "Books"], released.map(r => [r.label, r.value])))],
+    ["llang", shareCard("llang", "Original language", `The language each ${noun(kind, 1)} was ${screen ? "made" : "written"} in.`, shares("llang", "llang", books.map(i => [i.origLang || "", lang(i.origLang)]), l => (screen ? "Made in " : "Written in ") + l), "Language")],
+    ...(screen ? [["lcountry", shareCard("lcountry", "Country", `Where each ${noun(kind, 1)} comes from (its first country).`, shares("lcountry", "lcountry", books.map(i => [(i.countries || [])[0] || "", countryName((i.countries || [])[0])]), l => "From " + l), "Country")]]
+      : [["lversion", shareCard("lversion", "Version", "Paper, ebook or audiobook: the edition you have, else how you last read it.", shares("lversion", "lversion", books.map(i => [versionOf(i) || "", versionLabel(versionOf(i))]), l => l === "Not set" ? "Version not set" : l), "Version")]]),
+    ["lauthors", shareCard("lauthors", makerLabel(kind), `${Noun} in the library by each ${makerLabel(kind, 1).toLowerCase()}.`, shares("lauthors", "lauthor", books.flatMap(i => authorsOf(i).map(a => [a, a])), l => l), makerLabel(kind, 1))],
+    ["lreleased", card("lreleased", "Released", screen ? "Released (first aired), by decade." : "First published (or this edition's year), by decade.", columnChart("ch-released", released.map(r => ({label: r.label, value: r.value, tip: `<b>${r.value}</b> ${noun(kind, r.value)} · ${esc(r.label)}`, pick: pk("lreleased", r.key, "Released: " + r.label, "lreleased")})), {aria: Noun + " by release decade"}),
+      tableView(["Released", Noun], released.map(r => [r.label, r.value])))],
   ];
-  paintVisuals(v, head + `<div class="tiles">${vtile("Books", books.length, activeFilters(st.vf).length ? "with this filter" : "in the library")}${vtile("Authors", authors.size, "")}
-      ${vtile("Original languages", new Set(books.map(i => i.origLang).filter(Boolean)).size, "")}${vtile("Categories", cats.length, "")}
+  paintVisuals(v, head + `<div class="tiles">${vtile(Noun, books.length, activeFilters(st.vf).length ? "with this filter" : "in the library")}${vtile(makerLabel(kind), authors.size, "")}
+      ${vtile("Original languages", new Set(books.map(i => i.origLang).filter(Boolean)).size, "")}${screen ? vtile("Countries", new Set(books.flatMap(i => i.countries || [])).size, "") : vtile("Categories", cats.length, "")}
       ${vtile("Released", years.length ? fmtYear(Math.min(...years)) + "–" + Math.max(...years) : "—", books.length - years.length ? books.length - years.length + " without a year" : "oldest to newest")}</div>`, cards);
 }
 function choosePick(el) {

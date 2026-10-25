@@ -36,6 +36,7 @@ from .. import db, migrate
 from ..covers import CoverStore
 from ..feeds import kosync
 from ..fill import service as fill_service
+from ..fill import tmdb as tmdb_mod
 from . import auth as auth_mod
 from . import opds, queries, reader, writes
 
@@ -48,7 +49,8 @@ SHA_RE = re.compile(r"^/thumbs/([0-9a-f]{64})-(\d+)\.jpg$")
 COVER_RE = re.compile(r"^/covers/([0-9a-f]{2})/([0-9a-f]{64})\.(jpg|png|webp)$")
 UUID = r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
-       " img-src 'self' data: https://*.mzstatic.com https://covers.openlibrary.org https://books.google.com;"
+       " img-src 'self' data: https://*.mzstatic.com https://covers.openlibrary.org https://books.google.com"
+       " https://image.tmdb.org;"
        " frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 # The EPUB reader (web/reader.js): book sections render in blob: iframes that inherit this policy, which is
 # what keeps a book's own scripts from running. No 'unsafe-inline' scripts; frame-ancestors 'self' (Safari).
@@ -61,7 +63,9 @@ DOC = r"([0-9a-f]{32})"
 FRIENDLY = {
     "consumption_dates_ordered": "A reading can't finish before it started.",
     "consumption_open_has_no_end": "A reading in progress has no finish date.",
-    "consumption_one_open": "This book already has a reading in progress.",
+    "consumption_one_open": "This one already has a reading or watch in progress.",
+    "consumption_season_of_series": "That season is not one of this series'.",
+    "consumption_episodes_need_season": "Episodes go with a season.",
     "consumption_started_ok": "Start date: use YYYY, YYYY-MM or YYYY-MM-DD.",
     "consumption_ended_ok": "Finish date: use YYYY, YYYY-MM or YYYY-MM-DD.",
     "shelf_name": "There is already a collection with that name.",
@@ -89,6 +93,7 @@ class App:
         self.find = self.saved_find() or self.find_default
         self.store = CoverStore(cfg.media_dir, log=lambda *_: None)
         self.fill = fill_service.make(cfg.media_dir, self.store)
+        self.tmdb = tmdb_mod.Tmdb(fill_service.http_fetcher(os.path.join(cfg.media_dir, "cache", "http")), tmdb_mod.api_key())
         self.cookie_secure = cookie_secure
         self.cookie_name = "__Host-ml_session" if cookie_secure else "ml_session"
         self.thumb_lock = threading.Lock()
@@ -232,7 +237,8 @@ def make_handler(app):
                     return self.session()
                 if path == "/api/library":
                     with app.pool.connection() as conn:
-                        return self.send(200, dict(queries.library(conn), google=app.fill.google.available, **app.find_payload()))
+                        return self.send(200, dict(queries.library(conn), google=app.fill.google.available,
+                                                   tmdb=app.tmdb.available, **app.find_payload()))
                 if path == "/api/trash":
                     with app.pool.connection() as conn:
                         return self.send(200, {"items": queries.trash(conn, writes.TRASH_DAYS), "days": writes.TRASH_DAYS})
@@ -669,8 +675,29 @@ def make_handler(app):
                         conn, login, req.get("token"), req.get("index"), req.get("status") or "planned"), req))
                 m = re.fullmatch(r"/api/items/" + UUID + r"/fill", path)
                 if m and method == "POST":
-                    res = app.fill.fill_missing(conn, login, m.group(1))
+                    kind = writes.ids_for(conn, m.group(1))["kind"]
+                    if kind in ("movie", "series"):
+                        if not app.tmdb.available:
+                            raise writes.BadRequest("TMDB is off: put an API key in secrets/tmdb.key")
+                        res = writes.fill_screen(conn, login, m.group(1), app.tmdb, app.store)
+                    else:
+                        res = app.fill.fill_missing(conn, login, m.group(1))
                     return self.send(200, dict(res, item=queries.detail(conn, m.group(1))))
+                if path in ("/api/tmdb/search", "/api/tmdb/add") and method == "POST":
+                    if not app.tmdb.available:
+                        raise writes.BadRequest("TMDB is off: put an API key in secrets/tmdb.key")
+                    kind = req.get("kind")
+                    if kind not in ("movie", "series"):
+                        raise writes.BadRequest("kind must be movie or series")
+                    if path.endswith("/search"):
+                        year = writes.whole(req.get("year"), "year", 1870, 2100)
+                        return self.send(200, {"candidates": app.tmdb.search(kind, writes.text(req.get("query"), "title", required=True), year)})
+                    d = app.tmdb.details(kind, writes.whole(req.get("tmdb"), "TMDB id", 1, 10**12))
+                    if not d:
+                        raise writes.BadRequest("TMDB doesn't know that one")
+                    from .. import screen
+                    covers = writes.screen_posters(app.store, kind, screen.parse(kind, d))
+                    return self.send(200, writes.add_screen(conn, login, kind, d, covers, req.get("status") or "planned"))
                 m = re.fullmatch(r"/api/items/" + UUID + r"/(status|readings|cover)", path)
                 if m and method == "POST":
                     action = {"status": writes.set_status, "readings": writes.add_reading}.get(m.group(2))

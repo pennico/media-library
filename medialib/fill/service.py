@@ -80,7 +80,7 @@ def http_fetcher(cache_dir, pause=0.4, timeout=20):
                 time.sleep(pause)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path + ".tmp", "w", encoding="utf-8") as fh:      # never an API key on disk
-            json.dump({"url": re.sub(r"([?&]key=)[^&]+", r"\1…", url), "at": time.time(), "body": body}, fh)
+            json.dump({"url": re.sub(r"([?&](?:api_)?key=)[^&]+", r"\1…", url), "at": time.time(), "body": body}, fh)
         os.replace(path + ".tmp", path)
         return body
     return fetch

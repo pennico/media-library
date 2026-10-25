@@ -12,15 +12,27 @@ PROVIDER_URL = {
     "apple_books": "https://books.apple.com/book/id{}",
 }
 
+# The people shown with an item: a book's authors, a movie's directors, a series' creators.
+MAKER_ROLE = "CASE i.kind WHEN 'movie' THEN 'director' WHEN 'series' THEN 'creator' ELSE 'author' END"
+
 LIBRARY = """
 SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locked, i.original_language,
        e.status, e.rating, e.added_at, e.review IS NOT NULL AS has_review,
        ed.pages, ed.language, ed.format, extract(year FROM ed.published_on)::int AS published,
-       extract(year FROM i.first_published)::int AS first_published,
+       extract(year FROM coalesce(i.first_published, mv.release_date, sr.first_air_date))::int AS first_published,
+       mv.runtime_min, sr.season_count, sr.episode_runtime_min, coalesce(mv.origin_countries, sr.origin_countries) AS countries,
        (SELECT string_agg(p.name, ', ' ORDER BY ct.position) FROM catalog.contribution ct
-          JOIN catalog.person p ON p.id = ct.person_id WHERE ct.item_id = i.id AND ct.role = 'author') AS authors,
+          JOIN catalog.person p ON p.id = ct.person_id WHERE ct.item_id = i.id AND ct.role = """ + MAKER_ROLE + """) AS authors,
        (SELECT p.sort_name FROM catalog.contribution ct JOIN catalog.person p ON p.id = ct.person_id
-         WHERE ct.item_id = i.id AND ct.role = 'author' ORDER BY ct.position LIMIT 1) AS author_sort,
+         WHERE ct.item_id = i.id AND ct.role = """ + MAKER_ROLE + """ ORDER BY ct.position LIMIT 1) AS author_sort,
+       (SELECT array_agg(t.name::text ORDER BY it.position) FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id
+         WHERE it.item_id = i.id AND t.kind = 'tag' AND t.deleted_at IS NULL) AS tags,
+       (SELECT array_agg(DISTINCT c.platform::text) FROM library.consumption c
+         WHERE c.item_id = i.id AND c.platform IS NOT NULL AND c.deleted_at IS NULL) AS platforms,
+       (SELECT jsonb_build_object('done', count(DISTINCT c.season_id) FILTER (WHERE c.state = 'completed'),
+                                  'dropped', count(DISTINCT c.season_id) FILTER (WHERE c.state = 'dropped'))
+          FROM library.consumption c WHERE c.item_id = i.id AND c.season_id IS NOT NULL AND c.deleted_at IS NULL
+        ) AS season_watches,
        (SELECT array_agg(t.name::text ORDER BY it.position) FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id
          WHERE it.item_id = i.id AND t.kind = 'genre' AND t.deleted_at IS NULL) AS genres,
        (SELECT array_agg(it.tag_id ORDER BY it.position) FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id
@@ -36,10 +48,18 @@ SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locke
        (SELECT c.medium FROM library.consumption c
          WHERE c.item_id = i.id AND c.medium IS NOT NULL AND c.deleted_at IS NULL
          ORDER BY coalesce(c.ended_on, c.started_on) DESC NULLS LAST, c.id DESC LIMIT 1) AS medium,
-       -- the finished readings, for the date filter and the charts: [ended, precision, read in, pages, medium]
-       (SELECT jsonb_agg(jsonb_build_array(c.ended_on, c.ended_precision, c.language, coalesce(ce.pages, ed.pages), c.medium)
+       -- the finished readings / watches, for the date filter and the charts:
+       -- books [ended, precision, read in, pages, medium]; movies and series [ended, precision, language,
+       -- minutes (the runtime, or the episodes seen times the episode runtime), platform, season]
+       (SELECT jsonb_agg(CASE WHEN i.kind = 'book'
+                              THEN jsonb_build_array(c.ended_on, c.ended_precision, c.language, coalesce(ce.pages, ed.pages), c.medium)
+                              ELSE jsonb_build_array(c.ended_on, c.ended_precision, c.language,
+                                                     coalesce(mv.runtime_min, c.episodes * sr.episode_runtime_min,
+                                                              ss.episode_count * sr.episode_runtime_min),
+                                                     c.platform, ss.season_number) END
                          ORDER BY c.ended_on, c.id)
           FROM library.consumption c LEFT JOIN catalog.edition ce ON ce.id = c.edition_id AND ce.deleted_at IS NULL
+          LEFT JOIN catalog.season ss ON ss.item_id = c.season_id
          WHERE c.item_id = i.id AND c.state = 'completed' AND c.ended_on IS NOT NULL AND c.deleted_at IS NULL) AS reads,
        -- days with dated activity (start, finish, progress), as stats.activity_days counts them, for the calendar
        (SELECT jsonb_agg(d.day ORDER BY d.day) FROM (
@@ -53,6 +73,8 @@ SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locke
   FROM catalog.media_item i
   JOIN library.entry e ON e.item_id = i.id AND e.deleted_at IS NULL
   LEFT JOIN catalog.edition ed ON ed.work_id = i.id AND ed.is_primary AND ed.deleted_at IS NULL
+  LEFT JOIN catalog.movie mv ON mv.item_id = i.id
+  LEFT JOIN catalog.series sr ON sr.item_id = i.id
   LEFT JOIN catalog.cover cv ON cv.is_chosen AND cv.deleted_at IS NULL AND (cv.edition_id = ed.id OR cv.item_id = i.id)
  WHERE i.deleted_at IS NULL
 """
@@ -90,6 +112,9 @@ def summary(r):
         "hasReview": r["has_review"], "cover": thumb_url(r["cover_sha"], 320),
         "cats": r["cat_ids"] or [], "hasFile": r["has_file"], "format": r["format"], "medium": r["medium"],
         "reads": r["reads"] or [], "days": r["days"] or [],
+        "runtime": r["runtime_min"], "seasons": r["season_count"], "episodeRuntime": r["episode_runtime_min"],
+        "seasonWatches": r["season_watches"] if r["season_watches"] and any(r["season_watches"].values()) else None,
+        "countries": r["countries"] or [], "tags": r["tags"] or [], "platforms": sorted(r["platforms"] or []),
     }
 
 
@@ -98,7 +123,8 @@ def library(conn):
     shelves = [{k: (r[k] if k != "id_pub" else None) for k in r if k not in ("id", "id_pub")} | {"id": r["id_pub"]}
                for r in conn.execute(SHELVES).fetchall()]
     langs = {r["code"]: r["name_en"] for r in conn.execute("SELECT code, name_en FROM catalog.language")}
-    return {"items": items, "shelves": shelves, "languages": langs, "categories": categories(conn),
+    platforms = [[r["code"], r["label"]] for r in conn.execute("SELECT code, label FROM library.platform ORDER BY position")]
+    return {"items": items, "shelves": shelves, "languages": langs, "platforms": platforms, "categories": categories(conn),
             "trash": conn.execute("SELECT count(*) AS n FROM catalog.media_item WHERE deleted_at IS NOT NULL"
                                   " AND kind IN ('book', 'movie', 'series')").fetchone()["n"]}
 
@@ -138,7 +164,7 @@ def labels(prov):
     return {k: v.get("src") for k, v in (prov or {}).items() if isinstance(v, dict) and k != "_row"}
 
 
-def history(conn, iid, edition_ids, reading_ids, limit=60):
+def history(conn, iid, edition_ids, reading_ids, kind="book", limit=60):
     rows = conn.execute("""
         SELECT at, occurred_at, table_name, op, old_row, new_values, client, source, reason
           FROM audit.change
@@ -151,8 +177,8 @@ def history(conn, iid, edition_ids, reading_ids, limit=60):
     out = []
     skip = {"updated_at", "provenance", "created_at", "id", "public_id", "item_id", "work_id"}
     for r in rows:
-        what = {"catalog.media_item": "book", "library.entry": "your entry", "catalog.edition": "edition",
-                "library.consumption": "reading"}[r["table_name"]]
+        what = {"catalog.media_item": {"book": "book", "series": "series"}.get(kind, kind), "library.entry": "your entry",
+                "catalog.edition": "edition", "library.consumption": "reading" if kind == "book" else "watch"}[r["table_name"]]
         changes = {}
         if r["op"] == "U":
             for k, v in (r["new_values"] or {}).items():
@@ -184,12 +210,15 @@ def detail(conn, pid):
     files = conn.execute("""SELECT f.public_id::text AS id, f.format, f.size_bytes, f.kosync_md5, f.rel_path, f.storage, f.added_at
                               FROM catalog.edition_file f
                              WHERE f.edition_id = ANY(%s) AND f.deleted_at IS NULL ORDER BY f.id""", (ed_ids or [0],)).fetchall()
-    reads = conn.execute("""SELECT id, public_id::text AS id_pub, state, started_on, started_precision, ended_on,
-                                   ended_precision, language, medium, note, source, progress_pct, progress_pages
-                              FROM library.consumption WHERE item_id = %s AND deleted_at IS NULL
-                             ORDER BY coalesce(ended_on, started_on, 'infinity'::date) DESC, id DESC""", (iid,)).fetchall()
+    reads = conn.execute("""SELECT c.id, c.public_id::text AS id_pub, c.state, c.started_on, c.started_precision, c.ended_on,
+                                   c.ended_precision, c.language, c.medium, c.note, c.source, c.progress_pct, c.progress_pages,
+                                   c.episodes, c.platform, s.season_number
+                              FROM library.consumption c LEFT JOIN catalog.season s ON s.item_id = c.season_id
+                             WHERE c.item_id = %s AND c.deleted_at IS NULL
+                             ORDER BY coalesce(c.ended_on, c.started_on, 'infinity'::date) DESC, c.id DESC""", (iid,)).fetchall()
+    maker = {"movie": "director", "series": "creator"}.get(it["kind"], "author")
     people = conn.execute("""SELECT p.name, p.sort_name FROM catalog.contribution ct JOIN catalog.person p ON p.id = ct.person_id
-                              WHERE ct.item_id = %s AND ct.role = 'author' ORDER BY ct.position""", (iid,)).fetchall()
+                              WHERE ct.item_id = %s AND ct.role = %s ORDER BY ct.position""", (iid, maker)).fetchall()
     tags = conn.execute("""SELECT t.id, t.kind, t.name FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id
                             WHERE it.item_id = %s AND t.deleted_at IS NULL ORDER BY t.kind, it.position""", (iid,)).fetchall()
     shelves = conn.execute("""SELECT s.public_id::text AS id, s.name, s.kind,
@@ -220,8 +249,10 @@ def detail(conn, pid):
         "readings": [{"id": r["id_pub"], "state": r["state"], "started": iso(r["started_on"]),
                       "startedPrecision": r["started_precision"], "ended": iso(r["ended_on"]),
                       "endedPrecision": r["ended_precision"], "lang": r["language"], "medium": r["medium"], "note": r["note"],
-                      "source": r["source"], "progress": float(r["progress_pct"]) if r["progress_pct"] is not None else None}
+                      "source": r["source"], "progress": float(r["progress_pct"]) if r["progress_pct"] is not None else None,
+                      "season": r["season_number"], "episodes": r["episodes"], "platform": r["platform"]}
                      for r in reads],
+        "screen": screen_detail(conn, iid, it["kind"]),
         "ids": [{"p": x["provider"], "v": x["value"], "url": PROVIDER_URL.get(x["provider"], "").format(x["value"]) or None,
                  "src": x["source"]} for x in ids if x["edition_id"] in (None, primary["id"] if primary else None)],
         "covers": [{"id": c["id"], "source": c["source"], "chosen": c["is_chosen"], "note": c["note"],
@@ -233,9 +264,46 @@ def detail(conn, pid):
         "prov": {"item": labels(it["provenance"]), "entry": labels(en["provenance"]),
                  "edition": labels(primary["provenance"]) if primary else {}},
         "shelves": [dict(s) for s in shelves],
-        "history": history(conn, iid, ed_ids, [r["id"] for r in reads]),
+        "history": history(conn, iid, ed_ids, [r["id"] for r in reads], it["kind"]),
     })
     return d
+
+
+def screen_detail(conn, iid, kind):
+    """A movie's or series' own facts: dates, runtime, countries, cast, and a series' seasons with their watches."""
+    if kind == "movie":
+        m = conn.execute("SELECT release_date, runtime_min, origin_countries, provenance FROM catalog.movie WHERE item_id = %s",
+                         (iid,)).fetchone()
+        base = {"released": iso(m["release_date"]), "runtime": m["runtime_min"], "countries": m["origin_countries"] or []} if m else {}
+        prov = labels(m["provenance"]) if m else {}
+    elif kind == "series":
+        m = conn.execute("""SELECT first_air_date, last_air_date, status, origin_countries, season_count, episode_count,
+                                   episode_runtime_min, provenance FROM catalog.series WHERE item_id = %s""", (iid,)).fetchone()
+        base = {"released": iso(m["first_air_date"]), "lastAired": iso(m["last_air_date"]), "status": m["status"],
+                "countries": m["origin_countries"] or [], "seasonCount": m["season_count"], "episodeCount": m["episode_count"],
+                "episodeRuntime": m["episode_runtime_min"]} if m else {}
+        prov = labels(m["provenance"]) if m else {}
+    else:
+        return None
+    cast = conn.execute("""SELECT p.name FROM catalog.contribution ct JOIN catalog.person p ON p.id = ct.person_id
+                            WHERE ct.item_id = %s AND ct.role = 'cast' ORDER BY ct.position""", (iid,)).fetchall()
+    base.update(cast=[c["name"] for c in cast], prov=prov, seasons=[])
+    if kind == "series":
+        rows = conn.execute("""
+            SELECT s.item_id, s.season_number, i.title, s.air_date, s.episode_count,
+                   (SELECT cv.sha256 FROM catalog.cover cv WHERE cv.item_id = s.item_id AND cv.is_chosen
+                       AND cv.deleted_at IS NULL LIMIT 1) AS poster,
+                   (SELECT jsonb_agg(jsonb_build_object('state', c.state, 'episodes', c.episodes, 'ended', c.ended_on,
+                                                        'started', c.started_on, 'platform', c.platform)
+                                     ORDER BY c.ended_on NULLS FIRST)
+                      FROM library.consumption c WHERE c.season_id = s.item_id AND c.deleted_at IS NULL) AS watches
+              FROM catalog.season s JOIN catalog.media_item i ON i.id = s.item_id
+             WHERE s.series_id = %s ORDER BY s.season_number""", (iid,)).fetchall()
+        base["seasons"] = [{"number": r["season_number"], "name": r["title"], "aired": iso(r["air_date"]),
+                            "episodes": r["episode_count"], "poster": thumb_url(r["poster"], 320),
+                            "watches": r["watches"] or []}
+                           for r in rows if r["season_number"] > 0 or r["watches"]]
+    return base
 
 
 def stats(ro, kind="book"):

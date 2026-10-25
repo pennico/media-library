@@ -3,6 +3,7 @@
     python -m medialib bootstrap                 # superuser, once per cluster
     python -m medialib migrate [--check]
     python -m medialib import SNAPSHOT_DIR [--apply] [--offline] [--out DIR]
+    python -m medialib import-watch FILE.json [--apply] [--offline] [--out DIR]
     python -m medialib serve [--host 0.0.0.0] [--port 8099]
     python -m medialib joplin (--dir DIR | --tar FILE|-) [--apply] [--offline]
     python -m medialib adopt-files SNAPSHOT_DIR [--apply]
@@ -27,6 +28,11 @@ def main(argv=None):
     i.add_argument("--apply", action="store_true", help="commit (default: dry run, rolled back)")
     i.add_argument("--offline", action="store_true", help="no downloads; only cached/local covers")
     i.add_argument("--out", default="out", help="report directory")
+    w = sub.add_parser("import-watch", help="import movies/series and their watches (dry run unless --apply)")
+    w.add_argument("file", help="a medialib-watch JSON file (DESIGN.md §15.3)")
+    w.add_argument("--apply", action="store_true", help="commit (default: dry run, rolled back)")
+    w.add_argument("--offline", action="store_true", help="no poster downloads; only cached ones")
+    w.add_argument("--out", default="out", help="report directory")
     s = sub.add_parser("serve", help="run the console (page + API)")
     s.add_argument("--host", default="0.0.0.0")
     s.add_argument("--port", type=int, default=8099)
@@ -64,6 +70,12 @@ def main(argv=None):
         if result.get("failed"):
             return 2
         print("committed" if result.get("committed") else "dry run: nothing written")
+    elif a.cmd == "import-watch":
+        from .importer import watch
+        result = watch.run(cfg, a.file, apply=a.apply, offline=a.offline, out_dir=a.out)
+        if result.get("report_path"):
+            print("report:", result["report_path"])
+        return 2 if result.get("failed") else 0
     elif a.cmd == "joplin":
         from .feeds import joplin
         if a.tar == "-":

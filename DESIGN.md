@@ -1219,3 +1219,96 @@ transform, so the compositor runs it), swings open on its spine, and the
 panel shows through as the page fades, about 1.6 s in all (`OPEN_MS`); the
 book's place on the shelf stays empty until the copy is gone. With "Reduce
 motion" the panel just opens.
+
+## 15. Movies and series (0.6.0, 2026-10-25)
+
+### 15.1 Schema (migration 0014)
+
+- A **watch** is a `library.consumption` row, as a reading is (D22). A watch of
+  a series can be of one **season**: `season_id`, with the series as `item_id`;
+  the composite FK `(season_id, item_id) → catalog.season (item_id, series_id)`
+  makes a season of another series impossible. `episodes` (only with a season)
+  counts the episodes seen in that watch; `platform` (FK `library.platform`:
+  Netflix, Prime Video, HBO Max, Disney+, Apple TV+, YouTube / Google Play,
+  Viaplay, DR TV, TV 2 Play, cinema, TV, disc, other) says where. The
+  provenance guard tracks the three new columns.
+- One card per series (D45). The series' status follows its latest season
+  watch: the status rules of §4.3 hold as they are (Watched needs a finished
+  watch, Abandoned an abandoned one).
+- `catalog.movie` gains `origin_countries`; `catalog.series` gains
+  `origin_countries`, `season_count`, `episode_count`, `episode_runtime_min`;
+  `catalog.season` gains `episode_count`. All three tables get a `provenance`
+  column with the guard, so every value records where it came from and TMDB
+  cannot change what the owner set (§4.4). Countries are ISO 3166-1 codes
+  (`catalog.countries_ok`).
+- New data sources: `netflix`, `prime_video`, `google_play`.
+
+### 15.2 TMDB (D46)
+
+`medialib/fill/tmdb.py` searches and reads TMDB's details (with credits and
+external ids) through the same cached fetcher as the book providers; the key
+is `secrets/tmdb.key` (empty = TMDB off: "+ Add movie / series" and Fill
+missing for movies and series are hidden). `medialib/screen.py` turns the
+details into values and writes them, labelled `tmdb`:
+
+| TMDB | becomes |
+|---|---|
+| title / name, original title, original language, overview | `media_item` title, original_title, original_language, description |
+| release date / first air date | `movie.release_date` / `series.first_air_date`, and `media_item.first_published` (day) unless the owner set it |
+| runtime; episode run time, number of seasons and episodes, last air date, status | `movie.runtime_min`; `series.*` |
+| production countries / origin country | `origin_countries` |
+| directors (movies), creators (series), the first 6 of the cast | contributions `director`, `creator`, `cast` |
+| genres | genre tags: the book tree's category of that name, else one under "Film & TV" |
+| seasons (number, name, air date, episodes, poster) | `catalog.season` rows (their media items titled with the season's name) |
+| poster | the chosen cover when there is none; season posters for watched seasons |
+| TMDB id, IMDb id, Wikidata id | `external_id` `tmdb_movie` / `tmdb_tv`, `imdb`, `wikidata` |
+
+On an existing item only empty values are filled, never one labelled
+`owner`. Finding the item: its TMDB id, else the same title (or original
+title) of that kind, confirmed by the year when both know one (§13.2 makes
+movies from Joplin notes this way, so an import finds them).
+
+### 15.3 The watch import file (D47)
+
+`python -m medialib import-watch FILE.json [--apply] [--offline] [--out DIR]`
+reads a file made outside the app (from viewing-history exports and
+watchlists; the TMDB details are in it, so the import needs no key):
+
+```json
+{"format": "medialib-watch", "version": 1,
+ "items": [{"kind": "movie | series",
+            "tmdb": { TMDB details with credits and external_ids, or absent },
+            "title": "only when there are no TMDB details", "year": 1990,
+            "status": "planned | in_progress | completed | paused | dropped",
+            "rating": 0-10, "review": "text", "added": "YYYY-MM-DD",
+            "watches": [{"season": 1, "state": "completed | dropped | in_progress | paused",
+                         "started": "YYYY-MM-DD", "ended": "YYYY-MM-DD", "precision": "day | month | year",
+                         "episodes": 10, "platform": "netflix", "source": "netflix | prime_video | google_play | owner"}],
+            "tags": [{"name": "Netflix: liked", "source": "netflix"}],
+            "collections": ["Prime Video watchlist"]}]}
+```
+
+Per item, in one transaction: find or create the movie/series (§15.2), create
+the entry (or fill its empty rating and review; a status the owner set
+stays), add each watch unless the same one is there (same item and season,
+ending the same day; an undated one when a watch in that state exists), add
+tags and collections. The ratings and reviews in the file are the owner's
+(source `owner`); watches carry their own source. Nothing is written in a dry
+run; the report goes to `<out>/import-watch-<time>.json`. A second run
+changes nothing.
+
+### 15.4 Console
+
+- **Database → Movies / Series**: the same shelf, list, filters and panel as
+  books. The list's Pages and Version columns become Runtime (Seasons) and
+  Where; the Filter pane adds Where you watched, Country and Tags (Netflix
+  thumbs, D48), and Released replaces Published. The panel shows the
+  director or creators, cast, runtime or seasons and episodes, countries, the
+  watches (season, episodes, where) and, for a series, its seasons with their
+  posters and what you did with each. "+ Add movie / series" searches TMDB.
+- **Visuals → Movies / Series**: the same page and page filter. My watching:
+  watched this year (movies, or seasons), hours this year, average rating,
+  movies/seasons or hours over time, ratings, most watched directors /
+  creators, genres, where you watched, country, original language, the
+  watching calendar. The library: categories, original language, country,
+  directors / creators, release decade.

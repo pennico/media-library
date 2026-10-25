@@ -1,6 +1,6 @@
 # media-library
 
-A personal book database (movies and series later) with a small web console,
+A personal book, movie and series database with a small web console,
 for one person's library on a home server. PostgreSQL holds the data with
 the rules enforced by the database itself; the console is a single page that
 looks like a bookshelf.
@@ -13,6 +13,11 @@ looks like a bookshelf.
 - **Visuals**: statistics per year, month or day, pages, ratings, authors,
   genres, languages, versions and a reading calendar, under one page filter;
   pies or bars, cumulative or per period; click a bar or slice to see its books.
+- **Movies and series**: the same shelf, panel and Visuals, with directors,
+  creators, cast, runtime, countries and posters from TMDB (with a key);
+  a series is one card with its seasons, and each watch can name its
+  season, the episodes seen and where it was watched. Add by TMDB search, or
+  import a whole watch history (`medialib import-watch`).
 - **Versions**: paper, ebook or audiobook for each book, and for each reading.
 - **Add a book** from Apple Books (cover and basics), Open Library (ISBN,
   pages, publisher) and Google Books (with a key), from an EPUB file (its own
@@ -40,8 +45,7 @@ looks like a bookshelf.
   (shared with [agent-console](https://github.com/pennico/agent-console) if
   you use it).
 
-Status: 0.5.0, used daily by its author. Movies and series have their schema
-and views (Joplin notes add them; no TMDB lookup yet).
+Status: 0.6.0, used daily by its author.
 
 ## Docs
 

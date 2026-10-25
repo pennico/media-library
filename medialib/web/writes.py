@@ -173,7 +173,7 @@ def edit_item(conn, login, pid, body):
                 raise BadRequest("unknown entry field " + k)
         update(conn, "library.entry", "item_id", ids["id"], cols)
         if "authors" in body:
-            set_authors(conn, ids["id"], body["authors"])
+            set_authors(conn, ids["id"], body["authors"], MAKER.get(ids["kind"], "author"))
         if "genres" in body or "tags" in body:
             for kind in ("genre", "tag"):
                 key = kind + "s"
@@ -199,7 +199,10 @@ def set_version(conn, login, pid, fmt):
                      (fmt, ids_for(conn, pid)["id"]))
 
 
-def set_authors(conn, item, names):
+MAKER = {"movie": "director", "series": "creator"}     # who the "Authors" field means for movies and series
+
+
+def set_authors(conn, item, names, role="author"):
     if not isinstance(names, list) or len(names) > 30:
         raise BadRequest("authors must be a list")
     clean = []
@@ -207,14 +210,14 @@ def set_authors(conn, item, names):
         n = text(n, "author name", max_len=300)
         if n and n not in clean:
             clean.append(n)
-    conn.execute("DELETE FROM catalog.contribution WHERE item_id = %s AND role = 'author'", (item,))
+    conn.execute("DELETE FROM catalog.contribution WHERE item_id = %s AND role = %s", (item, role))
     for pos, name in enumerate(clean, 1):
         row = conn.execute("SELECT id FROM catalog.person WHERE catalog.name_key(name) = catalog.name_key(%s)"
                            " AND disambiguation IS NULL AND deleted_at IS NULL", (name,)).fetchone()
         pid = row["id"] if row else conn.execute(
             "INSERT INTO catalog.person (name) VALUES (%s) RETURNING id", (name,)).fetchone()["id"]
         conn.execute("INSERT INTO catalog.contribution (person_id, role, item_id, position, source)"
-                     " VALUES (%s, 'author', %s, %s, 'owner')", (pid, item, pos))
+                     " VALUES (%s, %s, %s, %s, 'owner')", (pid, role, item, pos))
 
 
 def set_tags(conn, item, kind, names):
@@ -320,7 +323,21 @@ def edition_medium(conn, edition_id):
     return conn.execute("SELECT format FROM catalog.edition WHERE id = %s", (edition_id,)).fetchone()["format"]
 
 
-def reading_cols(conn, body):
+def whole(v, field, lo, hi):
+    if v in (None, ""):
+        return None
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        raise BadRequest("{} must be a whole number".format(field)) from None
+    if not lo <= n <= hi:
+        raise BadRequest("{} must be from {} to {}".format(field, lo, hi))
+    return n
+
+
+def reading_cols(conn, body, item=None):
+    """A reading's / watch's columns. A watch of a series can name its season (by number: created when
+    the series doesn't have it yet), the episodes seen, and the platform."""
     cols = {}
     for k, v in body.items():
         if k == "state":
@@ -337,17 +354,37 @@ def reading_cols(conn, body):
             cols["note"] = text(v, "note", max_len=20000)
         elif k == "medium":
             cols["medium"] = edition_format(v, "read as")
+        elif k == "season":
+            n = whole(v, "season", 0, 999)
+            kind = conn.execute("SELECT kind FROM catalog.media_item WHERE id = %s", (item,)).fetchone()["kind"] if item else None
+            if n is not None and kind != "series":
+                raise BadRequest("only a series has seasons")
+            from .. import screen
+            cols["season_id"] = screen.season_id(conn, item, n) if n is not None else None
+        elif k == "episodes":
+            cols["episodes"] = whole(v, "episodes", 0, 99999)
+        elif k == "platform":
+            if v in (None, ""):
+                cols["platform"] = None
+            elif not conn.execute("SELECT 1 AS x FROM library.platform WHERE code = %s", (str(v),)).fetchone():
+                raise BadRequest("unknown platform " + str(v))
+            else:
+                cols["platform"] = v
         else:
             raise BadRequest("unknown reading field " + k)
     if cols.get("state") in ("in_progress", "paused"):
         cols["ended_on"] = cols["ended_precision"] = None
+    if cols.get("episodes") is not None and not cols.get("season_id") and "season_id" in cols:
+        raise BadRequest("episodes go with a season")
     return cols
 
 
 def add_reading(conn, login, pid, body):
     with tx(conn, login):
         ids = ids_for(conn, pid)
-        cols = reading_cols(conn, dict({"state": "completed"}, **body))
+        cols = reading_cols(conn, dict({"state": "completed"}, **body), ids["id"])
+        if cols.get("episodes") is not None and not cols.get("season_id"):
+            raise BadRequest("episodes go with a season")
         if "medium" not in body:
             cols["medium"] = edition_medium(conn, ids["edition_id"])
         cols.update(item_id=ids["id"], edition_id=ids["edition_id"], source="owner")
@@ -369,7 +406,10 @@ def edit_reading(conn, login, rid, body, delete=False):
         if delete:
             conn.execute("UPDATE library.consumption SET deleted_at = now() WHERE id = %s", (row["id"],))
         else:
-            update(conn, "library.consumption", "id", row["id"], reading_cols(conn, body))
+            cols = reading_cols(conn, body, row["item_id"])
+            if "season_id" in cols and cols["season_id"] is None:
+                cols["episodes"] = None
+            update(conn, "library.consumption", "id", row["id"], cols)
         sync_status(conn, row["item_id"])
 
 
@@ -769,3 +809,84 @@ def add_from_epub(conn, login, path, summary, sha, media_dir, store, fill=None, 
         except BadRequest:
             pass                                # not a usable image: the book stays without a cover
     return dict(r, id=pid)
+
+
+# ------------------------------------------------- movies and series (TMDB)
+
+def add_screen(conn, login, kind, details, covers, status="planned"):
+    """A movie or series from TMDB details (posters already downloaded): the
+    catalogue values labelled tmdb, the entry and its watch the owner's."""
+    from .. import screen
+    if kind not in ("movie", "series"):
+        raise BadRequest("kind must be movie or series")
+    if status not in ("planned", "in_progress", "completed"):
+        raise BadRequest("status must be planned, in_progress or completed")
+    p = screen.parse(kind, details)
+    found, trashed = screen.find(conn, kind, p["tmdb"])
+    if trashed:
+        raise BadRequest("that one is in the trash: restore it from Trash")
+    if found:
+        return {"id": str(conn.execute("SELECT public_id FROM catalog.media_item WHERE id = %s", (found,)).fetchone()["public_id"]),
+                "existing": True}
+    with db.write_tx(conn, "tmdb", "console:" + (login or "unknown"), reason="add from TMDB"):
+        item, _ = screen.write(conn, kind, p, covers)
+        db.set_source(conn, "owner")
+        conn.execute("INSERT INTO library.entry (item_id, status) VALUES (%s, %s)", (item, status))
+        if status != "planned":
+            d = today()
+            conn.execute("INSERT INTO library.consumption (item_id, state, started_on, started_precision, ended_on,"
+                         " ended_precision, source) VALUES (%s, %s, %s, %s, %s, %s, 'owner')",
+                         (item, status, d if status == "in_progress" else None, "day" if status == "in_progress" else None,
+                          d if status == "completed" else None, "day" if status == "completed" else None))
+        pid = conn.execute("SELECT public_id::text AS id FROM catalog.media_item WHERE id = %s", (item,)).fetchone()["id"]
+    return {"id": pid, "existing": False}
+
+
+def screen_posters(store, kind, p, seasons=()):
+    """Download the poster (and the given seasons' posters) before the transaction; -> {url: info}."""
+    urls = [p["poster"]] + [s["poster"] for s in p.get("seasons") or [] if s["number"] in seasons]
+    got = {}
+    for u in [u for u in urls if u]:
+        try:
+            got[u] = store.fetch(u)
+        except CoverError:
+            pass
+    return got
+
+
+def fill_screen(conn, login, pid, tmdb, store):
+    """Fill what a movie/series lacks from TMDB: by its TMDB id, else by a title
+    (and year) TMDB can only mean one way. -> {changes, note}."""
+    from .. import screen
+    from ..fill import tmdb as T
+    row = conn.execute("""SELECT i.id, i.kind, i.title, i.locked,
+                                 extract(year FROM coalesce(m.release_date, s.first_air_date, i.first_published))::int AS year,
+                                 (SELECT x.value FROM catalog.external_id x WHERE x.item_id = i.id
+                                   AND x.provider IN ('tmdb_movie', 'tmdb_tv')) AS tmdb
+                            FROM catalog.media_item i LEFT JOIN catalog.movie m ON m.item_id = i.id
+                            LEFT JOIN catalog.series s ON s.item_id = i.id
+                           WHERE i.public_id = %s AND i.deleted_at IS NULL""", (pid,)).fetchone()
+    if not row:
+        raise LookupError("no such item")
+    if row["kind"] not in ("movie", "series"):
+        raise BadRequest("only movies and series are filled from TMDB")
+    if row["locked"]:
+        raise BadRequest("this item is locked")
+    tid = row["tmdb"]
+    if not tid:
+        hit = tmdb.confident(row["kind"], row["title"], row["year"])
+        if not hit:
+            return {"changes": [], "note": "TMDB has no single match for this title{}: add it with + Add, or set the year"
+                    .format(" and year" if row["year"] else "")}
+        tid = hit["tmdb"]
+    d = tmdb.details(row["kind"], tid)
+    if not d:
+        return {"changes": [], "note": "TMDB doesn't know {} {} any more".format(T.PATH[row["kind"]], tid)}
+    p = screen.parse(row["kind"], d)
+    watched = {r["season_number"] for r in conn.execute(
+        "SELECT s.season_number FROM library.consumption c JOIN catalog.season s ON s.item_id = c.season_id"
+        " WHERE c.item_id = %s AND c.deleted_at IS NULL", (row["id"],)).fetchall()}
+    covers = screen_posters(store, row["kind"], p, watched)
+    with db.write_tx(conn, "tmdb", "console:" + (login or "unknown"), reason="fill from TMDB"):
+        _, changes = screen.write(conn, row["kind"], p, covers, item=row["id"])
+    return {"changes": [{"field": c} for c in changes]}

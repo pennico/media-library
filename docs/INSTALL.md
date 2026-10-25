@@ -27,6 +27,7 @@ done
 python3 app/deploy/make-password.py secrets/console-password   # the unlock password
 ( umask 077; python3 -c 'import secrets; a = "abcdefghjkmnpqrstuvwxyz23456789"; print("-".join("".join(secrets.choice(a) for _ in range(4)) for _ in range(5)))' > secrets/reader.pw )   # reading apps
 ( umask 077; : > secrets/google-books.key )   # optional: a Google Books API key (empty = Google stays off)
+( umask 077; : > secrets/tmdb.key )           # optional: a TMDB API key for movies and series (empty = TMDB stays off)
 cp app/deploy/env.example .env && chmod 600 .env && "${EDITOR:-nano}" .env
 cp app/deploy/docker-compose.yml docker-compose.yml
 ```
@@ -153,6 +154,18 @@ no file, `BOOK_FIND_URL` in `.env` (with `{q}` for title + author) and
 moves, change the address in any such book's panel (**Change address**, after
 unlocking); that wins over `.env` until **Back to the server's**.
 
+## 6c. Movies and series (optional)
+
+With a TMDB API key (themoviedb.org → Settings → API, the v3 key) in
+`secrets/tmdb.key`, "+ Add movie / series" and Fill missing look titles up at
+TMDB. To bring in a whole watch history, make a `medialib-watch` file
+(DESIGN.md §15.3), put it in `out/` and run:
+
+```bash
+docker compose run --rm tools import-watch medialib-watch.json            # dry run: report in out/
+docker compose run --rm tools import-watch medialib-watch.json --apply    # posters download once
+```
+
 ## 7. Backups
 
 ```bash
@@ -202,7 +215,8 @@ Migrations are forward-only and each runs in one transaction; a changed
 migration file stops the run. From 0.1.0 to 0.2.0: create `secrets/reader.pw`
 first (step 1); the compose file needs it. To 0.3.0: create
 `secrets/google-books.key` (empty is fine), run `categorize` once (3b) and
-add the purge line (6b).
+add the purge line (6b). To 0.6.0: create `secrets/tmdb.key` (empty is fine)
+before `docker compose up`; migration 0014 runs with `migrate`.
 
 ## Upgrades
 
