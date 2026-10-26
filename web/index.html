@@ -360,6 +360,14 @@ body.fb-pane .detail { visibility: hidden; }
   background: rgb(255 252 245 / 0.92); color: #3b2c1d; box-shadow: 0 1px 3px rgb(0 0 0 / 0.35); pointer-events: none; }
 .grid.s .vmark { width: 18px; height: 18px; right: 3px; bottom: 3px; } .grid.s .vmark svg { width: 11px; height: 11px; }
 .vico { display: inline-flex; vertical-align: -2px; }
+/* a film collection (D49): one card, its other films stacked behind the first poster, how many on a badge */
+.shelfwrap .book.group .cov { box-shadow: 4px -4px 0 -1px var(--blank), 4px -4px 1px 0 var(--book-shadow), 8px -8px 0 -2px var(--blank),
+  8px -8px 1px -1px var(--book-shadow), 0 1px 1px var(--book-shadow), 2px 0 5px -1px var(--book-shadow); }
+.gmark { position: absolute; left: 5px; top: 5px; z-index: 2; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: grid; place-items: center;
+  background: rgb(255 252 245 / 0.92); color: #3b2c1d; font-size: 11.5px; font-weight: 700; box-shadow: 0 1px 3px rgb(0 0 0 / 0.35); pointer-events: none; }
+.grid.s .gmark { min-width: 18px; height: 18px; left: 3px; top: 3px; font-size: 10.5px; }
+.collfilm { border: 0; background: none; padding: 4px; margin: -4px; text-align: left; color: inherit; font: inherit; border-radius: 6px; cursor: pointer; }
+.collfilm:hover, .collfilm:focus-visible { background: var(--sunk); }
 .verbar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .verbar button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; display: inline-flex; gap: 5px; align-items: center; }
 .verbar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
@@ -864,8 +872,34 @@ function layoutShelves() {
   if (pitch > 60) for (let y = rows[rows.length - 1] + pitch; y < wrap.clientHeight - 4; y += pitch) rows.push(y);
   boards.innerHTML = rows.map(y => `<div class="board" style="top:${y - BOARD}px"></div>`).join("");
 }
+// Films of one collection fold into one card on the Movies grid (D49), where the first of them stands, with
+// those the list shows (filters still count each film); a collection with one film here stays a plain card.
+function foldCollections(list) {
+  if (st.kind !== "movie") return list;
+  const groups = {}, out = [], done = new Set();
+  for (const i of list) if (i.coll) (groups[i.coll.id] = groups[i.coll.id] || []).push(i);
+  for (const i of list) {
+    const g = i.coll && groups[i.coll.id];
+    if (!g || g.length < 2) out.push(i);
+    else if (!done.has(i.coll.id)) { done.add(i.coll.id); out.push(collCard(i.coll, g)); }
+  }
+  return out;
+}
+const byRelease = (a, b) => (a.published ?? 9999) - (b.published ?? 9999) || String(a.sort).localeCompare(String(b.sort));
+const collMakers = films => [...new Set(films.flatMap(f => (f.authors || "").split(", ")).filter(Boolean))];
+function collCard(coll, films) {
+  const f = [...films].sort(byRelease), seen = f.filter(x => x.status === "completed").length, rated = f.filter(x => x.rating != null);
+  return {group: true, id: "c:" + coll.id, title: coll.name, films: f, members: films.map(x => x.id), cover: f[0].cover,
+    authors: collMakers(f).slice(0, 2).join(", "), line: seen + " of " + f.length + " watched",
+    rating: rated.length ? Math.round(rated.reduce((n, x) => n + x.rating, 0) / rated.length * 10) / 10 : null,
+    status: seen === f.length ? "completed" : f.some(x => x.status === "completed" || x.status === "in_progress") ? "in_progress" : f[0].status};
+}
+const collCardHtml = g => `<button class="book group" id="b-${g.id}" data-id="${g.id}" data-rep="${g.members[0]}" data-members="${g.members.join(",")}" aria-current="${st.selected === g.id}" aria-label="${esc(g.title)}, ${g.films.length} films">
+    <div class="stand"><div class="cov">${coverSrc(g.cover) ? `<img src="${coverSrc(g.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(g.title)}</span>`}<span class="gmark">${g.films.length}</span></div></div>
+    <span class="t">${esc(g.title)}</span><span class="a">${esc(g.authors || "—")}</span>
+    <span class="s"><span class="dot ${g.status}"></span>${esc(g.line)}${g.rating != null ? " · " + g.rating + "/10" : ""}</span></button>`;
 function gridHtml(list, prefs) {
-  return `<div class="shelfwrap" id="shelfwrap"><div class="boards" id="boards"></div><div class="grid ${prefs.size}" id="grid">${list.map(i => `<button class="book" id="b-${i.id}" data-id="${i.id}" aria-current="${st.selected === i.id}">
+  return `<div class="shelfwrap" id="shelfwrap"><div class="boards" id="boards"></div><div class="grid ${prefs.size}" id="grid">${foldCollections(list).map(i => i.group ? collCardHtml(i) : `<button class="book" id="b-${i.id}" data-id="${i.id}" aria-current="${st.selected === i.id}">
     <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}</div></div>
     <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span>
     <span class="s"><span class="dot ${i.status}"></span>${esc(statusLine(i))}${i.rating != null ? " · " + i.rating + "/10" : ""}</span></button>`).join("")}</div></div>`;
@@ -1114,6 +1148,7 @@ addEventListener("scroll", () => { if ($("le-catpop")) toggleCatPop(false); });
 const reduceMotion = () => !Element.prototype.animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
 async function openDetail(id, quiet) {
   st.selected = id; st.editing = false; st.editReview = false; st.readingEdit = null; st.err = ""; st.confirmTrash = false; st.findEdit = false;
+  if (id.startsWith("c:")) { st.detail = collDetail(id); if (!quiet) { showSelection(); renderDetail(); } return; }
   if (!quiet) { st.detail = null; showSelection(); renderDetail(); }    // the panel opens at once with what the shelf knows
   let d;
   try { d = await api.detail(id); } catch (e) { d = {error: e.message}; }
@@ -1157,7 +1192,7 @@ async function openBook(btn) {
   const a = cov.getBoundingClientRect();             // where the book is seen now (gliding, if the shelf made room)
   const fly = document.createElement("div");
   fly.className = "flybook";
-  fly.innerHTML = `<div class="fb-page"></div><div class="fb-cover"><div class="fb-front">${cov.innerHTML.replace(/<span class="vmark"[\s\S]*?<\/span>/, "")}</div><div class="fb-back"></div></div>`;
+  fly.innerHTML = `<div class="fb-page"></div><div class="fb-cover"><div class="fb-front">${cov.innerHTML.replace(/<span class="[vg]mark"[\s\S]*?<\/span>/g, "")}</div><div class="fb-back"></div></div>`;
   document.body.append(fly);
   const done = () => { fly.remove(); if (openBook.run === run) document.body.classList.remove("fb-pane"); };
   loading.then(() => { if (openBook.run === run && !$("detail")) done(); });
@@ -1182,6 +1217,7 @@ function srcTag(group, col) { const s = group === "screen" ? st.detail?.screen?.
 function renderDetail() {
   const el = $("detail"); if (!el) return;
   const d = st.detail;
+  if (d?.coll === true) { el.innerHTML = collDetailHtml(d); return; }
   if (!d) {                                          // while the details load: what the shelf already knows
     const i = LIB.items.find(x => x.id === st.selected);
     el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button>` + (i ? `<div class="head"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="">` : `<span class="ph">no cover</span>`}</div>
@@ -1281,11 +1317,28 @@ function screenDetailsHtml(d) {
     ${d.kind === "series" ? row("Last aired", esc(x.lastAired ? fmtKey(x.lastAired) : ""), tag("last_air_date")) + row("Status", esc(STATUS[x.status] || ""), tag("status"))
       + row("Episodes", esc([x.seasonCount ? x.seasonCount + " season" + (x.seasonCount === 1 ? "" : "s") : null, x.episodeCount ? x.episodeCount + " episodes" : null, x.episodeRuntime ? "about " + fmtRuntime(x.episodeRuntime) + " each" : null].filter(Boolean).join(" · ")), tag("episode_count"))
       : row("Runtime", esc(fmtRuntime(x.runtime)), tag("runtime_min"))}
+    ${d.coll ? `<dt>Collection</dt><dd><button class="linkbtn" id="d-coll" data-open="c:${esc(d.coll.id)}" title="All its films">${esc(d.coll.name)}</button>${tag("collection_id")}</dd>` : ""}
     ${row("Country", esc((x.countries || []).map(countryName).join(", ")), tag("origin_countries"))}
     ${d.genreList.length ? `<dt>Genres</dt><dd class="tags">${d.genreList.map(g => `<span class="tag genre">${esc(g)}</span>`).join("")}</dd>` : ""}
     ${d.tagList.length ? `<dt>Tags</dt><dd class="tags">${d.tagList.map(g => `<span class="tag">${esc(g)}</span>`).join("")}</dd>` : ""}
     ${row("Added", esc(d.added))}
   </dl>${it.description ? `<details class="more" style="margin-top:8px"><summary>Overview</summary><p class="desc">${esc(it.description)}</p></details>` : ""}`;
+}
+// a film collection's panel: its films in release order, each opening its own panel
+function collDetail(id) {
+  const films = LIB.items.filter(i => i.coll?.id === id.slice(2)).sort(byRelease);
+  return films.length ? {coll: true, id, name: films[0].coll.name, films} : {error: "This collection has no films."};
+}
+function collDetailHtml(d) {
+  const f = d.films, seen = f.filter(x => x.status === "completed").length, mins = f.reduce((n, x) => n + (x.runtime || 0), 0);
+  const ys = f.map(x => x.published).filter(Boolean), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  return `<button class="xbtn" id="d-close" aria-label="Close">✕</button>
+    <div class="head"><div class="cov">${coverSrc(f[0].cover) ? `<img src="${coverSrc(f[0].cover)}" alt="">` : `<span class="ph">${esc(d.name)}</span>`}</div>
+      <div style="min-width:0"><h2>${esc(d.name)}</h2><div>${esc(collMakers(f).join(", "))}</div>
+        <div class="muted" style="font-size:12.5px;margin-top:4px">${esc([f.length + " films", ys.length ? y0 + (y1 > y0 ? "–" + y1 : "") : null, mins ? fmtRuntime(mins) : null].filter(Boolean).join(" · "))}</div></div></div>
+    <div class="d-sec"><h3>Films</h3><p class="muted" style="font-size:12.5px;margin:0 0 10px">${seen} of ${f.length} watched. Open a film for its watches, rating and details.</p>
+      <div class="seasons">${f.map(x => `<button class="season collfilm" id="cf-${x.id}" data-open="${x.id}">${coverSrc(x.cover) ? `<img src="${coverSrc(x.cover)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}
+        <span><b>${esc(x.title)}</b> <span class="muted">${esc(x.published || "")}</span><br><span class="pill ${x.status === "completed" ? "ok" : x.status === "dropped" ? "warn" : "plain"}">${esc(statusLine(x))}</span>${x.rating != null ? ` <span class="muted" style="font-size:12px">${x.rating}/10</span>` : ""}</span></button>`).join("")}</div></div>`;
 }
 // a series' seasons: each with its poster, episodes and what you did with it
 function seasonsHtml(d) {
@@ -1656,7 +1709,8 @@ function enableDrag(shelf) {
   const grid = $("grid"); if (!grid) return;
   grid.addEventListener("pointerdown", e => {
     const book = e.target.closest(".book"); if (!book || e.button > 0) return;
-    const start = {x: e.clientX, y: e.clientY, t: Date.now(), id: book.dataset.id, pointer: e.pointerId, touch: e.pointerType === "touch"};
+    const start = {x: e.clientX, y: e.clientY, t: Date.now(), id: book.dataset.rep || book.dataset.id, pointer: e.pointerId, touch: e.pointerType === "touch",
+      members: book.dataset.members ? book.dataset.members.split(",") : null};
     let timer = null, ghost = null, target = null;
     const begin = () => {
       drag.active = true; book.classList.add("dragging"); if (navigator.vibrate) navigator.vibrate(10);
@@ -1684,12 +1738,19 @@ function enableDrag(shelf) {
       if (!was) return;
       drag.suppressClick = true; setTimeout(() => { drag.suppressClick = false; }, 300);
       if (!tgt) return;
-      const order = shelf.items, from = order.indexOf(start.id), to0 = order.indexOf(tgt.dataset.id);
-      if (from < 0 || to0 < 0) return;
-      const to = from < to0 ? to0 : to0 + 1;   // 1-based: before the target
-      const optimistic = [...order]; optimistic.splice(from, 1); optimistic.splice(optimistic.indexOf(tgt.dataset.id), 0, start.id);
-      shelf.items = optimistic; renderDatabase();
-      try { await api.move(shelf.id, start.id, to); } catch (er) { toast(er.message, true); LIB = await api.library(); renderDatabase(); }
+      // each film goes before the target (a collection's films last to first, each before the one after it)
+      const ids = start.members || [start.id], order = [...shelf.items], steps = [];
+      let anchor = tgt.dataset.rep || tgt.dataset.id;
+      if (ids.includes(anchor)) return;
+      for (const m of [...ids].reverse()) {
+        const from = order.indexOf(m), to0 = order.indexOf(anchor);
+        if (from < 0 || to0 < 0) continue;
+        steps.push([m, from < to0 ? to0 : to0 + 1]);   // 1-based: before the anchor
+        order.splice(from, 1); order.splice(order.indexOf(anchor), 0, m); anchor = m;
+      }
+      if (!steps.length) return;
+      shelf.items = order; renderDatabase();
+      try { for (const [m, to] of steps) await api.move(shelf.id, m, to); } catch (er) { toast(er.message, true); LIB = await api.library(); renderDatabase(); }
     };
     const cleanup = () => {
       clearTimeout(timer); drag.active = false; book.classList.remove("dragging"); if (ghost) ghost.remove(); ghost = null;

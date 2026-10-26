@@ -20,7 +20,9 @@ SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locke
        e.status, e.rating, e.added_at, e.review IS NOT NULL AS has_review,
        ed.pages, ed.language, ed.format, extract(year FROM ed.published_on)::int AS published,
        extract(year FROM coalesce(i.first_published, mv.release_date, sr.first_air_date))::int AS first_published,
-       mv.runtime_min, sr.season_count, sr.episode_runtime_min, coalesce(mv.origin_countries, sr.origin_countries) AS countries,
+       mv.runtime_min, sr.season_count,
+       (SELECT jsonb_build_object('id', fc.public_id, 'name', fc.name) FROM catalog.film_collection fc
+         WHERE fc.id = mv.collection_id) AS coll, sr.episode_runtime_min, coalesce(mv.origin_countries, sr.origin_countries) AS countries,
        (SELECT string_agg(p.name, ', ' ORDER BY ct.position) FROM catalog.contribution ct
           JOIN catalog.person p ON p.id = ct.person_id WHERE ct.item_id = i.id AND ct.role = """ + MAKER_ROLE + """) AS authors,
        (SELECT p.sort_name FROM catalog.contribution ct JOIN catalog.person p ON p.id = ct.person_id
@@ -115,6 +117,7 @@ def summary(r):
         "runtime": r["runtime_min"], "seasons": r["season_count"], "episodeRuntime": r["episode_runtime_min"],
         "seasonWatches": r["season_watches"] if r["season_watches"] and any(r["season_watches"].values()) else None,
         "countries": r["countries"] or [], "tags": r["tags"] or [], "platforms": sorted(r["platforms"] or []),
+        "coll": r["coll"],
     }
 
 

@@ -1285,8 +1285,12 @@ watchlists; the TMDB details are in it, so the import needs no key):
                          "started": "YYYY-MM-DD", "ended": "YYYY-MM-DD", "precision": "day | month | year",
                          "episodes": 10, "platform": "netflix", "source": "netflix | prime_video | google_play | owner"}],
             "tags": [{"name": "Netflix: liked", "source": "netflix"}],
-            "collections": ["Prime Video watchlist"]}]}
+            "collections": ["Prime Video watchlist"],
+            "film_collection": {"name": "The Lord of the Rings + The Hobbit", "tmdb": null}}]}
 ```
+
+`film_collection` (movies only, 0.7.0) puts the film in a collection the
+owner named (§16), replacing TMDB's.
 
 Per item, in one transaction: find or create the movie/series (§15.2), create
 the entry (or fill its empty rating and review; a status the owner set
@@ -1312,3 +1316,29 @@ changes nothing.
   creators, genres, where you watched, country, original language, the
   watching calendar. The library: categories, original language, country,
   directors / creators, release decade.
+
+## 16. Film collections (0.7.0, 2026-10-26)
+
+Films that belong together show as **one card** on the Movies shelf, as a
+series shows its seasons (D49).
+
+- **Schema (migration 0015)**: `catalog.film_collection` (name, TMDB's
+  collection id or none for the owner's own groups; one owner group per
+  name) and `catalog.movie.collection_id`: a film is in at most one
+  collection. The provenance guard tracks `collection_id`, so TMDB never
+  moves a film out of a group the owner chose. Audited like the rest.
+- **Where collections come from**: TMDB's `belongs_to_collection` ("Rocky
+  Collection" becomes "Rocky"), set when the film is in none: on import,
+  "+ Add movie" and Fill missing. A watch import file's `film_collection`
+  (§15.3) is the owner's group: it replaces TMDB's (no empty TMDB collection
+  is made for that film), never another owner group.
+- **Console**: on the Movies grid the films of a collection fold into one
+  card where the first of them stands, its poster the earliest film's with
+  the others stacked behind and their number on a badge; the line under it
+  says how many are watched and their average rating. Only the films the
+  list shows fold (filters, search and sort work per film), and a collection
+  with one film in view stays a plain card. Dragging the card moves all its
+  films. The card opens the collection's panel (its films in release order,
+  each with its status and rating, opening its own panel); a film's panel
+  names its collection and links back. The list layout stays one row per
+  film. Visuals count films, not collections.

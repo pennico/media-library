@@ -12,7 +12,9 @@ the TMDB details of each title, so the import needs no TMDB key. Per item:
   exists, only empty values are filled; a value the owner set stays;
 - watches are added once each (a second run adds nothing), each labelled with
   where it came from (netflix, prime_video, google_play, owner);
-- tags (Netflix thumbs) and collections (a watchlist) are added.
+- tags (Netflix thumbs) and collections (a watchlist) are added;
+- a movie joins its film collection: the file's `film_collection` (a group
+  the owner named, which replaces TMDB's), else TMDB's own (D49).
 
 Posters are downloaded before each item's transaction. A dry run rolls
 every item back and reports what would happen. The report goes to
@@ -73,6 +75,13 @@ def check(data):
         for t in it.get("tags") or []:
             if not isinstance(t, dict) or not t.get("name") or t.get("source", "owner") not in SOURCES:
                 probs.append(where + ": a tag needs a name and a known source")
+        fc = it.get("film_collection")
+        if fc is not None:
+            if it.get("kind") != "movie":
+                probs.append(where + ": a film collection on a series")
+            elif not isinstance(fc, dict) or not str(fc.get("name") or "").strip() or len(fc["name"]) > 300 \
+                    or not (fc.get("tmdb") is None or str(fc["tmdb"]).isdigit()):
+                probs.append(where + ": a film collection needs a name (and, if TMDB's, its numeric id)")
     return probs
 
 
@@ -94,6 +103,8 @@ def posters(store, kind, p, it):
 def import_item(conn, it, store, client, apply):
     kind = it["kind"]
     p = screen.parse(kind, it["tmdb"]) if it.get("tmdb") else None
+    if p and it.get("film_collection"):
+        p["collection"] = None            # the owner's group is the one (no empty TMDB collection left behind)
     title = p["title"] if p else it["title"].strip()
     year = p["released"].year if p and p["released"] else it.get("year")
     found, trashed = screen.find(conn, kind, p["tmdb"] if p else None, title, year)
@@ -116,6 +127,11 @@ def import_item(conn, it, store, client, apply):
                 conn.execute("INSERT INTO catalog.{} (item_id) VALUES (%s)".format(kind), (item,))
                 res["changes"].append("created (not on TMDB)")
             entry_and_watches(conn, item, it, res)
+            if it.get("film_collection"):
+                fc = it["film_collection"]
+                db.set_source(conn, "owner")
+                screen.join_collection(conn, item, {"name": fc["name"].strip(), "tmdb": str(fc["tmdb"]) if fc.get("tmdb") else None},
+                                       res["changes"], replace=True)
             if not apply:
                 raise Rollback
     except Rollback:

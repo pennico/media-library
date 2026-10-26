@@ -2,6 +2,19 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-10-26
+
+- **Film collections**: films that belong together (a trilogy, a saga) show
+  as one card on the Movies shelf, the films stacked behind the first poster
+  with their number on it, the way a series shows its seasons. The card
+  opens a panel listing the films in release order, each opening its own
+  panel, which links back to its collection. Filters, sorting and Visuals
+  still count each film; a collection with one film in view stays a plain
+  card; dragging the card moves all its films. Collections come from TMDB
+  (filled on import, "+ Add movie" and Fill missing) or from a group the
+  owner names in a watch import file (`film_collection`), which replaces
+  TMDB's. Migration 0015.
+
 ## [0.6.2] - 2026-10-26
 
 - Fixed: `import-watch` could not move a title from a watchlist (To watch) to

@@ -9,6 +9,8 @@ importer, the console's "Add movie / series" and "Fill missing".
   (the provenance guard refuses it; this code skips such columns first).
 - `add_watch` adds a watch (of one season, for a series) unless the same one
   is already there, so an import can run again without doubling anything.
+- `join_collection` puts a movie in a film collection (TMDB's, or a group the
+  owner named), shown as one card on the Movies shelf (D49).
 """
 import datetime
 import re
@@ -25,6 +27,7 @@ CAST = 6
 TMDB_LANG = {"cn": "yue", "et": "est"}      # TMDB's own codes (Cantonese) and ones the ISO table here lacks
 IMDB = re.compile(r"tt[0-9]{7,}")
 WIKIDATA = re.compile(r"Q[0-9]+")
+COLLECTION_SUFFIX = re.compile(r"\s+(Collection|Saga|Trilogy)$", re.I)   # TMDB: "Rocky Collection" -> "Rocky"
 
 
 def _date(v):
@@ -66,6 +69,9 @@ def parse(kind, d):
     }
     if kind == "movie":
         p["runtime"] = _minutes(d.get("runtime"))
+        coll = d.get("belongs_to_collection") or {}
+        name = COLLECTION_SUFFIX.sub("", (coll.get("name") or "").strip())
+        p["collection"] = {"name": name[:300], "tmdb": str(coll["id"])} if name and isinstance(coll.get("id"), int) else None
     else:
         runs = [r for r in d.get("episode_run_time") or [] if _minutes(r)]
         p.update({
@@ -278,10 +284,40 @@ def write(conn, kind, p, covers=None, item=None):
             add_tag(conn, item, genre_tag(conn, name), "tmdb")
         changes.append("genres")
     _cover(conn, "item_id", item, p["poster"], covers.get(p["poster"]), changes, "poster")
+    if kind == "movie" and p.get("collection"):
+        join_collection(conn, item, p["collection"], changes)
     if kind == "series":
         for s in p["seasons"]:
             season_row(conn, item, s, covers, changes)
     return item, changes
+
+
+def collection_id(conn, name, tmdb=None):
+    """The film collection: TMDB's by its id, else the owner's group of that name; created when new."""
+    if tmdb:
+        row = conn.execute("SELECT id FROM catalog.film_collection WHERE tmdb_id = %s", (tmdb,)).fetchone()
+    else:
+        row = conn.execute("SELECT id FROM catalog.film_collection WHERE tmdb_id IS NULL"
+                           " AND lower(catalog.f_unaccent(name)) = lower(catalog.f_unaccent(%s))", (name,)).fetchone()
+    if row:
+        return row["id"]
+    return conn.execute("INSERT INTO catalog.film_collection (name, tmdb_id) VALUES (%s, %s) RETURNING id",
+                        (name.strip()[:300], tmdb)).fetchone()["id"]
+
+
+def join_collection(conn, item, coll, changes=None, replace=False):
+    """Put the movie in the collection {name, tmdb} when it is in none. replace (the owner's own group,
+    from an import): also when it is in TMDB's, never when the owner put it in another one already."""
+    changes = changes if changes is not None else []
+    row, src = _labels(conn, "catalog.movie", "item_id", item)
+    if row["collection_id"] is not None and (not replace or src.get("collection_id") == "owner"):
+        return False
+    cid = collection_id(conn, coll["name"], coll.get("tmdb"))
+    if cid == row["collection_id"]:
+        return False
+    conn.execute("UPDATE catalog.movie SET collection_id = %s WHERE item_id = %s", (cid, item))
+    changes.append("collection " + coll["name"])
+    return True
 
 
 def season_row(conn, series, s, covers=None, changes=None):

@@ -15,7 +15,8 @@ looks like a bookshelf.
   pies or bars, cumulative or per period; click a bar or slice to see its books.
 - **Movies and series**: the same shelf, panel and Visuals, with directors,
   creators, cast, runtime, countries and posters from TMDB (with a key);
-  a series is one card with its seasons, and each watch can name its
+  a series is one card with its seasons, a film saga one card with its
+  films (from TMDB, or your own groups), and each watch can name its
   season, the episodes seen and where it was watched. Add by TMDB search, or
   import a whole watch history (`medialib import-watch`).
 - **Versions**: paper, ebook or audiobook for each book, and for each reading.

@@ -268,3 +268,71 @@ def test_import_watch_a_watchlist_title_seen_later(cfg, app, tmp_path):
                                "watches": [{"state": "completed", "started": "2022-06-29", "ended": "2022-06-29",
                                             "platform": "prime_video", "source": "prime_video"}]}], tmp_path)
     assert not r["failed"] and r["results"][0]["changes"] == ["1 watch", "status completed"]
+
+
+# ------------------------------------------------------- film collections (D49)
+
+def in_collection(conn, item):
+    return conn.execute("SELECT fc.name, fc.tmdb_id, mv.provenance -> 'collection_id' ->> 'src' AS src FROM catalog.movie mv"
+                        " LEFT JOIN catalog.film_collection fc ON fc.id = mv.collection_id WHERE mv.item_id = %s",
+                        (item,)).fetchone()
+
+
+def test_tmdb_collection_groups_films(app):
+    coll_id = 87_000 + uuid.uuid4().int % 10_000
+    first = dict(movie_details(uniq("Rocky"), 870_000 + 1, 1976), belongs_to_collection={"id": coll_id, "name": "Rocky Collection"})
+    second = dict(movie_details(uniq("Rocky II"), 870_000 + 2, 1979), belongs_to_collection={"id": coll_id, "name": "Rocky Collection"})
+    p = screen.parse("movie", first)
+    assert p["collection"] == {"name": "Rocky", "tmdb": str(coll_id)}
+    with tx(app, source="tmdb"):
+        a, changes = screen.write(app, "movie", p)
+        b, _ = screen.write(app, "movie", screen.parse("movie", second))
+    assert "collection Rocky" in changes
+    assert in_collection(app, a)["name"] == "Rocky" and in_collection(app, a)["src"] == "tmdb"
+    ids = app.execute("SELECT DISTINCT collection_id FROM catalog.movie WHERE item_id IN (%s, %s)", (a, b)).fetchall()
+    assert len(ids) == 1                                   # one collection, both films in it
+    assert screen.parse("movie", movie_details("No saga", 1))["collection"] is None
+
+
+def test_import_an_owner_group_replaces_tmdbs(cfg, app, tmp_path):
+    group = uniq("The Lord of the Rings + The Hobbit")
+    fellowship = dict(movie_details(uniq("The Fellowship of the Ring"), 871_000 + 1, 2001),
+                      belongs_to_collection={"id": 119_000 + uuid.uuid4().int % 1000, "name": "The Lord of the Rings Collection"})
+    hobbit = movie_details(uniq("An Unexpected Journey"), 871_000 + 2, 2012)
+    items = [{"kind": "movie", "tmdb": d, "status": "completed", "film_collection": {"name": group},
+              "watches": [{"state": "completed", "source": "owner"}]} for d in (fellowship, hobbit)]
+    r = run_import(cfg, app, items, tmp_path)
+    assert not r.get("failed") and all("collection " + group in x["changes"] for x in r["results"]), r
+    for d in (fellowship, hobbit):
+        item, _ = screen.find(app, "movie", str(d["id"]))
+        got = in_collection(app, item)
+        assert (got["name"], got["tmdb_id"], got["src"]) == (group, None, "owner")
+    again = run_import(cfg, app, items, tmp_path)          # a second run changes nothing
+    assert all(x["changes"] == [] for x in again["results"]), again
+    # TMDB filling the film later keeps the owner's group
+    item, _ = screen.find(app, "movie", str(fellowship["id"]))
+    with tx(app, source="tmdb"):
+        _, changes = screen.write(app, "movie", screen.parse("movie", fellowship), item=item)
+    assert not any(c.startswith("collection") for c in changes) and in_collection(app, item)["name"] == group
+
+
+def test_import_refuses_a_collection_on_a_series(cfg, app, tmp_path):
+    r = run_import(cfg, app, [{"kind": "series", "tmdb": series_details(uniq("Borgen"), 660_000 + 30), "status": "planned",
+                               "film_collection": {"name": "Danish TV"}},
+                              {"kind": "movie", "title": uniq("Lost film"), "status": "planned", "film_collection": {"name": ""}}],
+                   tmp_path)
+    assert r["failed"] and len(r["problems"]) == 2
+
+
+def test_collections_in_the_library_api(web, cfg, app, tmp_path):
+    from test_web import Client
+    group = uniq("Hannibal Lecter")
+    titles = [uniq("The Silence of the Lambs"), uniq("Hannibal")]
+    run_import(cfg, app, [{"kind": "movie", "tmdb": movie_details(t, 872_000 + n, 1991 + 10 * n), "status": "completed",
+                           "film_collection": {"name": group}, "watches": [{"state": "completed", "source": "owner"}]}
+                          for n, t in enumerate(titles)], tmp_path)
+    s, lib = Client(web).call("GET", "api/library")
+    films = [i for i in lib["items"] if i["title"] in titles]
+    assert len(films) == 2 and films[0]["coll"]["name"] == group and films[0]["coll"]["id"] == films[1]["coll"]["id"]
+    s, d = Client(web).call("GET", "api/items/" + films[0]["id"])
+    assert d["coll"]["name"] == group and d["screen"]["prov"]["collection_id"] == "owner"
