@@ -2,6 +2,13 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.8.3] - 2026-10-26
+
+- **Filter**: the date and range sections (Read / Watched, Published /
+  Released, Rating, Pages / Runtime) have a "Not set" choice: only the items
+  without that value, e.g. watched with no date. Moving the slider again
+  takes it off.
+
 ## [0.8.2] - 2026-10-26
 
 - **List columns**: drag the edge of a column header to change its width,

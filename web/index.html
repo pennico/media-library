@@ -425,6 +425,7 @@ body.fb-pane .detail { visibility: hidden; }
 .ftog:disabled { opacity: .45; cursor: default; }
 .ftog.grp { font-weight: 600; }
 .ftog.fnone { border-style: dashed; font-style: italic; }
+.fnotset { margin-top: 6px; }
 .fmore { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 2px 8px; font-size: 12.5px; color: var(--muted); max-width: 190px; }
 .fcatgrp { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
 table.list .le.date { width: 92px; }
@@ -764,7 +765,9 @@ const catIds = ids => ids.flatMap(id => [id, ...(LIB.categories || []).filter(c 
 // --------------------------------------------------------------- filters
 // The Filter pane: each facet narrows the list; values inside one facet add up (Italian or French). Dates compare
 // as text keys at the chosen detail: "2024", "2024-03" or "2024-03-12"; a reading known to the year only has no month.
-const NOF = () => ({status: [], langs: [], olangs: [], versions: [], cats: [], platforms: [], countries: [], tags: [], read: null, added: null, pub: null, rating: null, pages: null, file: null, review: null});
+const NOF = () => ({status: [], langs: [], olangs: [], versions: [], cats: [], platforms: [], countries: [], tags: [], read: null, added: null, pub: null, rating: null, pages: null, file: null, review: null, empty: []});
+// the items without a value for a date or range filter ("Not set")
+const HAS = {read: i => (i.reads || []).some(r => r[0]), added: i => !!i.added, pub: i => i.published != null, rating: i => i.rating != null, pages: i => amount(i) != null};
 const G_LEN = {year: 4, month: 7, day: 10}, G_RANK = {year: 0, month: 1, day: 2};
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const readKeys = (i, g) => (i.reads || []).filter(r => r[0] && G_RANK[r[1]] >= G_RANK[g]).map(r => r[0].slice(0, G_LEN[g]));
@@ -784,13 +787,15 @@ function fMatch(i, skip, f = st.f) {
   if (!has("versions", f.versions) && !f.versions.includes(versionOf(i) || "")) return false;
   if (!has("cats", f.cats)) { const ids = catIds(f.cats.filter(Boolean)); if (!((i.cats || []).some(c => ids.includes(c)) || f.cats.includes(0) && !(i.cats || []).length)) return false; }
   for (const k of ["platforms", "countries", "tags"]) if (!has(k, f[k] || []) && !((i[k] || []).some(x => f[k].includes(x)) || f[k].includes("") && !(i[k] || []).length)) return false;
+  const none = f.empty || [];
+  for (const k of none) if (skip !== k && HAS[k]?.(i)) return false;
   for (const k of ["read", "added"]) {
-    const r = f[k]; if (skip === k || !r) continue;
+    const r = f[k]; if (skip === k || !r || none.includes(k)) continue;
     if (!DATE_KEYS[k](i, r.g).some(x => x >= r.from && x <= r.to)) return false;
   }
-  if (skip !== "pub" && f.pub && !(i.published != null && i.published >= f.pub[0] && i.published <= f.pub[1])) return false;
-  if (skip !== "rating" && f.rating && !(i.rating != null && Math.floor(i.rating) >= f.rating[0] && Math.floor(i.rating) <= f.rating[1])) return false;
-  if (skip !== "pages" && f.pages && !(amount(i) != null && amount(i) >= f.pages[0] && amount(i) <= f.pages[1])) return false;
+  if (skip !== "pub" && f.pub && !none.includes("pub") && !(i.published != null && i.published >= f.pub[0] && i.published <= f.pub[1])) return false;
+  if (skip !== "rating" && f.rating && !none.includes("rating") && !(i.rating != null && Math.floor(i.rating) >= f.rating[0] && Math.floor(i.rating) <= f.rating[1])) return false;
+  if (skip !== "pages" && f.pages && !none.includes("pages") && !(amount(i) != null && amount(i) >= f.pages[0] && amount(i) <= f.pages[1])) return false;
   if (skip !== "file" && f.file != null && !!i.hasFile !== f.file) return false;
   if (skip !== "review" && f.review && !i.hasReview) return false;
   return true;
@@ -811,6 +816,8 @@ function activeFilters(f = st.f) {
   if (f.pub) out.push(["pub", (screen ? "Released " : "Published ") + range(f.pub[0], f.pub[1], fmtYear)]);
   if (f.rating) out.push(["rating", "Rated " + range(f.rating[0], f.rating[1], String)]);
   if (f.pages) out.push(["pages", range(f.pages[0], f.pages[1], AMOUNT[k]?.[1] || String)]);
+  const noneLabel = {read: (screen ? "Watched" : "Read") + ": not set", added: "Added: not set", pub: (screen ? "Released" : "Published") + ": not set", rating: "No rating", pages: (AMOUNT[k]?.[0] || "Pages") + ": not set"};
+  for (const x of f.empty || []) out.push(["empty:" + x, noneLabel[x] || x]);
   if (f.file != null) out.push(["file", f.file ? "Has an EPUB" : "No EPUB"]);
   if (f.review) out.push(["review", "Has a review"]);
   return out;
@@ -1339,7 +1346,7 @@ function renderFilterPane() {
         `<button data-fg="${k}:${g}" aria-pressed="${w.g === g}">${g[0].toUpperCase() + g.slice(1)}</button>`).join("")}</span></h4>
       ${w.g !== "year" ? `<div class="ctlrow"><select data-fwin="${k}:year" aria-label="${title}: year"><option value="">All years</option>${years.map(y => `<option ${w.year === y ? "selected" : ""}>${y}</option>`).join("")}</select>
         ${w.g === "day" && w.year ? `<select data-fwin="${k}:month" aria-label="${title}: month"><option value="">All months</option>${months.map(m => `<option value="${m}" ${w.month === m ? "selected" : ""}>${MONTHS[m - 1]}</option>`).join("")}</select>` : ""}</div>` : ""}
-      ${dualHtml(k, title, r && r.g === w.g ? [r.from, r.to] : null)}</div>`;
+      ${dualHtml(k, title, r && r.g === w.g ? [r.from, r.to] : null)}${notSet(k)}</div>`;
   };
   const nums = key => [...new Set(items.map(i => i[key]).filter(x => x != null))].sort((a, b) => a - b);
   const full = (key, dom) => (lo, hi) => { f[key] = lo === 0 && hi === dom.length - 1 ? null : [dom[lo], dom[hi]]; };
@@ -1347,6 +1354,8 @@ function renderFilterPane() {
   FDOM.pub = {dom: pub, fmt: fmtYear, set: full("pub", pub)};
   FDOM.pages = {dom: pages, fmt: AMOUNT[st.kind][1], set: full("pages", pages)};
   FDOM.rating = {dom: rating, fmt: n => n + "/10", set: full("rating", rating)};
+  const notSet = k => { const on = (f.empty || []).includes(k), n = count(k, i => !HAS[k](i));
+    return n || on ? `<div class="ftoggles fnotset"><button class="ftog fnone" data-fempty="${k}" aria-pressed="${on}" title="Only the ones without a value here">Not set<span class="n">${n}</span></button></div>` : ""; };
   const flag = (k, v, label, n) => `<button class="ftog" data-fflag="${k}:${v}" aria-pressed="${f[k] === (k === "review" ? true : v === "1")}" ${!n && f[k] == null ? "disabled" : ""}>${label}<span class="n">${n}</span></button>`;
   const shown = all.filter(i => fMatch(i, null, f)).length;
   p.innerHTML = `<div class="fp-head">${C.page ? "Page filter <span class=\"muted\" style=\"font-weight:400;font-size:12.5px\">all charts</span>" : "Filter"}<button class="xbtn" id="fp-close" aria-label="Close the filter">✕</button></div>
@@ -1358,9 +1367,9 @@ function renderFilterPane() {
         ${langs.length ? togList(fLang, langs.map(([c, n]) => [c, esc(c ? langName(c) : "Not recorded"), n, c ? langName(c) : "Not recorded"]), f) : `<span class="muted">—</span>`}</div>
       ${tree.length ? `<div class="fsec"><h4>Category</h4>${tree.map(g => `<div class="fcatgrp">${tog("cats", g.id, esc(g.name), count("cats", i => (i.cats || []).some(c => catIds([g.id]).includes(c))), "grp")}${g.subs.filter(c => c.n).map(c => tog("cats", c.id, esc(c.name), count("cats", i => (i.cats || []).includes(c.id)))).join("")}</div>`).join("")}<div class="fcatgrp">${tog("cats", 0, "No category", count("cats", i => !(i.cats || []).length), "fnone")}</div></div>` : ""}
       ${dateSec("read", isBook ? "Read" : "Watched")}
-      <div class="fsec"><h4>${isBook ? "Published" : "Released"}</h4>${dualHtml("pub", isBook ? "Published" : "Released", f.pub)}</div>
-      <div class="fsec"><h4>Rating</h4>${dualHtml("rating", "Rating", f.rating)}</div>
-      <div class="fsec"><h4>${AMOUNT[st.kind][0]}</h4>${dualHtml("pages", AMOUNT[st.kind][0], f.pages)}</div>
+      <div class="fsec"><h4>${isBook ? "Published" : "Released"}</h4>${dualHtml("pub", isBook ? "Published" : "Released", f.pub)}${notSet("pub")}</div>
+      <div class="fsec"><h4>Rating</h4>${dualHtml("rating", "Rating", f.rating)}${notSet("rating")}</div>
+      <div class="fsec"><h4>${AMOUNT[st.kind][0]}</h4>${dualHtml("pages", AMOUNT[st.kind][0], f.pages)}${notSet("pages")}</div>
       ${dateSec("added", "Added")}
       <div class="fsec"><h4>Other</h4><div class="ftoggles">${isBook ? flag("file", "1", "Has an EPUB", count("file", i => i.hasFile)) + flag("file", "0", "No EPUB", count("file", i => !i.hasFile)) : ""}${flag("review", "1", "Has a review", count("review", i => i.hasReview))}</div></div>
     </div>
@@ -1394,7 +1403,7 @@ document.addEventListener("input", e => {
   if (lo > hi) { if (e.target === a) a.value = lo = hi; else b.value = hi = lo; }
   dual.style.setProperty("--lo", lo / (n - 1)); dual.style.setProperty("--hi", hi / (n - 1)); a.style.zIndex = lo > (n - 1) / 2 ? 2 : 1;
   if (D.live) { D.live(lo, hi); dual.nextElementSibling.innerHTML = dualVals(D, lo, hi, false); return; }   // a chart's own slider
-  D.set(lo, hi); FC().save();
+  D.set(lo, hi); { const C = FC(); if ((C.f.empty || []).includes(dual.dataset.dual)) C.f.empty = C.f.empty.filter(x => x !== dual.dataset.dual); } FC().save();
   dual.nextElementSibling.innerHTML = dualVals(D, lo, hi, false);
   fDrag = true; redrawList();
 });
@@ -1753,6 +1762,8 @@ document.addEventListener("click", async e => {
     C.f[k] = C.f[k].includes(v) ? C.f[k].filter(x => x !== v) : [...C.f[k], v]; C.save(); C.redraw(); return; }
   if (t.dataset.flang) { fLang = t.dataset.flang; renderFilterPane(); return; }
   if (t.dataset.fg) { const [k, g] = t.dataset.fg.split(":"); setDateDetail(k, g); FC().save(); FC().redraw(); return; }
+  if (t.dataset.fempty) { const C = FC(), k = t.dataset.fempty, e = C.f.empty || [];
+    C.f.empty = e.includes(k) ? e.filter(x => x !== k) : [...e, k]; if (C.f.empty.includes(k)) C.f[k] = null; C.save(); C.redraw(); return; }
   if (t.dataset.fflag) { const C = FC(), [k, v] = t.dataset.fflag.split(":"), want = k === "review" ? true : v === "1";
     C.f[k] = C.f[k] === want ? null : want; C.save(); C.redraw(); return; }
   if (t.dataset.fclear) { clearFilter(t.dataset.fclear); FC().redraw(); return; }
