@@ -2,6 +2,19 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.8.2] - 2026-10-26
+
+- **List columns**: drag the edge of a column header to change its width,
+  double-click it to fit the content; the widths are kept per kind in this
+  browser.
+- **Filter**: past five values a facet shows the five largest and puts the
+  rest in a "+ N more…" dropdown (what you pick shows as a toggle); every
+  facet can pick the items without a value ("Not recorded", "No tags", "No
+  category").
+- **List**: the 🗑 is only on the Edit rows now (it asks, then takes that row
+  out and keeps what you typed in the others); the checks are a little
+  larger, on the covers too.
+
 ## [0.8.1] - 2026-10-26
 
 - **List view**:

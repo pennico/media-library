@@ -369,12 +369,12 @@ body.fb-pane .detail { visibility: hidden; }
 /* selecting and quick actions (0.8.0): a check on each cover, a toggle at the start of each shelf row,
    and a bar of actions for what is selected (deleting one: the list rows and the details) */
 .book { position: relative; }
-.selbox { position: absolute; left: 6px; top: 6px; z-index: 3; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+.selbox { position: absolute; left: 6px; top: 6px; z-index: 3; width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center;
   background: rgb(255 252 245 / 0.92); border: 2px solid rgb(59 44 29 / 0.55); color: transparent; font-size: 14px; font-weight: 800; pointer-events: none; }
 .book.sel .selbox { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .book.sel .cov { outline: 3px solid var(--accent); outline-offset: 2px; }
 .grid.selecting .gmark { left: auto; right: 5px; }
-.rowsel { position: absolute; left: 4px; z-index: 2; pointer-events: auto; width: 20px; height: 20px; padding: 0; border-radius: 5px;
+.rowsel { position: absolute; left: 4px; z-index: 2; pointer-events: auto; width: 23px; height: 23px; padding: 0; border-radius: 5px;
   border: 2px solid var(--wood-muted); background: var(--board-top); color: var(--on-accent); font-size: 12px; font-weight: 800; line-height: 1; cursor: pointer; }
 .rowsel[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
 .bulkbar { position: fixed; z-index: 45; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
@@ -424,8 +424,16 @@ body.fb-pane .detail { visibility: hidden; }
 .ftog[aria-pressed="true"] .n { color: inherit; opacity: .8; }
 .ftog:disabled { opacity: .45; cursor: default; }
 .ftog.grp { font-weight: 600; }
+.ftog.fnone { border-style: dashed; font-style: italic; }
+.fmore { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 2px 8px; font-size: 12.5px; color: var(--muted); max-width: 190px; }
 .fcatgrp { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
 table.list .le.date { width: 92px; }
+table.list.sized { table-layout: fixed; }
+table.list.sized td { overflow: hidden; text-overflow: ellipsis; } table.list.sized td.wrap { min-width: 0; }
+table.list.measuring td, table.list.measuring th { white-space: nowrap !important; }
+.colgrip { position: absolute; top: 0; right: -4px; width: 9px; height: 100%; cursor: col-resize; z-index: 1; touch-action: none; }
+.colgrip:hover, .colgrip.on { background: linear-gradient(var(--accent), var(--accent)) center / 2px 100% no-repeat; }
+table.list input[type=checkbox] { width: 17px; height: 17px; vertical-align: middle; cursor: pointer; }
 table.list .ltitle { border: 0; background: none; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 table.list .ltitle:hover b { text-decoration: underline; }
 .linkbtn { border: 0; background: none; padding: 0; color: var(--accent); font-size: 12px; }
@@ -774,8 +782,8 @@ function fMatch(i, skip, f = st.f) {
   if (!has("langs", f.langs) && !f.langs.includes(i.lang || "")) return false;
   if (!has("olangs", f.olangs) && !f.olangs.includes(i.origLang || "")) return false;
   if (!has("versions", f.versions) && !f.versions.includes(versionOf(i) || "")) return false;
-  if (!has("cats", f.cats)) { const ids = catIds(f.cats); if (!(i.cats || []).some(c => ids.includes(c))) return false; }
-  for (const k of ["platforms", "countries", "tags"]) if (!has(k, f[k] || []) && !(i[k] || []).some(x => f[k].includes(x))) return false;
+  if (!has("cats", f.cats)) { const ids = catIds(f.cats.filter(Boolean)); if (!((i.cats || []).some(c => ids.includes(c)) || f.cats.includes(0) && !(i.cats || []).length)) return false; }
+  for (const k of ["platforms", "countries", "tags"]) if (!has(k, f[k] || []) && !((i[k] || []).some(x => f[k].includes(x)) || f[k].includes("") && !(i[k] || []).length)) return false;
   for (const k of ["read", "added"]) {
     const r = f[k]; if (skip === k || !r) continue;
     if (!DATE_KEYS[k](i, r.g).some(x => x >= r.from && x <= r.to)) return false;
@@ -791,13 +799,13 @@ function fMatch(i, skip, f = st.f) {
 function activeFilters(f = st.f) {
   const out = [], range = (a, b, fmt) => a === b ? fmt(a) : fmt(a) + "–" + fmt(b), k = st.kind, screen = SCREEN(k);
   for (const v of f.status) out.push(["status:" + v, statusLabel(k, v)]);
-  for (const c of f.platforms || []) out.push(["platforms:" + c, "On " + platformName(c)]);
-  for (const c of f.countries || []) out.push(["countries:" + c, countryName(c)]);
-  for (const t of f.tags || []) out.push(["tags:" + t, t]);
+  for (const c of f.platforms || []) out.push(["platforms:" + c, c ? "On " + platformName(c) : "Where: not recorded"]);
+  for (const c of f.countries || []) out.push(["countries:" + c, c ? countryName(c) : "Country: not recorded"]);
+  for (const t of f.tags || []) out.push(["tags:" + t, t || "No tags"]);
   for (const v of f.versions) out.push(["versions:" + v, versionLabel(v || null)]);
   for (const c of f.langs) out.push(["langs:" + c, (c ? langName(c) : "Language not recorded")]);
   for (const c of f.olangs) out.push(["olangs:" + c, "Original: " + (c ? langName(c) : "not recorded")]);
-  for (const c of f.cats) out.push(["cats:" + c, catName(c)]);
+  for (const c of f.cats) out.push(["cats:" + c, c ? catName(c) : "No category"]);
   if (f.read) out.push(["read", (screen ? "Watched " : "Read ") + range(f.read.from, f.read.to, fmtKey)]);
   if (f.added) out.push(["added", "Added " + range(f.added.from, f.added.to, fmtKey)]);
   if (f.pub) out.push(["pub", (screen ? "Released " : "Published ") + range(f.pub[0], f.pub[1], fmtYear)]);
@@ -906,6 +914,7 @@ function renderDatabase() {
   if (kept.size) for (const b of v.querySelectorAll("#grid > .book")) { const o = kept.get(b.id); if (o && o.outerHTML === b.outerHTML) b.replaceWith(o); }
   if (st.selected) { renderDetail(); $("detail").scrollTop = paneTop; }
   if (canDrag) enableDrag(shelf);
+  applyColWidths();
   watchShelves();
   renderBulk();
   if (st.fpane && !fDrag) renderFilterPane();
@@ -1108,16 +1117,65 @@ function listHtml(list, prefs) {
   const key = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc, edit = canEdit(), screen = SCREEN(st.kind);
   const pick = (edit || st.selecting) && !st.tableEdit;   // unlocked, the list always has its checks (no Select first)
   const shown = list.map(i => i.id), all = shown.length && shown.every(x => st.sel.has(x));
-  const head = (pick ? `<th><input type="checkbox" data-lselall="1" ${all ? "checked" : ""} aria-label="Select all shown"></th>` : "") + listCols(st.kind).map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : c !== "cover" ? `<th>${label}</th>` : `<th></th>${edit && !st.selecting ? `<th><span class="sr-only">Edit</span></th>` : ""}`).join("");
+  const grip = `<span class="colgrip" title="Drag to change the width; double-click to fit" aria-hidden="true"></span>`;
+  const head = (pick ? `<th data-ck="sel"><input type="checkbox" data-lselall="1" ${all ? "checked" : ""} aria-label="Select all shown"></th>` : "") + listCols(st.kind).map(([c, label, sk]) => sk ? `<th data-ck="${c}" class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button>${grip}</th>` : c !== "cover" ? `<th data-ck="${c}"><span class="thl">${label}</span>${grip}</th>` : `<th data-ck="cover"></th>${st.tableEdit ? `<th data-ck="acts"><span class="sr-only">Delete</span></th>` : ""}`).join("");
   return `<div class="listbox"><table class="list"><thead><tr>${head}</tr></thead><tbody>${list.map(i => st.tableEdit ? rowEditHtml(i) : `<tr data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}">
     ${pick ? `<td><input type="checkbox" data-lsel="${i.id}" ${st.sel.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.title)}"></td>` : ""}
     <td>${listCover(i)}</td>
-    ${edit && !st.selecting ? `<td class="acts">${listDel(i)}</td>` : ""}
     <td class="wrap"><button class="ltitle" data-ltitle="${i.id}" title="Open the details"><b>${esc(i.title)}</b></button></td><td>${esc(i.authors || "—")}</td>
     <td><span class="dot ${i.status}" style="display:inline-block;margin-right:6px"></span>${esc(statusLabel(i.kind, i.status))}</td>
     <td class="num">${i.rating ?? ""}</td><td class="num">${esc(lastRead(i) || "")}</td><td class="num">${esc(amountText(i))}</td>
     <td>${esc(langName(screen ? i.origLang : i.lang))}</td><td>${screen ? esc((i.platforms || []).map(platformName).join(", ")) : versionOf(i) ? `<span class="vico">${VICON[versionOf(i)]}</span> ${versionLabel(versionOf(i))}` : ""}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`).join("")}</tbody></table></div>`;
 }
+// column widths in the list: dragged by hand or fitted to the content (double-click), kept per kind in this browser
+function fixCols(t, saved = {}) {
+  const ths = [...t.tHead.rows[0].cells];
+  t.classList.remove("sized"); t.style.width = "auto"; for (const th of ths) th.style.width = "";   // natural widths, not stretched
+  const w = ths.map(th => saved[th.dataset.ck] ?? Math.min(320, Math.ceil(th.getBoundingClientRect().width)));
+  ths.forEach((th, n) => { th.style.width = w[n] + "px"; });
+  t.style.width = w.reduce((a, b) => a + b, 0) + "px"; t.classList.add("sized");
+}
+function applyColWidths() {
+  const t = document.querySelector("#content table.list"), saved = load("colw-" + st.kind, {});
+  if (t && Object.keys(saved).length) fixCols(t, saved);
+}
+function saveColWidths(t) {
+  const m = {}; for (const th of t.tHead.rows[0].cells) m[th.dataset.ck] = Math.round(parseFloat(th.style.width));
+  save("colw-" + st.kind, m);
+}
+function setColWidth(t, th, w) {
+  const old = parseFloat(th.style.width) || th.getBoundingClientRect().width;
+  th.style.width = w + "px"; t.style.width = (parseFloat(t.style.width) - old + w) + "px";
+}
+function fitCol(t, th) {
+  const n = [...th.parentElement.cells].indexOf(th), r = document.createRange();
+  const pad = el => { const c = getComputedStyle(el); return parseFloat(c.paddingLeft) + parseFloat(c.paddingRight); };
+  t.classList.add("measuring");
+  let w = 0;
+  for (const row of t.rows) {
+    const cell = row.cells[n]; if (!cell) continue;
+    const what = row.parentElement.tagName === "THEAD" ? cell.querySelector("button, .thl, input") : cell;
+    if (!what) continue;
+    r.selectNodeContents(what); w = Math.max(w, r.getBoundingClientRect().width + pad(cell));
+  }
+  t.classList.remove("measuring");
+  setColWidth(t, th, Math.min(Math.max(Math.ceil(w) + 12, 36), 700));
+}
+document.addEventListener("pointerdown", e => {
+  const g = e.target.closest?.(".colgrip"); if (!g) return;
+  e.preventDefault();
+  const t = g.closest("table"), th = g.parentElement;
+  fixCols(t, load("colw-" + st.kind, {}));
+  const x0 = e.clientX, w0 = parseFloat(th.style.width);
+  g.setPointerCapture(e.pointerId); g.classList.add("on");
+  const move = ev => setColWidth(t, th, Math.max(36, Math.round(w0 + ev.clientX - x0)));
+  const up = () => { g.removeEventListener("pointermove", move); g.removeEventListener("pointerup", up); g.classList.remove("on"); saveColWidths(t); };
+  g.addEventListener("pointermove", move); g.addEventListener("pointerup", up);
+});
+document.addEventListener("dblclick", e => {
+  const g = e.target.closest?.(".colgrip"); if (!g) return;
+  const t = g.closest("table"); fixCols(t, load("colw-" + st.kind, {})); fitCol(t, g.parentElement); saveColWidths(t);
+});
 // a row's delete button: the first click asks, the second moves it to the trash (the same as on a cover)
 const listDel = i => { const ask = st.delAsk === i.id;
   return `<button class="btn small${ask ? " danger" : ""}" data-del="${i.id}" data-delkey="${i.id}" title="${ask ? "Click again to move to the trash" : "Move to the trash"}" aria-label="${ask ? "Confirm: move " + esc(i.title) + " to the trash" : "Move " + esc(i.title) + " to the trash"}">${ask ? "Delete?" : "🗑"}</button>`; };
@@ -1129,7 +1187,7 @@ function rowEditHtml(i) {
   const book = i.kind === "book", L = LABEL[i.kind] || LABEL.book, cats = (st.rowCats[i.id] ??= [...i.genres]);
   const fmts = FORMATS.map(([c, l]) => `<option value="${c}" ${i.format === c ? "selected" : ""}>${l}</option>`).join("");
   return `<tr class="editing" data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}">
-    <td>${listCover(i)}</td><td class="acts"></td>
+    <td>${listCover(i)}</td><td class="acts">${listDel(i)}</td>
     <td><input class="le wide" data-f="title" value="${esc(i.title)}" aria-label="Title of ${esc(i.title)}" maxlength="1000"></td>
     <td><input class="le wide" data-f="authors" value="${esc(i.authors)}" aria-label="${makerLabel(i.kind)}, separated by commas"></td>
     <td><select class="le" data-f="status" aria-label="Status">${STATUS_ORDER.map(x => `<option value="${x}" ${i.status === x ? "selected" : ""}>${L[x]}</option>`).join("")}</select></td>
@@ -1238,12 +1296,23 @@ function dualHtml(key, label, cur) {
 }
 const dualVals = (D, lo, hi, any) => `<b>${esc(D.fmt(D.dom[lo]))}</b><span class="muted">${any ? "any" : ""}</span><b>${esc(D.fmt(D.dom[hi]))}</b>`;
 // a facet of list values (where you watched, countries, tags): the values the items have, most common first
-function facetSec(key, title, items, label, count) {
+function facetSec(key, title, items, label, count, none = "Not recorded") {
   const vals = [...new Set(items.flatMap(i => i[key] || []))];
   if (!vals.length) return "";
-  const f = FC().f, rows = vals.map(v => [v, count(key, i => (i[key] || []).includes(v))]).sort((a, b) => b[1] - a[1] || String(label(a[0])).localeCompare(String(label(b[0]))));
-  return `<div class="fsec"><h4>${title}</h4><div class="ftoggles">${rows.map(([v, n]) => { const on = (f[key] || []).includes(v);
-    return `<button class="ftog" data-ftog="${key}" data-fval="${esc(v)}" aria-pressed="${on}" ${!n && !on ? "disabled" : ""}>${esc(label(v))}<span class="n">${n}</span></button>`; }).join("")}</div></div>`;
+  const rows = vals.map(v => [v, esc(label(v)), count(key, i => (i[key] || []).includes(v)), String(label(v))])
+    .sort((a, b) => b[2] - a[2] || a[3].localeCompare(b[3]));
+  rows.push(["", none, count(key, i => !(i[key] || []).length), none]);
+  return `<div class="fsec"><h4>${title}</h4>${togList(key, rows, FC().f)}</div>`;
+}
+// a facet's values as toggles [value, label html, count, label text]: up to five, then the rest in a dropdown
+// (the chosen ones and the "not recorded" one always show as toggles)
+function togList(facet, rows, f, cls = "") {
+  const on = v => (f[facet] || []).some(x => String(x) === String(v)), empty = r => r[0] === "" || r[0] === 0;
+  const btn = ([v, l, n]) => `<button class="ftog ${cls}${v === "" || v === 0 ? " fnone" : ""}" data-ftog="${facet}" data-fval="${esc(v)}" aria-pressed="${on(v)}" ${!n && !on(v) ? "disabled" : ""}>${l}<span class="n">${n}</span></button>`;
+  const vals = rows.filter(r => !empty(r)), none = rows.filter(empty);
+  const shown = vals.length <= 5 ? vals : vals.filter((r, k) => k < 5 || on(r[0])), rest = vals.filter(r => !shown.includes(r) && r[2]);
+  return `<div class="ftoggles">${shown.map(btn).join("")}${rest.length ? `<select class="fmore" data-fpick="${facet}" aria-label="More: ${rest.length}">
+    <option value="">+ ${rest.length} more…</option>${rest.map(([v, , n, t]) => `<option value="${esc(v)}">${esc(t)} · ${n}</option>`).join("")}</select>` : ""}${none.map(btn).join("")}</div>`;
 }
 const COUNTRY = typeof Intl.DisplayNames === "function" ? new Intl.DisplayNames(["en"], {type: "region"}) : null;
 const countryName = c => { try { return (COUNTRY && c ? COUNTRY.of(c) : c) || c || "Not recorded"; } catch (e) { return c; } };
@@ -1254,7 +1323,7 @@ function renderFilterPane() {
   if (!p) { p = document.createElement("div"); p.id = "fpane"; p.className = "fpane"; p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Filter"); document.body.append(p); }
   const C = FC(), keep = p.querySelector(".fp-body")?.scrollTop || 0, f = C.f, items = C.items(), all = items.filter(C.pre);
   const count = (skip, test) => all.filter(i => fMatch(i, skip, f) && test(i)).length;
-  const tog = (facet, val, label, n, cls = "") => { const on = f[facet].includes(val);
+  const tog = (facet, val, label, n, cls = "") => { const on = f[facet].some(x => String(x) === String(val));
     return `<button class="ftog ${cls}" data-ftog="${facet}" data-fval="${esc(val)}" aria-pressed="${on}" ${!n && !on ? "disabled" : ""}>${label}<span class="n">${n}</span></button>`; };
   const isBook = st.kind === "book", screen = SCREEN(st.kind), kindNoun = n => noun(st.kind, n);
   if (screen) fLang = "olangs";
@@ -1283,11 +1352,11 @@ function renderFilterPane() {
   p.innerHTML = `<div class="fp-head">${C.page ? "Page filter <span class=\"muted\" style=\"font-weight:400;font-size:12.5px\">all charts</span>" : "Filter"}<button class="xbtn" id="fp-close" aria-label="Close the filter">✕</button></div>
     <div class="fp-body">
       ${C.page ? `<div class="fsec"><h4>Status</h4><div class="ftoggles">${STATUS_ORDER.map(v => tog("status", v, esc(statusLabel(st.kind, v)), count("status", i => i.status === v))).join("")}</div></div>` : ""}
-      ${screen ? facetSec("platforms", "Where you watched", items, platformName, count) + facetSec("countries", "Country", items, countryName, count) + facetSec("tags", "Tags", items, t => t, count) : ""}
-      ${isBook ? `<div class="fsec"><h4>Version</h4><div class="ftoggles">${vers.map(([v, l]) => tog("versions", v, l, count("versions", i => (versionOf(i) || "") === v))).join("")}</div></div>` : ""}
+      ${screen ? facetSec("platforms", "Where you watched", items, platformName, count) + facetSec("countries", "Country", items, countryName, count) + facetSec("tags", "Tags", items, t => t, count, "No tags") : ""}
+      ${isBook ? `<div class="fsec"><h4>Version</h4>${togList("versions", vers.map(([v, l]) => [v, l, count("versions", i => (versionOf(i) || "") === v), l.replace(/<[^>]+>/g, "")]), f)}</div>` : ""}
       <div class="fsec"><h4>${screen ? "Original language" : `Language<span class="segsmall" role="group" aria-label="Which language"><button data-flang="langs" aria-pressed="${fLang === "langs"}">Of the book</button><button data-flang="olangs" aria-pressed="${fLang === "olangs"}">Original</button></span>`}</h4>
-        <div class="ftoggles">${langs.map(([c, n]) => tog(fLang, c, esc(c ? langName(c) : "Not recorded"), n)).join("") || `<span class="muted">—</span>`}</div></div>
-      ${tree.length ? `<div class="fsec"><h4>Category</h4>${tree.map(g => `<div class="fcatgrp">${tog("cats", g.id, esc(g.name), count("cats", i => (i.cats || []).some(c => catIds([g.id]).includes(c))), "grp")}${g.subs.filter(c => c.n).map(c => tog("cats", c.id, esc(c.name), count("cats", i => (i.cats || []).includes(c.id)))).join("")}</div>`).join("")}</div>` : ""}
+        ${langs.length ? togList(fLang, langs.map(([c, n]) => [c, esc(c ? langName(c) : "Not recorded"), n, c ? langName(c) : "Not recorded"]), f) : `<span class="muted">—</span>`}</div>
+      ${tree.length ? `<div class="fsec"><h4>Category</h4>${tree.map(g => `<div class="fcatgrp">${tog("cats", g.id, esc(g.name), count("cats", i => (i.cats || []).some(c => catIds([g.id]).includes(c))), "grp")}${g.subs.filter(c => c.n).map(c => tog("cats", c.id, esc(c.name), count("cats", i => (i.cats || []).includes(c.id)))).join("")}</div>`).join("")}<div class="fcatgrp">${tog("cats", 0, "No category", count("cats", i => !(i.cats || []).length), "fnone")}</div></div>` : ""}
       ${dateSec("read", isBook ? "Read" : "Watched")}
       <div class="fsec"><h4>${isBook ? "Published" : "Released"}</h4>${dualHtml("pub", isBook ? "Published" : "Released", f.pub)}</div>
       <div class="fsec"><h4>Rating</h4>${dualHtml("rating", "Rating", f.rating)}</div>
@@ -1330,6 +1399,8 @@ document.addEventListener("input", e => {
   fDrag = true; redrawList();
 });
 document.addEventListener("change", e => {
+  if (e.target.dataset?.fpick && e.target.value !== "") { const C = FC(), k = e.target.dataset.fpick, v = k === "cats" ? +e.target.value : e.target.value;
+    if (!C.f[k].some(x => String(x) === String(v))) C.f[k] = [...C.f[k], v]; C.save(); C.redraw(); return; }
   const dual = e.target.closest?.(".dual");
   if (dual && FDOM[dual.dataset.dual]?.live) { FDOM[dual.dataset.dual].done?.(); return; }
   if (dual) {                                        // redraw the counts; keep the keyboard on the same handle
@@ -1633,9 +1704,12 @@ document.addEventListener("click", async e => {
   if (del) {
     e.preventDefault(); e.stopPropagation();
     if (!canEdit()) return act(() => 0);
-    const key = del.dataset.delkey, ids = del.dataset.del.split(",");
-    if (st.delAsk !== key) { st.delAsk = key; renderDatabase(); setTimeout(() => { if (st.delAsk === key) { st.delAsk = null; renderDatabase(); } }, 4000); return; }
+    const key = del.dataset.delkey, ids = del.dataset.del.split(","), row = st.tableEdit && del.closest("tr.editing");
+    const asking = on => { if (!del.isConnected) return; del.classList.toggle("danger", on); del.textContent = on ? "Delete?" : "🗑"; };
+    if (st.delAsk !== key) { st.delAsk = key; row ? asking(true) : renderDatabase();
+      setTimeout(() => { if (st.delAsk === key) { st.delAsk = null; row ? asking(false) : renderDatabase(); } }, 4000); return; }
     st.delAsk = null;
+    if (row) { await act(async () => { await api.bulk({items: ids, action: "trash"}); row.remove(); LIB.items = LIB.items.filter(x => !ids.includes(x.id)); renderSide(); }, "Moved to the trash"); return; }
     await act(async () => { const r = await api.bulk({items: ids, action: "trash"}); LIB = await api.library();
       for (const i of ids) st.sel.delete(i);
       if (ids.includes(st.selected) || st.selected === key) { st.selected = null; st.detail = null; }
