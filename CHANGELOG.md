@@ -2,6 +2,12 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.6.2] - 2026-10-26
+
+- Fixed: `import-watch` could not move a title from a watchlist (To watch) to
+  Watched when a later viewing history had it: the correction of a status it
+  had written itself as the owner's is now written under that same label.
+
 ## [0.6.1] - 2026-10-25
 
 - Fixed: `import-watch` left a title **To watch** when its only watch came

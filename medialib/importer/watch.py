@@ -156,7 +156,8 @@ def entry_and_watches(conn, item, it, res):
         # only a status the watches allow (completed needs a completed watch…); never back to planned
         if (status in ("completed", "dropped") and status in states or status == "planned" and not states) \
                 and not (entry["status"] in ("completed", "dropped") and status == "planned"):
-            db.set_source(conn, _status_source(it))
+            # a status this importer wrote as the owner's (only_imported) is corrected under the same label
+            db.set_source(conn, "owner" if labels.get("status") == "owner" else _status_source(it))
             conn.execute("UPDATE library.entry SET status = %s, status_changed_at = now() WHERE item_id = %s", (status, item))
             res["changes"].append("status " + status)
     db.set_source(conn, "owner")

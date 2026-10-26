@@ -257,3 +257,14 @@ def test_import_watch_an_owner_seen_list_is_watched(cfg, app, tmp_path):
         app.execute("UPDATE library.entry SET status = 'planned' WHERE item_id = %s", (row["item_id"],))
     run_import(cfg, app, [item], tmp_path)
     assert app.execute("SELECT status FROM library.entry WHERE item_id = %s", (row["item_id"],)).fetchone()["status"] == "planned"
+
+
+def test_import_watch_a_watchlist_title_seen_later(cfg, app, tmp_path):
+    """On a watchlist first (To watch, written as the owner's), then in a viewing history: Watched."""
+    title = uniq("Stargate")
+    d = movie_details(title, 550_000 + 7, 1994)
+    run_import(cfg, app, [{"kind": "movie", "tmdb": d, "status": "planned", "collections": ["Prime Video watchlist"]}], tmp_path)
+    r = run_import(cfg, app, [{"kind": "movie", "tmdb": d, "status": "completed",
+                               "watches": [{"state": "completed", "started": "2022-06-29", "ended": "2022-06-29",
+                                            "platform": "prime_video", "source": "prime_video"}]}], tmp_path)
+    assert not r["failed"] and r["results"][0]["changes"] == ["1 watch", "status completed"]
