@@ -9,6 +9,7 @@
     python -m medialib adopt-files SNAPSHOT_DIR [--apply]
     python -m medialib categorize [--apply] [--offline] [--out DIR]
     python -m medialib purge-trash [--days 30] [--apply]
+    python -m medialib test-data [--remove]
 """
 import argparse
 import sys
@@ -53,6 +54,8 @@ def main(argv=None):
     t = sub.add_parser("purge-trash", help="delete for good what is in the trash for longer than --days (dry run unless --apply)")
     t.add_argument("--days", type=int, default=30)
     t.add_argument("--apply", action="store_true")
+    td = sub.add_parser("test-data", help="made-up books, movies and series in the Test section (or --remove them)")
+    td.add_argument("--remove", action="store_true", help="delete every item in the Test section for good")
     a = ap.parse_args(argv)
     cfg = config.from_env(**({"db_name": a.db} if a.db else {}))
     if a.cmd == "bootstrap":
@@ -100,6 +103,13 @@ def main(argv=None):
         from .web import writes
         with db.connect(cfg, db.ROLE_APP) as conn:
             writes.purge_trash(conn, cfg.media_dir, days=a.days, apply=a.apply)
+    elif a.cmd == "test-data":
+        from . import db, testdata
+        with db.connect(cfg, db.ROLE_APP) as conn:
+            if a.remove:
+                testdata.remove(conn, cfg.media_dir)
+            else:
+                testdata.add(conn)
     elif a.cmd == "serve":
         from .web import server
         server.serve(cfg, host=a.host, port=a.port, **server.from_env(cfg))

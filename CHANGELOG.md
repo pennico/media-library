@@ -2,6 +2,30 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-10-26
+
+- **Sections** in the left pane: folders for your books, movies and series.
+  An item lives in one section or in the main library; the main shelves show
+  what is in none. Two are built in: **Archive** (out of sight, nothing
+  deleted) and **Test**; both stay out of the Visuals and search, your own
+  sections count everywhere. Migration 0016 (the statistics views leave
+  Archive and Test out).
+- **Select** (unlocked): a check on every cover (and a column in the list), a
+  toggle at the start of each shelf row, All / None.
+- **Quick actions** on the selection: Mark as read / watched, Move to a
+  section, Archive / Unarchive, Add to a collection, Delete, and **Edit all**:
+  one blank row over the shelf where only what you fill in (status, rating,
+  category, tags to add, version, language, added date, collection) changes;
+  everything else stays as each item has it.
+- **Delete from the shelf**: unlocked, a button at the bottom right of each
+  cover (it asks once more) moves it to the trash.
+- `medialib test-data` fills the Test section with made-up books, movies and
+  series (titles start "Test ·"); `--remove` deletes them all again.
+- Fixed: a series with seasons in the trash could not be deleted for good (the
+  30-day purge stopped on it).
+- Fixed: the nightly base backup folder was readable by its owner only, so the
+  health check saw an older one ("base backup < 26 h" failed).
+
 ## [0.7.0] - 2026-10-26
 
 - **Film collections**: films that belong together (a trilogy, a saga) show

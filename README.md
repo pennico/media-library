@@ -19,6 +19,9 @@ looks like a bookshelf.
   films (from TMDB, or your own groups), and each watch can name its
   season, the episodes seen and where it was watched. Add by TMDB search, or
   import a whole watch history (`medialib import-watch`).
+- **Sections and quick actions**: folders in the left pane (and an Archive);
+  select covers, rows or everything and mark them read, move, archive,
+  delete, or edit them all at once (only the fields you fill in change).
 - **Versions**: paper, ebook or audiobook for each book, and for each reading.
 - **Add a book** from Apple Books (cover and basics), Open Library (ISBN,
   pages, publisher) and Google Books (with a key), from an EPUB file (its own
@@ -46,7 +49,7 @@ looks like a bookshelf.
   (shared with [agent-console](https://github.com/pennico/agent-console) if
   you use it).
 
-Status: 0.6.0, used daily by its author.
+Status: 0.8.0, used daily by its author.
 
 ## Docs
 

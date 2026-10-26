@@ -366,6 +366,42 @@ body.fb-pane .detail { visibility: hidden; }
 .gmark { position: absolute; left: 5px; top: 5px; z-index: 2; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: grid; place-items: center;
   background: rgb(255 252 245 / 0.92); color: #3b2c1d; font-size: 11.5px; font-weight: 700; box-shadow: 0 1px 3px rgb(0 0 0 / 0.35); pointer-events: none; }
 .grid.s .gmark { min-width: 18px; height: 18px; left: 3px; top: 3px; font-size: 10.5px; }
+/* selecting and quick actions (0.8.0): a check on each cover, a toggle at the start of each shelf row,
+   a delete button at the bottom right (unlocked), and a bar of actions for what is selected */
+.book { position: relative; }
+.selbox { position: absolute; left: 6px; top: 6px; z-index: 3; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+  background: rgb(255 252 245 / 0.92); border: 2px solid rgb(59 44 29 / 0.55); color: transparent; font-size: 14px; font-weight: 800; pointer-events: none; }
+.book.sel .selbox { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.book.sel .cov { outline: 3px solid var(--accent); outline-offset: 2px; }
+.grid.selecting .gmark { left: auto; right: 5px; }
+.delbtn { position: absolute; right: 5px; bottom: 5px; z-index: 3; border: 0; border-radius: 999px; min-width: 26px; height: 26px; padding: 0 7px;
+  display: none; align-items: center; justify-content: center; gap: 4px; background: rgb(255 252 245 / 0.94); color: var(--bad);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35); font-size: 12px; font-weight: 700; cursor: pointer; }
+.delbtn.ask { background: var(--bad); color: #fff; display: inline-flex; }
+.grid.canedit .book:hover .delbtn, .grid.canedit .book:focus-within .delbtn { display: inline-flex; }
+@media (hover: none) { .grid.canedit .delbtn { display: inline-flex; } }
+.rowsel { position: absolute; left: 4px; z-index: 2; pointer-events: auto; width: 20px; height: 20px; padding: 0; border-radius: 5px;
+  border: 2px solid var(--wood-muted); background: var(--board-top); color: var(--on-accent); font-size: 12px; font-weight: 800; line-height: 1; cursor: pointer; }
+.rowsel[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+.bulkbar { position: fixed; z-index: 45; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; max-width: calc(100vw - 24px); padding: 8px 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 34px -8px var(--shadow), 0 2px 6px var(--shadow); font-size: 13px; }
+.bulkbar b { margin: 0 4px; }
+.bulkpop { position: fixed; z-index: 55; min-width: 220px; max-height: min(420px, 60vh); overflow: auto; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 12px 30px -8px var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.bulkpop button { text-align: left; border: 0; background: none; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+.bulkpop button:hover, .bulkpop button:focus-visible { background: var(--sel); }
+.bulkpop h4 { margin: 6px 8px 2px; font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 500; }
+/* "define and apply to all": one blank row laid over the shelf; only what is filled in changes */
+.overlay { position: fixed; inset: 0; z-index: 60; background: rgb(20 12 4 / 0.45); display: grid; place-items: center; padding: 16px; }
+.overlay .sheet { width: min(760px, 100%); max-height: 88vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 20px 50px -10px rgb(0 0 0 / 0.5); padding: 16px 18px; }
+.overlay h2 { margin: 0 0 4px; font-size: 16.5px; }
+.applyrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; padding: 12px; border: 2px dashed var(--accent);
+  border-radius: 10px; background: var(--sunk); }
+.applyrow label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--muted); }
+.applyrow input, .applyrow select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); font-size: 13px; }
+.applyrow .changed { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .collfilm { border: 0; background: none; padding: 4px; margin: -4px; text-align: left; color: inherit; font: inherit; border-radius: 6px; cursor: pointer; }
 .collfilm:hover, .collfilm:focus-visible { background: var(--sunk); }
 .verbar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
@@ -540,7 +576,8 @@ const VICON = {
   paper: `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 3.5C6.5 2.4 4.4 2 2 2.2v10c2.4-.2 4.5.2 6 1.3 1.5-1.1 3.6-1.5 6-1.3v-10c-2.4-.2-4.5.2-6 1.3zM8 3.5v10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`,
 };
 let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, STATS = null, READING = null;
-const st = {sec: "database", kind: "book", shelf: null, filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
+const st = {sec: "database", kind: "book", shelf: null, section: null, selecting: false, sel: new Set(), delAsk: null,
+  filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
   listSort: null, err: "", unlockMsg: "", rowCats: [], syncTab: "readest", readerPw: null, view: "shelf", trash: null,
   confirmTrash: false, vtab: "me", vscope: "all", LSTATS: null, side: true, f: null, fpane: false, pick: null,
   time: {metric: "books", g: "year", cum: false, axis: {}}, cal: "last"};
@@ -579,6 +616,10 @@ const serverApi = {
   lookup(body) { return this.send("POST", "api/lookup", body); },
   add(token, index, status, format) { return this.send("POST", "api/add", {token, index, status, format}); },
   fill(id) { return this.send("POST", "api/items/" + id + "/fill", {}); },
+  bulk(body) { return this.send("POST", "api/bulk", body); },
+  newSection(name) { return this.send("POST", "api/sections", {name}); },
+  editSection(sid, body) { return this.send("PATCH", "api/sections/" + sid, body); },
+  deleteSection(sid) { return this.send("DELETE", "api/sections/" + sid, {}); },
   tmdbSearch(kind, query, year) { return this.send("POST", "api/tmdb/search", {kind, query, year}); },
   tmdbAdd(kind, tmdb, status) { return this.send("POST", "api/tmdb/add", {kind, tmdb, status}); },
   addManual(body) { return this.send("POST", "api/add-manual", body); },
@@ -677,15 +718,17 @@ function renderSide() {
     $("side-foot").innerHTML = PREVIEW ? `Preview: no server behind this page.` : `Tailnet only · ${esc(SESSION.login || "no login")}`;
     return;
   }
-  const counts = Object.fromEntries(KINDS.map(([k]) => [k, LIB.items.filter(i => i.kind === k).length]));
+  const counts = Object.fromEntries(KINDS.map(([k]) => [k, LIB.items.filter(i => i.kind === k && !hiddenItem(i)).length]));
   $("kinds").innerHTML = `<h3>${st.sec === "database" ? "Library" : "Statistics"}</h3>` + KINDS.map(([k, label, ico]) =>
     `<button class="nav" id="kind-${k}" data-kind="${k}" aria-current="${st.kind === k}"><span class="ico">${ico}</span>${label}<span class="n">${counts[k]}</span></button>`).join("");
   if (st.sec === "database") {
     const shelves = shelvesOf(st.kind);
     $("shelves").hidden = false;
+    const byId = itemsById(), inShelf = (s, id) => { const i = byId[id]; return !!i && (s.kind === "all" ? !i.section : !hiddenItem(i)); };
     $("shelves").innerHTML = `<h3>Collections</h3>` + shelves.map(s =>
-      `<button class="nav" id="shelf-${s.id}" data-shelf="${s.id}" aria-current="${st.shelf === s.id}"><span class="ico">${s.kind === "all" ? "◉" : "▸"}</span>${esc(s.kind === "all" ? "All " + KINDS.find(k => k[0] === st.kind)[1].toLowerCase() : s.name)}<span class="n">${s.items.length}</span></button>`).join("") +
+      `<button class="nav" id="shelf-${s.id}" data-shelf="${s.id}" aria-current="${st.shelf === s.id && !st.section && st.view !== "trash"}"><span class="ico">${s.kind === "all" ? "◉" : "▸"}</span>${esc(s.kind === "all" ? "All " + KINDS.find(k => k[0] === st.kind)[1].toLowerCase() : s.name)}<span class="n">${s.items.filter(id => inShelf(s, id)).length}</span></button>`).join("") +
       (canEdit() ? `<form class="newshelf" id="newshelf"><input id="newshelf-name" placeholder="New collection" aria-label="New collection name" maxlength="100"><button class="btn small" type="submit">Add</button></form>` : "") +
+      sectionsNav() +
       `<button class="nav" id="trash-nav" data-trashview="1" aria-current="${st.view === "trash"}"><span class="ico">🗑</span>Trash<span class="n">${LIB.trash || ""}</span></button>`;
     const tree = catTree(st.kind);
     $("cats").hidden = !tree.length;
@@ -700,7 +743,7 @@ function renderSide() {
 // -------------------------------------------------------------- database
 // the category tree for one kind: groups with their categories, counted over that kind's items
 function catTree(kind) {
-  const cats = LIB.categories || [], items = LIB.items.filter(i => i.kind === kind);
+  const cats = LIB.categories || [], items = LIB.items.filter(i => i.kind === kind && !hiddenItem(i));
   const count = ids => items.filter(i => (i.cats || []).some(c => ids.includes(c))).length;
   const groups = cats.filter(c => c.parent == null);
   return groups.map(g => {
@@ -775,7 +818,7 @@ function clearFilter(key) {
 const saveF = () => save("filter", st.f);
 // The pane filters the shelf in the Database, and every chart on the Visuals page (its own filter, kept apart)
 const FC = () => st.sec === "visuals"
-  ? {f: st.vf, win: st.vfwin, items: () => LIB.items.filter(i => i.kind === st.kind), pre: () => true, save: () => save("vfilter", st.vf),
+  ? {f: st.vf, win: st.vfwin, items: () => LIB.items.filter(i => i.kind === st.kind && !hiddenItem(i)), pre: () => true, save: () => save("vfilter", st.vf),
      redraw: () => renderVisuals(), page: true}
   : {f: st.f, win: st.fwin, items: shelfItems, pre: statusQ, save: saveF, redraw: () => renderDatabase(), page: false};
 // the "find it" link: {q} in the address gets the title and first author, as a search form sends them (spaces as +)
@@ -793,7 +836,10 @@ function findFormHtml() {
 }
 function shelfItems() {
   const shelf = LIB.shelves.find(s => s.id === st.shelf), byId = itemsById();
-  return shelf ? shelf.items.map(id => byId[id]).filter(Boolean) : LIB.items.filter(i => i.kind === st.kind);
+  const list = shelf ? shelf.items.map(id => byId[id]).filter(Boolean) : LIB.items.filter(i => i.kind === st.kind);
+  if (st.section) return list.filter(i => i.section === st.section);           // a section: what is in it (D50)
+  return !shelf || shelf.kind === "all" ? list.filter(i => !i.section)          // the library: what is in no section
+    : list.filter(i => !hiddenItem(i));                                          // a collection: all but Archive / Test
 }
 const visibleItems = () => shelfItems().filter(i => fMatch(i));
 const statusQ = i => (st.filter === "all" || i.status === st.filter) && (!st.q.trim() || fold(i.title + " " + i.authors + " " + i.genres.join(" ")).includes(fold(st.q.trim())));
@@ -822,8 +868,9 @@ function renderDatabase() {
   const present = STATUS_ORDER.filter(s => ["planned", "in_progress", "completed"].includes(s) || base.some(i => i.status === s));
   const chips = [["all", "All", base.length], ...present.map(s => [s, labels[s], base.filter(i => i.status === s).length])];
   const manual = (st.listSort?.key || prefs.sort) === "manual";
-  const canDrag = manual && prefs.layout === "grid" && st.filter === "all" && !st.q && !active.length && canEdit();
-  const title = (shelf.kind === "all" ? "All " + KINDS.find(k => k[0] === kind)[1].toLowerCase() : shelf.name) + (st.f.cats.length === 1 ? " · " + catName(st.f.cats[0]) : "");
+  const canDrag = manual && prefs.layout === "grid" && st.filter === "all" && !st.q && !active.length && canEdit() && !st.selecting && !st.section;
+  const sec = st.section && sectionOf(st.section);
+  const title = (sec ? sec.name : shelf.kind === "all" ? "All " + KINDS.find(k => k[0] === kind)[1].toLowerCase() : shelf.name) + (st.f.cats.length === 1 ? " · " + catName(st.f.cats[0]) : "");
   const v = $("v-database");
   // covers already on the shelf are kept as they are (no image reload, no blink); only changed ones are redrawn
   const kept = new Map([...v.querySelectorAll("#grid > .book")].map(b => [b.id, b])), paneTop = $("detail")?.scrollTop || 0;
@@ -837,12 +884,18 @@ function renderDatabase() {
         <button class="btn small" id="sortdir" aria-label="Sort direction" title="Sort direction" ${manual ? "disabled" : ""}>${(st.listSort ? st.listSort.desc : prefs.desc) ? "↓" : "↑"}</button>
         ${prefs.layout === "grid" ? `<span class="segsmall" role="group" aria-label="Cover size">${["s", "m", "l"].map(s => `<button id="size-${s}" data-size="${s}" aria-pressed="${prefs.size === s}">${s.toUpperCase()}</button>`).join("")}</span>` : ""}
         <span class="segsmall" role="group" aria-label="Layout"><button id="lay-grid" data-layout="grid" aria-pressed="${prefs.layout === "grid"}">Grid</button><button id="lay-list" data-layout="list" aria-pressed="${prefs.layout === "list"}">List</button></span>
-        ${shelf.kind === "manual" && canEdit() ? `<button class="btn small" id="shelf-menu">Collection…</button>` : ""}
+        ${shelf.kind === "manual" && !sec && canEdit() ? `<button class="btn small" id="shelf-menu">Collection…</button>` : ""}
+        ${sec && sec.kind === "manual" && canEdit() ? `<button class="btn small" id="section-menu">Section…</button>` : ""}
+        ${canEdit() ? `<button class="btn small" id="sel-toggle" aria-pressed="${st.selecting}" title="Select ${noun(kind)} to act on several at once">${st.selecting ? "Done" : "Select"}</button>` : ""}
+        ${st.selecting ? `<button class="btn small" id="sel-all" title="Select everything shown">All</button><button class="btn small" id="sel-none" ${st.sel.size ? "" : "disabled"}>None</button>` : ""}
         ${kind === "book" ? `<button class="btn small primary" id="add-book" title="Find a book at Apple Books and Open Library and add it">+ Add book</button>`
           : LIB.tmdb ? `<button class="btn small primary" id="add-screen" title="Find it at TMDB and add it">+ Add ${noun(kind, 1)}</button>` : ""}
       </div>
     </div>
     ${active.length ? `<div class="activef" role="group" aria-label="Active filters">${active.map(([k, label]) => `<button class="chip" data-fclear="${esc(k)}" title="Remove this filter">${esc(label)}<span aria-hidden="true">×</span></button>`).join("")}<button class="linkbtn" data-fclear="*">Clear all</button></div>` : ""}
+    ${sec ? `<p class="hintline">${sec.kind === "archive" ? "Archived: out of the library, the Visuals and search; nothing is deleted. Select and Unarchive to bring them back."
+      : sec.kind === "test" ? "Made-up items to try things on; kept out of the Visuals and search. <code>medialib test-data --remove</code> deletes them all."
+      : "A section of your library: its " + noun(kind) + " are here, not on the main shelf."}</p>` : ""}
     ${canDrag ? `<p class="hintline">Drag covers to reorder${shelf.kind === "all" ? " your library" : " this collection"}.</p>` : manual && prefs.layout === "grid" && canEdit() && (st.filter !== "all" || st.q || active.length) ? `<p class="hintline">Clear the filter to drag covers into a new order.</p>` : ""}
     <div class="lib ${st.selected ? "withdetail" : ""}" id="lib">
       <div id="content">${list.length ? (prefs.layout === "list" ? listHtml(list, prefs) : gridHtml(list, prefs)) : `<p class="empty">${shelfItems().length ? `Nothing matches the filter. <button class="linkbtn" data-fclear="*">Clear the filters</button>` : "Nothing here yet."}</p>`}</div>
@@ -852,6 +905,7 @@ function renderDatabase() {
   if (st.selected) { renderDetail(); $("detail").scrollTop = paneTop; }
   if (canDrag) enableDrag(shelf);
   watchShelves();
+  renderBulk();
   if (st.fpane && !fDrag) renderFilterPane();
 }
 // The boards: one under each row of covers (rows found from where the covers end), then empty ones at the same
@@ -870,7 +924,7 @@ function layoutShelves() {
   rows.sort((a, b) => a - b);
   const first = grid.firstElementChild, pitch = rows.length > 1 ? rows[1] - rows[0] : first.offsetHeight + (parseFloat(getComputedStyle(grid).rowGap) || 0);
   if (pitch > 60) for (let y = rows[rows.length - 1] + pitch; y < wrap.clientHeight - 4; y += pitch) rows.push(y);
-  boards.innerHTML = rows.map(y => `<div class="board" style="top:${y - BOARD}px"></div>`).join("");
+  boards.innerHTML = rows.map(y => `<div class="board" style="top:${y - BOARD}px"></div>`).join("") + (st.selecting ? rowToggles(grid, top, rows) : "");
 }
 // Films of one collection fold into one card on the Movies grid (D49), where the first of them stands, with
 // those the list shows (filters still count each film); a collection with one film here stays a plain card.
@@ -894,19 +948,141 @@ function collCard(coll, films) {
     rating: rated.length ? Math.round(rated.reduce((n, x) => n + x.rating, 0) / rated.length * 10) / 10 : null,
     status: seen === f.length ? "completed" : f.some(x => x.status === "completed" || x.status === "in_progress") ? "in_progress" : f[0].status};
 }
-const collCardHtml = g => `<button class="book group" id="b-${g.id}" data-id="${g.id}" data-rep="${g.members[0]}" data-members="${g.members.join(",")}" aria-current="${st.selected === g.id}" aria-label="${esc(g.title)}, ${g.films.length} films">
-    <div class="stand"><div class="cov">${coverSrc(g.cover) ? `<img src="${coverSrc(g.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(g.title)}</span>`}<span class="gmark">${g.films.length}</span></div></div>
+const collCardHtml = g => `<button class="book group${g.members.every(m => st.sel.has(m)) && st.selecting ? " sel" : ""}" id="b-${g.id}" data-id="${g.id}" data-rep="${g.members[0]}" data-members="${g.members.join(",")}" aria-current="${st.selected === g.id}" aria-label="${esc(g.title)}, ${g.films.length} films">
+    <div class="stand"><div class="cov">${coverSrc(g.cover) ? `<img src="${coverSrc(g.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(g.title)}</span>`}<span class="gmark">${g.films.length}</span>${coverTools(g.members, g.id)}</div></div>
     <span class="t">${esc(g.title)}</span><span class="a">${esc(g.authors || "—")}</span>
     <span class="s"><span class="dot ${g.status}"></span>${esc(g.line)}${g.rating != null ? " · " + g.rating + "/10" : ""}</span></button>`;
 function gridHtml(list, prefs) {
-  return `<div class="shelfwrap" id="shelfwrap"><div class="boards" id="boards"></div><div class="grid ${prefs.size}" id="grid">${foldCollections(list).map(i => i.group ? collCardHtml(i) : `<button class="book" id="b-${i.id}" data-id="${i.id}" aria-current="${st.selected === i.id}">
-    <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}</div></div>
+  return `<div class="shelfwrap" id="shelfwrap"><div class="boards" id="boards"></div><div class="grid ${prefs.size}${st.selecting ? " selecting" : ""}${canEdit() ? " canedit" : ""}" id="grid">${foldCollections(list).map(i => i.group ? collCardHtml(i) : `<button class="book${st.selecting && st.sel.has(i.id) ? " sel" : ""}" id="b-${i.id}" data-id="${i.id}" aria-current="${st.selected === i.id}">
+    <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}${coverTools([i.id], i.id)}</div></div>
     <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span>
     <span class="s"><span class="dot ${i.status}"></span>${esc(statusLine(i))}${i.rating != null ? " · " + i.rating + "/10" : ""}</span></button>`).join("")}</div></div>`;
 }
 function vmark(i) {
   const v = versionOf(i);
   return v === "ebook" || v === "audio" ? `<span class="vmark" title="${versionLabel(v)}">${VICON[v]}</span>` : "";
+}
+// ------------------------------------------------- sections, selection and quick actions (0.8.0, D50)
+// A section is a folder: an item lives in one or in the main library. Archive and Test are built in and kept
+// out of the shelves, the Visuals and search; the owner's own sections count everywhere.
+const sectionOf = id => (LIB.sections || []).find(x => x.id === id);
+const hiddenItem = i => !!i.section && sectionOf(i.section)?.kind !== "manual";
+function sectionsNav() {
+  const mine = (LIB.sections || []).map(x => ({...x, n: LIB.items.filter(i => i.kind === st.kind && i.section === x.id).length}))
+    .filter(x => x.kind !== "test" || x.n);
+  const ico = {archive: "🗄", test: "🧪", manual: "▤"};
+  return `<h3 style="margin-top:12px">Sections</h3>` + mine.map(x => `<button class="nav" id="section-${x.id}" data-section="${x.id}" aria-current="${st.section === x.id && st.view !== "trash"}"><span class="ico">${ico[x.kind]}</span>${esc(x.name)}<span class="n">${x.n || ""}</span></button>`).join("")
+    + (canEdit() ? `<form class="newshelf" id="newsection"><input id="newsection-name" placeholder="New section" aria-label="New section name" maxlength="100"><button class="btn small" type="submit">Add</button></form>` : "");
+}
+// on a cover: the selection check and, unlocked, the delete button (asks once more before moving to the trash)
+function coverTools(ids, key) {
+  const ask = st.delAsk === key;
+  return (st.selecting ? `<span class="selbox" aria-hidden="true">✓</span>` : "")
+    + (canEdit() && !st.selecting ? `<span class="delbtn${ask ? " ask" : ""}" role="button" tabindex="0" data-del="${ids.join(",")}" data-delkey="${esc(key)}" title="${ask ? "Click again to move to the trash" : "Move to the trash"}" aria-label="${ask ? "Confirm: move to the trash" : "Move to the trash"}">${ask ? "Delete?" : "🗑"}</span>` : "");
+}
+const idsOf = el => el.dataset.members ? el.dataset.members.split(",") : [el.dataset.id];
+// a toggle at the start of each shelf row: selects (or clears) the covers standing on that board
+function rowToggles(grid, top, rows) {
+  const byRow = new Map();
+  for (const b of grid.querySelectorAll(".book")) {
+    const y = Math.round(b.querySelector(".stand").getBoundingClientRect().bottom - top), r = rows.find(x => Math.abs(x - y) < 3);
+    if (r != null) byRow.set(r, [...(byRow.get(r) || []), ...idsOf(b)]);
+  }
+  return [...byRow].map(([y, ids]) => { const on = ids.every(i => st.sel.has(i));
+    return `<button class="rowsel" style="top:${y - BOARD - 1}px" data-rowids="${ids.join(",")}" aria-pressed="${on}" title="${on ? "Clear this row" : "Select this row"}" aria-label="${on ? "Clear this row" : "Select this row"}">${on ? "✓" : ""}</button>`; }).join("");
+}
+function toggleSel(ids, on) {
+  const want = on ?? !ids.every(i => st.sel.has(i));
+  for (const i of ids) want ? st.sel.add(i) : st.sel.delete(i);
+}
+const shownIds = () => filtered(visibleItems()).map(i => i.id);
+function renderBulk() {
+  let bar = $("bulkbar");
+  const n = st.sel.size;
+  if (!(st.sec === "database" && st.selecting && n && st.view !== "trash")) { bar?.remove(); closeBulkPop(); return; }
+  if (!bar) { bar = document.createElement("div"); bar.id = "bulkbar"; bar.className = "bulkbar"; bar.setAttribute("role", "toolbar"); bar.setAttribute("aria-label", "Actions on the selection"); document.body.append(bar); }
+  const archived = st.section && sectionOf(st.section)?.kind === "archive", done = LABEL[st.kind].completed;
+  bar.innerHTML = `<b>${n} selected</b>
+    <button class="btn small" data-bulk="status">Mark as ${esc(done.toLowerCase())}</button>
+    <button class="btn small" data-bulk="move" aria-haspopup="true">Move to…</button>
+    <button class="btn small" data-bulk="${archived ? "unarchive" : "archive"}">${archived ? "Unarchive" : "Archive"}</button>
+    <button class="btn small" data-bulk="collection" aria-haspopup="true">Add to collection…</button>
+    <button class="btn small primary" data-bulk="edit" title="Fill in what they should all have; the rest stays as it is">Edit all…</button>
+    <button class="btn small danger" data-bulk="trash">${st.delAsk === "__bulk" ? "Delete " + n + "?" : "Delete"}</button>
+    <button class="xbtn" data-bulk="clear" aria-label="Clear the selection" style="float:none">✕</button>`;
+}
+function closeBulkPop() { $("bulkpop")?.remove(); }
+function bulkPop(btn, html) {
+  closeBulkPop();
+  const pop = document.createElement("div"), r = btn.getBoundingClientRect();
+  pop.id = "bulkpop"; pop.className = "bulkpop"; pop.innerHTML = html; document.body.append(pop);
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + "px";
+  pop.style.top = Math.max(8, r.top - pop.offsetHeight - 6) + "px";
+  pop.querySelector("button")?.focus();
+}
+async function bulkRun(body, okMsg, keep) {
+  const items = [...st.sel];
+  await act(async () => {
+    const r = await api.bulk(Object.assign({items}, body));
+    LIB = await api.library();
+    if (!keep) st.sel.clear();
+    st.delAsk = null; closeBulkPop();
+    if (st.selected && !LIB.items.some(i => i.id === st.selected)) { st.selected = null; st.detail = null; }
+    else if (st.selected && !st.selected.startsWith("c:")) st.detail = await api.detail(st.selected);
+    render();
+    toast(r.errors.length ? `${okMsg}: ${r.done} done, ${r.errors.length} not (${r.errors.slice(0, 2).map(e => e.title + ": " + e.error).join("; ")})` : okMsg + ": " + r.done, !!r.errors.length);
+  });
+}
+// "Edit all": one blank row laid over the shelf; what is filled in goes to every selected item, the rest stays
+function editAllOverlay() {
+  const n = st.sel.size, L = LABEL[st.kind], book = st.kind === "book";
+  const opt = (v, l) => `<option value="${esc(v)}">${esc(l)}</option>`, same = `<option value="">— unchanged —</option>`;
+  const cats = (LIB.categories || []).filter(c => !c.group || c.parent == null);
+  const o = document.createElement("div");
+  o.className = "overlay"; o.id = "editall"; o.setAttribute("role", "dialog"); o.setAttribute("aria-label", "Edit all selected");
+  o.innerHTML = `<form class="sheet" id="editall-form"><button type="button" class="xbtn" id="ea-close" aria-label="Close">✕</button>
+    <h2>Edit ${n} ${noun(st.kind, n)}</h2>
+    <p class="muted" style="font-size:12.5px;margin:0">Fill in only what they should all have. Fields left on “unchanged” or empty stay as each one has them; tags are added to theirs.</p>
+    <div class="applyrow">
+      <label>Status<select id="ea-status">${same}${STATUS_ORDER.map(x => opt(x, L[x])).join("")}</select></label>
+      <label>Rating<select id="ea-rating">${same}<option value="clear">no rating</option>${Array.from({length: 11}, (_, k) => opt(k, k + "/10")).join("")}</select></label>
+      <label>Category<select id="ea-genre">${same}${cats.map(c => opt(c.name, (c.parent != null ? "  " : "") + c.name)).join("")}</select></label>
+      <label>Add tags<input id="ea-tags" placeholder="comma, separated" autocomplete="off"></label>
+      ${book ? `<label>Version<select id="ea-format">${same}${FORMATS.map(([c, l]) => opt(c, l)).join("")}</select></label>
+      <label>Language<select id="ea-lang">${same}${Object.entries(LIB.languages).sort((a, b) => a[1].localeCompare(b[1])).map(([c, l]) => opt(c, l)).join("")}</select></label>` : ""}
+      <label>Added<input type="date" id="ea-added" max="${new Date().toISOString().slice(0, 10)}"></label>
+      <label>Add to collection<select id="ea-collection">${same}${shelvesOf(st.kind).filter(x => x.kind === "manual").map(x => opt(x.id, x.name)).join("")}</select></label>
+    </div>
+    <div class="row-actions"><span class="muted" id="ea-count" style="font-size:12.5px;margin-right:auto">Nothing to change yet.</span>
+      <button type="button" class="btn small" id="ea-cancel">Cancel</button><button type="submit" class="btn small primary">Apply to ${n}</button></div></form>`;
+  document.body.append(o);
+  o.addEventListener("input", () => {
+    const f = editAllFields(); for (const el of o.querySelectorAll(".applyrow select, .applyrow input")) el.classList.toggle("changed", !!el.value);
+    $("ea-count").textContent = Object.keys(f).length ? "Will change: " + Object.keys(f).join(", ") : "Nothing to change yet.";
+  });
+  o.addEventListener("click", e => { if (e.target === o || e.target.closest("#ea-close, #ea-cancel")) o.remove(); });
+  $("ea-status").focus();
+}
+function editAllFields() {
+  const v = id => $(id)?.value || "", f = {};
+  if (v("ea-status")) f.status = v("ea-status");
+  if (v("ea-rating")) f.rating = v("ea-rating") === "clear" ? null : +v("ea-rating");
+  if (v("ea-genre")) f.genres = [v("ea-genre")];
+  const tags = splitList(v("ea-tags"), ","); if (tags.length) f.tags = tags;
+  if (v("ea-format")) f.format = v("ea-format");
+  if (v("ea-lang")) f.lang = v("ea-lang");
+  if (v("ea-added")) f.added = v("ea-added");
+  if (v("ea-collection")) f.collection = v("ea-collection");
+  return f;
+}
+function sectionMenu() {
+  const sec = sectionOf(st.section);
+  st.selected = "__section"; renderDatabase();
+  const d = $("detail"); d.hidden = false; $("lib").classList.add("withdetail");
+  d.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button><h2>Section</h2>
+    <form class="form" id="sectionform"><label for="sc-name">Name</label><input id="sc-name" value="${esc(sec.name)}" maxlength="100">
+    <div class="row-actions full"><button type="button" class="btn small danger" id="sc-delete">Delete section</button><span style="flex:1"></span><button class="btn small primary" type="submit">Rename</button></div></form>
+    <p class="muted" style="font-size:12.5px">Deleting a section puts what is in it back in the library; nothing is deleted.</p>`;
 }
 async function renderTrash() {
   const v = $("v-database");
@@ -930,11 +1106,13 @@ const listCols = kind => !SCREEN(kind) ? LIST_COLS : LIST_COLS.map(([c, l, k]) =
 const amountText = i => amount(i) == null ? "" : i.kind === "movie" ? fmtRuntime(i.runtime) : String(amount(i));
 function listHtml(list, prefs) {
   const key = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc, edit = canEdit(), screen = SCREEN(st.kind);
-  if (!edit) st.rowEdit = null;
-  const head = listCols(st.kind).map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : c !== "cover" ? `<th>${label}</th>` : `<th></th>${edit ? `<th><span class="sr-only">Edit</span></th>` : ""}`).join("");
+  if (!edit || st.selecting) st.rowEdit = null;
+  const shown = list.map(i => i.id), all = shown.length && shown.every(x => st.sel.has(x));
+  const head = (st.selecting ? `<th><input type="checkbox" data-lselall="1" ${all ? "checked" : ""} aria-label="Select all shown"></th>` : "") + listCols(st.kind).map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : c !== "cover" ? `<th>${label}</th>` : `<th></th>${edit && !st.selecting ? `<th><span class="sr-only">Edit</span></th>` : ""}`).join("");
   return `<div class="listbox"><table class="list"><thead><tr>${head}</tr></thead><tbody>${list.map(i => st.rowEdit === i.id ? rowEditHtml(i) : `<tr data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}">
+    ${st.selecting ? `<td><input type="checkbox" data-lsel="${i.id}" ${st.sel.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.title)}"></td>` : ""}
     <td>${listCover(i)}</td>
-    ${edit ? `<td class="acts"><button class="btn small" id="le-edit-${i.id}" data-ledit="${i.id}" aria-label="Edit ${esc(i.title)} here" title="Edit this row">✎</button></td>` : ""}
+    ${edit && !st.selecting ? `<td class="acts"><button class="btn small" id="le-edit-${i.id}" data-ledit="${i.id}" aria-label="Edit ${esc(i.title)} here" title="Edit this row">✎</button></td>` : ""}
     <td class="wrap"><b>${esc(i.title)}</b></td><td>${esc(i.authors || "—")}</td>
     <td><span class="dot ${i.status}" style="display:inline-block;margin-right:6px"></span>${esc(statusLabel(i.kind, i.status))}</td>
     <td class="num">${i.rating ?? ""}</td><td class="num">${i.year ?? ""}</td><td class="num">${esc(amountText(i))}</td>
@@ -1423,7 +1601,50 @@ async function afterItemChange(detail) {
 }
 const splitList = (s, sep) => s.split(sep).map(x => x.trim()).filter(Boolean);
 document.addEventListener("click", async e => {
+  // a cover's delete button: the first click asks, the second (within a few seconds) moves it to the trash
+  const del = e.target.closest?.("[data-del]");
+  if (del) {
+    e.preventDefault(); e.stopPropagation();
+    if (!canEdit()) return act(() => 0);
+    const key = del.dataset.delkey, ids = del.dataset.del.split(",");
+    if (st.delAsk !== key) { st.delAsk = key; renderDatabase(); setTimeout(() => { if (st.delAsk === key) { st.delAsk = null; renderDatabase(); } }, 4000); return; }
+    st.delAsk = null;
+    await act(async () => { const r = await api.bulk({items: ids, action: "trash"}); LIB = await api.library();
+      for (const i of ids) st.sel.delete(i);
+      if (ids.includes(st.selected) || st.selected === key) { st.selected = null; st.detail = null; }
+      render(); toast(ids.length > 1 ? r.done + " moved to the trash" : "Moved to the trash"); });
+    return;
+  }
   const t = e.target.closest("button, [data-id], input[type=checkbox]"); if (!t) return;
+  if (t.id === "sel-toggle") { st.selecting = !st.selecting; st.sel.clear(); st.delAsk = null; renderDatabase(); return; }
+  if (t.id === "sel-all") { toggleSel(shownIds(), true); renderDatabase(); return; }
+  if (t.id === "sel-none") { st.sel.clear(); renderDatabase(); return; }
+  if (t.dataset.lsel) { toggleSel([t.dataset.lsel], t.checked); renderDatabase(); return; }
+  if (t.dataset.lselall) { toggleSel(shownIds(), t.checked); renderDatabase(); return; }
+  if (t.dataset.rowids) { toggleSel(t.dataset.rowids.split(",")); renderDatabase(); return; }
+  if (t.dataset.section) { st.section = t.dataset.section; st.shelf = allShelf(st.kind)?.id; st.view = "shelf"; st.selected = null; st.sel.clear();
+    st.filter = "all"; st.listSort = null; render(); return; }
+  if (t.id === "section-menu") return sectionMenu();
+  if (t.id === "sc-delete") { const sid = st.section; await act(async () => { await api.deleteSection(sid); LIB = await api.library(); st.section = null; st.selected = null; render(); }, "Section deleted: its items are back in the library"); return; }
+  if (t.dataset.bulk) {
+    const b = t.dataset.bulk, done = LABEL[st.kind].completed.toLowerCase();
+    if (b === "clear") { st.sel.clear(); renderDatabase(); return; }
+    if (b === "status") return bulkRun({action: "status", status: "completed"}, "Marked as " + done, true);
+    if (b === "archive") return bulkRun({action: "archive"}, "Archived");
+    if (b === "unarchive") return bulkRun({action: "unarchive"}, "Back in the library");
+    if (b === "edit") { closeBulkPop(); return editAllOverlay(); }
+    if (b === "trash") { if (st.delAsk !== "__bulk") { st.delAsk = "__bulk"; renderBulk(); setTimeout(() => { if (st.delAsk === "__bulk") { st.delAsk = null; renderBulk(); } }, 4000); return; }
+      return bulkRun({action: "trash"}, "Moved to the trash"); }
+    if (b === "move") return bulkPop(t, `<h4>Move to</h4>${st.section ? `<button data-bulkmove="">The library (no section)</button>` : ""}` +
+      (LIB.sections || []).filter(x => x.id !== st.section).map(x => `<button data-bulkmove="${x.id}">${esc(x.name)}</button>`).join("")
+      + `<p class="muted" style="margin:6px 8px;font-size:12px">New sections: the left pane, under Sections.</p>`);
+    if (b === "collection") { const cs = shelvesOf(st.kind).filter(x => x.kind === "manual");
+      return bulkPop(t, `<h4>Add to collection</h4>` + (cs.length ? cs.map(x => `<button data-bulkcoll="${x.id}">${esc(x.name)}</button>`).join("")
+        : `<p class="muted" style="margin:6px 8px;font-size:12px">No collections yet: make one in the left pane.</p>`)); }
+  }
+  if (t.dataset.bulkmove !== undefined) { const sid = t.dataset.bulkmove;
+    return bulkRun({action: "section", section: sid || null}, sid ? "Moved to " + sectionOf(sid).name : "Back in the library"); }
+  if (t.dataset.bulkcoll) return bulkRun({action: "collection", shelf: t.dataset.bulkcoll}, "Added to the collection", true);
   if (t.id === "side-toggle") { st.side = !st.side; save("side", st.side); applySide(); return; }
   if (t.id === "filter-btn" || t.id === "vfilter-btn") { st.fpane = !st.fpane; renderFilterPane(); return; }
   if (t.id === "fp-close") { closeFilterPane(); filterBtn()?.focus(); return; }
@@ -1444,11 +1665,11 @@ document.addEventListener("click", async e => {
   if (t.dataset.linkdoc) { const item = $("ld-" + t.dataset.linkdoc)?.value; if (!item) { toast("Pick a book first", true); return; }
     await act(async () => { await api.linkDocument(t.dataset.linkdoc, item); await loadReading(); render(); }, "Linked: the next sync updates that book"); return; }
   if (t.dataset.gobook) { const k = LIB.items.find(i => i.id === t.dataset.gobook)?.kind || "book"; st.sec = "database"; st.kind = k; st.shelf = allShelf(k)?.id; save("sec", st.sec); render(); return openDetail(t.dataset.gobook); }
-  if (t.dataset.kind) { st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; st.f = NOF(); saveF(); st.view = "shelf"; st.pick = null; save("kind", st.kind);
+  if (t.dataset.kind) { st.section = null; st.sel.clear(); st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; st.f = NOF(); saveF(); st.view = "shelf"; st.pick = null; save("kind", st.kind);
     if (st.sec === "visuals" && st.vtab === "library") st.LSTATS = null; render(); return; }
-  if (t.dataset.shelf) { st.shelf = t.dataset.shelf; st.filter = "all"; st.selected = null; st.listSort = null; st.view = "shelf"; save("shelf", st.shelf); render(); return; }
+  if (t.dataset.shelf) { st.section = null; st.sel.clear(); st.shelf = t.dataset.shelf; st.filter = "all"; st.selected = null; st.listSort = null; st.view = "shelf"; save("shelf", st.shelf); render(); return; }
   if (t.dataset.cat) { const id = +t.dataset.cat; st.f.cats = st.f.cats.length === 1 && st.f.cats[0] === id && st.view !== "trash" ? [] : [id]; saveF(); st.view = "shelf"; st.selected = null; render(); return; }
-  if (t.dataset.trashview) { st.view = "trash"; st.trash = null; st.selected = null; st.confirmPurge = null; render(); return; }
+  if (t.dataset.trashview) { st.section = null; st.sel.clear(); st.view = "trash"; st.trash = null; st.selected = null; st.confirmPurge = null; render(); return; }
   if (t.dataset.restore) { await act(async () => { await api.restoreItem(t.dataset.restore); st.trash = null; LIB = await api.library(); render(); }, "Restored"); return; }
   if (t.dataset.purgeask) { if (!canEdit()) return act(() => 0); st.confirmPurge = t.dataset.purgeask; renderTrash(); return; }
   if (t.dataset.purgecancel) { st.confirmPurge = null; renderTrash(); return; }
@@ -1478,7 +1699,9 @@ document.addEventListener("click", async e => {
       toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }); return; }
   if (t.id === "ed-fill") { await act(async () => { const r = await api.fill(st.selected);
     toast(r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know")); await afterItemChange(r.item); }); return; }
-  if (t.matches(".book")) { if (drag.suppressClick) { drag.suppressClick = false; return; } return openBook(t); }
+  if (t.matches(".book")) { if (drag.suppressClick) { drag.suppressClick = false; return; }
+    if (st.selecting) { toggleSel(idsOf(t)); renderDatabase(); return; }
+    return openBook(t); }
   if (t.dataset.open) return openDetail(t.dataset.open);
   if (t.dataset.ledit) { if (!canEdit()) return act(() => 0); st.rowEdit = t.dataset.ledit; st.rowCats = [...(LIB.items.find(x => x.id === st.rowEdit)?.genres || [])];
     toggleCatPop(false); renderDatabase(); $("le-title")?.focus(); return; }
@@ -1545,6 +1768,11 @@ document.addEventListener("submit", async e => {
     await act(async () => { const r = await api.addManual(body); LIB = await api.library(); toast(r.existing ? "Already in your library (same ISBN)" : "Added"); await openDetail(r.id); });
     return;
   }
+  if (f.id === "newsection") { const name = $("newsection-name").value.trim(); if (!name) return;
+    await act(async () => { const r = await api.newSection(name); LIB = await api.library(); st.section = r.id; st.shelf = allShelf(st.kind)?.id; st.view = "shelf"; st.selected = null; render(); }, "Section created"); return; }
+  if (f.id === "sectionform") { await act(async () => { await api.editSection(st.section, {name: $("sc-name").value}); LIB = await api.library(); st.selected = null; render(); }, "Renamed"); return; }
+  if (f.id === "editall-form") { const fields = editAllFields(); if (!Object.keys(fields).length) { toast("Nothing filled in: nothing to change", true); return; }
+    $("editall")?.remove(); return bulkRun({action: "edit", fields}, "Updated", true); }
   if (f.id === "newshelf") { const name = $("newshelf-name").value.trim(); if (!name) return;
     await act(async () => { const r = await api.newShelf(name, st.kind); LIB = await api.library(); st.shelf = r.id; render(); }, "Collection created"); return; }
   if (f.id === "rform") {
@@ -1775,7 +2003,7 @@ function mark(text, terms) {
 function runSearch(q) {
   const pop = $("search-pop"), terms = fold(q).split(/\s+/).filter(Boolean);
   if (!terms.length) { pop.hidden = true; hits = []; return; }
-  hits = LIB.items.map(i => ({i, hay: fold([i.title, i.authors, i.genres.join(" "), statusLabel(i.kind, i.status), i.year].join(" "))}))
+  hits = LIB.items.filter(i => !hiddenItem(i)).map(i => ({i, hay: fold([i.title, i.authors, i.genres.join(" "), statusLabel(i.kind, i.status), i.year].join(" "))}))
     .filter(x => terms.every(t => x.hay.includes(t)))
     .map(x => ({...x, score: fold(x.i.title).startsWith(terms.join(" ")) ? 3 : fold(x.i.title).includes(terms[0]) ? 2 : 1}))
     .sort((a, b) => b.score - a.score || a.i.sort.localeCompare(b.i.sort)).slice(0, 20).map(x => x.i);
@@ -1800,8 +2028,12 @@ function goHit(h) {
   setTimeout(() => document.getElementById("b-" + h.id)?.scrollIntoView({block: "center", behavior: "smooth"}), 50);
 }
 document.addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.dataset?.del) { e.preventDefault(); e.target.click(); return; }
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName || "");
   if (e.key === "/" && !typing) { e.preventDefault(); $("search").focus(); return; }
+  if (e.key === "Escape" && $("editall")) { $("editall").remove(); return; }
+  if (e.key === "Escape" && $("bulkpop")) { closeBulkPop(); return; }
+  if (e.key === "Escape" && st.selecting && !st.selected) { st.selecting = false; st.sel.clear(); renderDatabase(); return; }
   if (e.key === "Escape" && st.fpane) { closeFilterPane(); filterBtn()?.focus(); return; }
   if (e.key === "Escape" && !typing && st.selected) { closeDetail(); return; }
   if (e.key === "Escape" && $("le-catpop")) { e.preventDefault(); toggleCatPop(false); $("le-cats")?.focus(); return; }
@@ -1944,7 +2176,7 @@ function shareCard(id, title, note, rows, colName) {
 // ---------------------------------------------------- what the charts count
 // Every chart counts the books the page filter leaves (VB); a Read date in the filter also limits which readings
 // count. A reading: [ended, precision, read in, pages, medium].
-const VB = () => LIB.items.filter(i => i.kind === st.kind && fMatch(i, null, st.vf));
+const VB = () => LIB.items.filter(i => i.kind === st.kind && !hiddenItem(i) && fMatch(i, null, st.vf));
 function readsIn(i) {
   const r = st.vf.read; if (!r) return i.reads || [];
   return (i.reads || []).filter(x => x[0] && G_RANK[x[1]] >= G_RANK[r.g] && x[0].slice(0, G_LEN[r.g]) >= r.from && x[0].slice(0, G_LEN[r.g]) <= r.to);

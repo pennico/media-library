@@ -1342,3 +1342,32 @@ series shows its seasons (D49).
   each with its status and rating, opening its own panel); a film's panel
   names its collection and links back. The list layout stays one row per
   film. Visuals count films, not collections.
+
+## 17. Sections and quick actions (0.8.0, 2026-10-26)
+
+- **`library.section`** (migration 0016): name, kind (`manual`, `archive`,
+  `test`; one of each built-in), position, provenance, soft delete.
+  **`library.entry.section_id`** puts an entry in one section; null = the main
+  library. The provenance guard tracks it. Deleting a section moves its
+  entries back to the library.
+- **Statistics**: `library.counts_in_stats(section)` (security definer) is true
+  for the main library and the owner's sections, false for Archive and Test;
+  `stats.book_reading`, `rating_histogram`, `genres`, `activity_days`,
+  `library_counts` and `library_book` use it (the views built on
+  `book_reading` follow). The console's Visuals and search leave Archive and
+  Test out the same way.
+- **Shelves**: "All books / movies / series" shows the entries in no section;
+  a section shows its own; a collection shows its members except those in
+  Archive or Test.
+- **Bulk** (`POST /api/bulk`, at most 2000 items): `trash`, `section`,
+  `archive`, `unarchive`, `status`, `collection`, `edit`. Each item goes
+  through the same write as a single edit (its own audited transaction, the
+  owner label), so one refused item (a rule, a locked item) is reported and
+  the others go through. `edit` takes only the fields given: status, rating,
+  genres (replaced), tags (added), format and language (books), added date,
+  collection.
+- **Purge**: `library.purge_item` now removes a series' seasons (their watches,
+  posters, rows) with it; 0013 refused series with seasons.
+- **Test data**: `medialib test-data` adds made-up books, movies and series
+  (one with seasons) to the Test section, as source `system`; `--remove`
+  deletes everything in the Test section for good.

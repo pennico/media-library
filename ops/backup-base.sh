@@ -11,6 +11,8 @@ docker exec -u postgres medialib-db sh -ec "
   pg_basebackup -D \$d.tmp -Ft -z -X fetch --checkpoint=fast --manifest-checksums=SHA256
   pg_verifybackup -n \$d.tmp
   mv \$d.tmp \$d
+  # pg_basebackup makes its folder 0700 whatever the umask: the install group (the health check) must read it
+  chmod -R g+rX \$d
   ls -1d /backups/base/2* | head -n -7 | xargs -r rm -rf
   oldest=\$(ls -1d /backups/base/2* | head -n 1)
   lsn=\$(sed -n 's/.*\"Start-LSN\": *\"\\([0-9A-F/]*\\)\".*/\\1/p' \$oldest/backup_manifest | head -n 1)

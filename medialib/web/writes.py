@@ -8,6 +8,8 @@ import datetime
 import re
 from zoneinfo import ZoneInfo
 
+import psycopg
+
 from .. import db
 from ..covers import CoverError
 
@@ -890,3 +892,146 @@ def fill_screen(conn, login, pid, tmdb, store):
     with db.write_tx(conn, "tmdb", "console:" + (login or "unknown"), reason="fill from TMDB"):
         _, changes = screen.write(conn, row["kind"], p, covers, item=row["id"])
     return {"changes": [{"field": c} for c in changes]}
+
+
+# ------------------------------------------------------------- sections (D50)
+
+def section_row(conn, sid):
+    row = conn.execute("SELECT * FROM library.section WHERE public_id = %s AND deleted_at IS NULL", (sid,)).fetchone()
+    if not row:
+        raise LookupError("no such section")
+    return row
+
+
+def create_section(conn, login, body):
+    name = text(body.get("name"), "name", required=True)
+    if len(name) > 100:
+        raise BadRequest("name is longer than 100 characters")
+    with tx(conn, login):
+        row = conn.execute("INSERT INTO library.section (name, position) VALUES (%s,"
+                           " (SELECT coalesce(max(position), 0) + 1 FROM library.section WHERE kind = 'manual'))"
+                           " RETURNING public_id::text AS id", (name,)).fetchone()
+    return row["id"]
+
+
+def edit_section(conn, login, sid, body):
+    cols = {}
+    for k, v in body.items():
+        if k == "name":
+            cols["name"] = text(v, "name", required=True)
+        elif k == "position":
+            cols["position"] = whole(v, "position", 1, 10000)
+        else:
+            raise BadRequest("unknown section field " + k)
+    with tx(conn, login):
+        s = section_row(conn, sid)
+        if s["kind"] != "manual" and "name" in cols:
+            raise BadRequest("the built-in sections keep their names")
+        update(conn, "library.section", "id", s["id"], cols)
+
+
+def delete_section(conn, login, sid):
+    """The section goes; what was in it goes back to the main library (nothing is deleted)."""
+    with tx(conn, login):
+        s = section_row(conn, sid)
+        if s["kind"] != "manual":
+            raise BadRequest("the built-in sections cannot be deleted")
+        conn.execute("UPDATE library.entry SET section_id = NULL WHERE section_id = %s", (s["id"],))
+        conn.execute("UPDATE library.section SET deleted_at = now() WHERE id = %s", (s["id"],))
+
+
+def builtin_section(conn, kind):
+    return conn.execute("SELECT public_id::text AS id FROM library.section WHERE kind = %s AND deleted_at IS NULL",
+                        (kind,)).fetchone()["id"]
+
+
+def set_section(conn, login, pids, sid):
+    """Move items into a section (sid None: back to the main library)."""
+    with tx(conn, login):
+        target = section_row(conn, sid)["id"] if sid else None
+        for pid in pids:
+            conn.execute("UPDATE library.entry SET section_id = %s WHERE item_id = %s AND section_id IS DISTINCT FROM %s",
+                         (target, ids_for(conn, pid)["id"], target))
+
+
+# ---------------------------------------------------------- bulk (0.8.0)
+
+BULK_ACTIONS = ("trash", "section", "archive", "unarchive", "status", "edit", "collection")
+BULK_MAX = 2000
+
+
+def bulk(conn, login, body):
+    """One action on many items: {items: [ids], action, ...}. Each item goes through the same
+    write as a single edit (provenance, owner label, audit). -> {done, errors: [{id, title, error}]}.
+    edit: {fields: {status, rating, genres, tags (added), format, lang, added, collection}}: only
+    the fields given change; the rest of each item stays as it is."""
+    items, action = body.get("items"), body.get("action")
+    if not isinstance(items, list) or not items or len(items) > BULK_MAX or not all(isinstance(x, str) for x in items):
+        raise BadRequest("items must be a list of item ids")
+    if action not in BULK_ACTIONS:
+        raise BadRequest("action must be one of " + ", ".join(BULK_ACTIONS))
+    items = list(dict.fromkeys(items))
+    if action in ("section", "archive", "unarchive"):
+        sid = body.get("section") if action == "section" else builtin_section(conn, "archive") if action == "archive" else None
+        set_section(conn, login, items, sid or None)
+        return {"done": len(items), "errors": []}
+    fields = body.get("fields") or {}
+    if action == "edit":
+        unknown = set(fields) - {"status", "rating", "genres", "tags", "format", "lang", "added", "collection"}
+        if unknown:
+            raise BadRequest("unknown fields: " + ", ".join(sorted(unknown)))
+        if not fields:
+            raise BadRequest("nothing to change")
+    if action == "status" and body.get("status") not in STATUSES:
+        raise BadRequest("status must be one of " + ", ".join(STATUSES))
+    done, errors = 0, []
+    for pid in items:
+        try:
+            if action == "trash":
+                trash_item(conn, login, pid)
+            elif action == "status":
+                set_status(conn, login, pid, {"status": body["status"]})
+            elif action == "collection":
+                shelf_items(conn, login, body.get("shelf"), {"add": [pid]})
+            else:
+                edit_one(conn, login, pid, fields)
+            done += 1
+        except (BadRequest, LookupError) as e:
+            errors.append({"id": pid, "title": title_of(conn, pid), "error": str(e)})
+        except psycopg.Error as e:           # a database rule (a movie into a book collection…): that item only
+            errors.append({"id": pid, "title": title_of(conn, pid), "error": e.diag.message_primary or type(e).__name__})
+    return {"done": done, "errors": errors}
+
+
+def title_of(conn, pid):
+    row = conn.execute("SELECT title FROM catalog.media_item WHERE public_id = %s", (pid,)).fetchone()
+    return row["title"] if row else pid
+
+
+def edit_one(conn, login, pid, f):
+    """The "apply to all" form for one item: only the given fields; book-only ones skip movies and series."""
+    kind = ids_for(conn, pid)["kind"]
+    body = {}
+    if "rating" in f:
+        body.setdefault("entry", {})["rating"] = f["rating"]
+    if "added" in f:
+        body.setdefault("entry", {})["added"] = f["added"]
+    if "genres" in f:
+        body["genres"] = f["genres"]
+    if "tags" in f:
+        have = [r["name"] for r in conn.execute(
+            "SELECT t.name FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id WHERE it.item_id = %s"
+            " AND t.kind = 'tag' AND t.deleted_at IS NULL ORDER BY it.position", (ids_for(conn, pid)["id"],))]
+        body["tags"] = have + [t for t in f["tags"] if t.lower() not in (h.lower() for h in have)]
+    if kind == "book" and ("format" in f or "lang" in f):
+        ed = body.setdefault("edition", {})
+        if "format" in f:
+            ed["format"] = f["format"]
+        if "lang" in f:
+            ed["lang"] = f["lang"]
+    if body:
+        edit_item(conn, login, pid, body)
+    if f.get("status"):
+        set_status(conn, login, pid, {"status": f["status"]})
+    if f.get("collection"):
+        shelf_items(conn, login, f["collection"], {"add": [pid]})

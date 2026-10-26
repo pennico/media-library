@@ -725,6 +725,17 @@ def make_handler(app):
                 if m and method == "POST":
                     kosync.link(conn, login, m.group(1), req.get("item"))
                     return self.send(200, {"ok": True})
+                if path == "/api/bulk" and method == "POST":
+                    return self.send(200, writes.bulk(conn, login, req))
+                if path == "/api/sections" and method == "POST":
+                    return self.send(200, {"id": writes.create_section(conn, login, req)})
+                m = re.fullmatch(r"/api/sections/" + UUID, path)
+                if m and method in ("PATCH", "DELETE"):
+                    if method == "PATCH":
+                        writes.edit_section(conn, login, m.group(1), req)
+                    else:
+                        writes.delete_section(conn, login, m.group(1))
+                    return self.send(200, {"ok": True})
                 if path == "/api/shelves" and method == "POST":
                     return self.send(200, {"id": writes.create_shelf(conn, login, req)})
                 m = re.fullmatch(r"/api/shelves/" + UUID + r"(/items|/move)?", path)

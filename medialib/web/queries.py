@@ -18,6 +18,7 @@ MAKER_ROLE = "CASE i.kind WHEN 'movie' THEN 'director' WHEN 'series' THEN 'creat
 LIBRARY = """
 SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locked, i.original_language,
        e.status, e.rating, e.added_at, e.review IS NOT NULL AS has_review,
+       (SELECT sc.public_id::text FROM library.section sc WHERE sc.id = e.section_id AND sc.deleted_at IS NULL) AS section,
        ed.pages, ed.language, ed.format, extract(year FROM ed.published_on)::int AS published,
        extract(year FROM coalesce(i.first_published, mv.release_date, sr.first_air_date))::int AS first_published,
        mv.runtime_min, sr.season_count,
@@ -117,7 +118,7 @@ def summary(r):
         "runtime": r["runtime_min"], "seasons": r["season_count"], "episodeRuntime": r["episode_runtime_min"],
         "seasonWatches": r["season_watches"] if r["season_watches"] and any(r["season_watches"].values()) else None,
         "countries": r["countries"] or [], "tags": r["tags"] or [], "platforms": sorted(r["platforms"] or []),
-        "coll": r["coll"],
+        "coll": r["coll"], "section": r["section"],
     }
 
 
@@ -127,7 +128,11 @@ def library(conn):
                for r in conn.execute(SHELVES).fetchall()]
     langs = {r["code"]: r["name_en"] for r in conn.execute("SELECT code, name_en FROM catalog.language")}
     platforms = [[r["code"], r["label"]] for r in conn.execute("SELECT code, label FROM library.platform ORDER BY position")]
-    return {"items": items, "shelves": shelves, "languages": langs, "platforms": platforms, "categories": categories(conn),
+    sections = [{"id": r["id"], "name": r["name"], "kind": r["kind"]} for r in conn.execute(
+        "SELECT public_id::text AS id, name, kind FROM library.section WHERE deleted_at IS NULL"
+        " ORDER BY kind = 'manual' DESC, position, name")]
+    return {"items": items, "shelves": shelves, "languages": langs, "platforms": platforms, "sections": sections,
+            "categories": categories(conn),
             "trash": conn.execute("SELECT count(*) AS n FROM catalog.media_item WHERE deleted_at IS NOT NULL"
                                   " AND kind IN ('book', 'movie', 'series')").fetchone()["n"]}
 
