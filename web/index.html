@@ -367,19 +367,13 @@ body.fb-pane .detail { visibility: hidden; }
   background: rgb(255 252 245 / 0.92); color: #3b2c1d; font-size: 11.5px; font-weight: 700; box-shadow: 0 1px 3px rgb(0 0 0 / 0.35); pointer-events: none; }
 .grid.s .gmark { min-width: 18px; height: 18px; left: 3px; top: 3px; font-size: 10.5px; }
 /* selecting and quick actions (0.8.0): a check on each cover, a toggle at the start of each shelf row,
-   a delete button at the bottom right (unlocked), and a bar of actions for what is selected */
+   and a bar of actions for what is selected (deleting one: the list rows and the details) */
 .book { position: relative; }
 .selbox { position: absolute; left: 6px; top: 6px; z-index: 3; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
   background: rgb(255 252 245 / 0.92); border: 2px solid rgb(59 44 29 / 0.55); color: transparent; font-size: 14px; font-weight: 800; pointer-events: none; }
 .book.sel .selbox { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .book.sel .cov { outline: 3px solid var(--accent); outline-offset: 2px; }
 .grid.selecting .gmark { left: auto; right: 5px; }
-.delbtn { position: absolute; right: 5px; bottom: 5px; z-index: 3; border: 0; border-radius: 999px; min-width: 26px; height: 26px; padding: 0 7px;
-  display: none; align-items: center; justify-content: center; gap: 4px; background: rgb(255 252 245 / 0.94); color: var(--bad);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35); font-size: 12px; font-weight: 700; cursor: pointer; }
-.delbtn.ask { background: var(--bad); color: #fff; display: inline-flex; }
-.grid.canedit .book:hover .delbtn, .grid.canedit .book:focus-within .delbtn { display: inline-flex; }
-@media (hover: none) { .grid.canedit .delbtn { display: inline-flex; } }
 .rowsel { position: absolute; left: 4px; z-index: 2; pointer-events: auto; width: 20px; height: 20px; padding: 0; border-radius: 5px;
   border: 2px solid var(--wood-muted); background: var(--board-top); color: var(--on-accent); font-size: 12px; font-weight: 800; line-height: 1; cursor: pointer; }
 .rowsel[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
@@ -431,6 +425,9 @@ body.fb-pane .detail { visibility: hidden; }
 .ftog:disabled { opacity: .45; cursor: default; }
 .ftog.grp { font-weight: 600; }
 .fcatgrp { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+table.list .le.date { width: 92px; }
+table.list .ltitle { border: 0; background: none; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+table.list .ltitle:hover b { text-decoration: underline; }
 .linkbtn { border: 0; background: none; padding: 0; color: var(--accent); font-size: 12px; }
 .dual { position: relative; height: 26px; margin: 0 2px; touch-action: none; }
 .dual .trk, .dual .rng { position: absolute; top: 11px; height: 4px; border-radius: 2px; }
@@ -578,7 +575,7 @@ const VICON = {
 let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, STATS = null, READING = null;
 const st = {sec: "database", kind: "book", shelf: null, section: null, selecting: false, sel: new Set(), delAsk: null,
   filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
-  listSort: null, err: "", unlockMsg: "", rowCats: [], syncTab: "readest", readerPw: null, view: "shelf", trash: null,
+  listSort: null, err: "", unlockMsg: "", rowCats: {}, tableEdit: false, catRow: null, syncTab: "readest", readerPw: null, view: "shelf", trash: null,
   confirmTrash: false, vtab: "me", vscope: "all", LSTATS: null, side: true, f: null, fpane: false, pick: null,
   time: {metric: "books", g: "year", cum: false, axis: {}}, cal: "last"};
 function load(key, dflt) { try { const v = localStorage.getItem("ml-" + key); return v == null ? dflt : JSON.parse(v); } catch (e) { return dflt; } }
@@ -864,6 +861,8 @@ function renderDatabase() {
   const shelf = LIB.shelves.find(s => s.id === st.shelf);
   if (!shelf) { $("v-database").innerHTML = `<p class="empty">No collection.</p>`; return; }
   const prefs = shelfPrefs(shelf), base = visibleItems(), list = sorted(filtered(base), prefs);
+  st.listMode = prefs.layout === "list";
+  if (!st.listMode || !canEdit() || st.selecting) st.tableEdit = false;
   const kind = st.kind, labels = LABEL[kind], active = activeFilters();
   const present = STATUS_ORDER.filter(s => ["planned", "in_progress", "completed"].includes(s) || base.some(i => i.status === s));
   const chips = [["all", "All", base.length], ...present.map(s => [s, labels[s], base.filter(i => i.status === s).length])];
@@ -887,6 +886,8 @@ function renderDatabase() {
         ${shelf.kind === "manual" && !sec && canEdit() ? `<button class="btn small" id="shelf-menu">Collection…</button>` : ""}
         ${sec && sec.kind === "manual" && canEdit() ? `<button class="btn small" id="section-menu">Section…</button>` : ""}
         ${canEdit() ? `<button class="btn small" id="sel-toggle" aria-pressed="${st.selecting}" title="Select ${noun(kind)} to act on several at once">${st.selecting ? "Done" : "Select"}</button>` : ""}
+        ${canEdit() && st.listMode && !st.selecting ? (st.tableEdit ? `<button class="btn small primary" id="tbl-save" title="Save the rows you changed">Save</button><button class="btn small" id="tbl-cancel">Cancel</button>`
+          : `<button class="btn small" id="tbl-edit" title="Edit the rows of this list in place">Edit</button>`) : ""}
         ${st.selecting ? `<button class="btn small" id="sel-all" title="Select everything shown">All</button><button class="btn small" id="sel-none" ${st.sel.size ? "" : "disabled"}>None</button>` : ""}
         ${kind === "book" ? `<button class="btn small primary" id="add-book" title="Find a book at Apple Books and Open Library and add it">+ Add book</button>`
           : LIB.tmdb ? `<button class="btn small primary" id="add-screen" title="Find it at TMDB and add it">+ Add ${noun(kind, 1)}</button>` : ""}
@@ -974,12 +975,8 @@ function sectionsNav() {
   return `<h3 style="margin-top:12px">Sections</h3>` + mine.map(x => `<button class="nav" id="section-${x.id}" data-section="${x.id}" aria-current="${st.section === x.id && st.view !== "trash"}"><span class="ico">${ico[x.kind]}</span>${esc(x.name)}<span class="n">${x.n || ""}</span></button>`).join("")
     + (canEdit() ? `<form class="newshelf" id="newsection"><input id="newsection-name" placeholder="New section" aria-label="New section name" maxlength="100"><button class="btn small" type="submit">Add</button></form>` : "");
 }
-// on a cover: the selection check and, unlocked, the delete button (asks once more before moving to the trash)
-function coverTools(ids, key) {
-  const ask = st.delAsk === key;
-  return (st.selecting ? `<span class="selbox" aria-hidden="true">✓</span>` : "")
-    + (canEdit() && !st.selecting ? `<span class="delbtn${ask ? " ask" : ""}" role="button" tabindex="0" data-del="${ids.join(",")}" data-delkey="${esc(key)}" title="${ask ? "Click again to move to the trash" : "Move to the trash"}" aria-label="${ask ? "Confirm: move to the trash" : "Move to the trash"}">${ask ? "Delete?" : "🗑"}</span>` : "");
-}
+// on a cover: the selection check (deleting is in the list and the details)
+const coverTools = () => st.selecting ? `<span class="selbox" aria-hidden="true">✓</span>` : "";
 const idsOf = el => el.dataset.members ? el.dataset.members.split(",") : [el.dataset.id];
 // a toggle at the start of each shelf row: selects (or clears) the covers standing on that board
 function rowToggles(grid, top, rows) {
@@ -999,7 +996,7 @@ const shownIds = () => filtered(visibleItems()).map(i => i.id);
 function renderBulk() {
   let bar = $("bulkbar");
   const n = st.sel.size;
-  if (!(st.sec === "database" && st.selecting && n && st.view !== "trash")) { bar?.remove(); closeBulkPop(); return; }
+  if (!(st.sec === "database" && (st.selecting || st.listMode && canEdit() && !st.tableEdit) && n && st.view !== "trash")) { bar?.remove(); closeBulkPop(); return; }
   if (!bar) { bar = document.createElement("div"); bar.id = "bulkbar"; bar.className = "bulkbar"; bar.setAttribute("role", "toolbar"); bar.setAttribute("aria-label", "Actions on the selection"); document.body.append(bar); }
   const archived = st.section && sectionOf(st.section)?.kind === "archive", done = LABEL[st.kind].completed;
   bar.innerHTML = `<b>${n} selected</b>
@@ -1050,6 +1047,7 @@ function editAllOverlay() {
       <label>Add tags<input id="ea-tags" placeholder="comma, separated" autocomplete="off"></label>
       ${book ? `<label>Version<select id="ea-format">${same}${FORMATS.map(([c, l]) => opt(c, l)).join("")}</select></label>
       <label>Language<select id="ea-lang">${same}${Object.entries(LIB.languages).sort((a, b) => a[1].localeCompare(b[1])).map(([c, l]) => opt(c, l)).join("")}</select></label>` : ""}
+      <label>${SCREEN(st.kind) ? "Watched" : "Read"} on<input id="ea-ended" placeholder="yyyy-mm-dd" autocomplete="off" title="The last ${SCREEN(st.kind) ? "watch" : "reading"} moves to this date (year, year-month or a day); with none, one is added"></label>
       <label>Added<input type="date" id="ea-added" max="${new Date().toISOString().slice(0, 10)}"></label>
       <label>Add to collection<select id="ea-collection">${same}${shelvesOf(st.kind).filter(x => x.kind === "manual").map(x => opt(x.id, x.name)).join("")}</select></label>
     </div>
@@ -1072,6 +1070,7 @@ function editAllFields() {
   if (v("ea-format")) f.format = v("ea-format");
   if (v("ea-lang")) f.lang = v("ea-lang");
   if (v("ea-added")) f.added = v("ea-added");
+  if (v("ea-ended").trim()) f.ended = v("ea-ended").trim();
   if (v("ea-collection")) f.collection = v("ea-collection");
   return f;
 }
@@ -1106,51 +1105,58 @@ const listCols = kind => !SCREEN(kind) ? LIST_COLS : LIST_COLS.map(([c, l, k]) =
 const amountText = i => amount(i) == null ? "" : i.kind === "movie" ? fmtRuntime(i.runtime) : String(amount(i));
 function listHtml(list, prefs) {
   const key = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc, edit = canEdit(), screen = SCREEN(st.kind);
-  if (!edit || st.selecting) st.rowEdit = null;
+  const pick = (edit || st.selecting) && !st.tableEdit;   // unlocked, the list always has its checks (no Select first)
   const shown = list.map(i => i.id), all = shown.length && shown.every(x => st.sel.has(x));
-  const head = (st.selecting ? `<th><input type="checkbox" data-lselall="1" ${all ? "checked" : ""} aria-label="Select all shown"></th>` : "") + listCols(st.kind).map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : c !== "cover" ? `<th>${label}</th>` : `<th></th>${edit && !st.selecting ? `<th><span class="sr-only">Edit</span></th>` : ""}`).join("");
-  return `<div class="listbox"><table class="list"><thead><tr>${head}</tr></thead><tbody>${list.map(i => st.rowEdit === i.id ? rowEditHtml(i) : `<tr data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}">
-    ${st.selecting ? `<td><input type="checkbox" data-lsel="${i.id}" ${st.sel.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.title)}"></td>` : ""}
+  const head = (pick ? `<th><input type="checkbox" data-lselall="1" ${all ? "checked" : ""} aria-label="Select all shown"></th>` : "") + listCols(st.kind).map(([c, label, sk]) => sk ? `<th class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button></th>` : c !== "cover" ? `<th>${label}</th>` : `<th></th>${edit && !st.selecting ? `<th><span class="sr-only">Edit</span></th>` : ""}`).join("");
+  return `<div class="listbox"><table class="list"><thead><tr>${head}</tr></thead><tbody>${list.map(i => st.tableEdit ? rowEditHtml(i) : `<tr data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}">
+    ${pick ? `<td><input type="checkbox" data-lsel="${i.id}" ${st.sel.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.title)}"></td>` : ""}
     <td>${listCover(i)}</td>
-    ${edit && !st.selecting ? `<td class="acts"><button class="btn small" id="le-edit-${i.id}" data-ledit="${i.id}" aria-label="Edit ${esc(i.title)} here" title="Edit this row">✎</button></td>` : ""}
-    <td class="wrap"><b>${esc(i.title)}</b></td><td>${esc(i.authors || "—")}</td>
+    ${edit && !st.selecting ? `<td class="acts">${listDel(i)}</td>` : ""}
+    <td class="wrap"><button class="ltitle" data-ltitle="${i.id}" title="Open the details"><b>${esc(i.title)}</b></button></td><td>${esc(i.authors || "—")}</td>
     <td><span class="dot ${i.status}" style="display:inline-block;margin-right:6px"></span>${esc(statusLabel(i.kind, i.status))}</td>
-    <td class="num">${i.rating ?? ""}</td><td class="num">${i.year ?? ""}</td><td class="num">${esc(amountText(i))}</td>
+    <td class="num">${i.rating ?? ""}</td><td class="num">${esc(lastRead(i) || "")}</td><td class="num">${esc(amountText(i))}</td>
     <td>${esc(langName(screen ? i.origLang : i.lang))}</td><td>${screen ? esc((i.platforms || []).map(platformName).join(", ")) : versionOf(i) ? `<span class="vico">${VICON[versionOf(i)]}</span> ${versionLabel(versionOf(i))}` : ""}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`).join("")}</tbody></table></div>`;
 }
+// a row's delete button: the first click asks, the second moves it to the trash (the same as on a cover)
+const listDel = i => { const ask = st.delAsk === i.id;
+  return `<button class="btn small${ask ? " danger" : ""}" data-del="${i.id}" data-delkey="${i.id}" title="${ask ? "Click again to move to the trash" : "Move to the trash"}" aria-label="${ask ? "Confirm: move " + esc(i.title) + " to the trash" : "Move " + esc(i.title) + " to the trash"}">${ask ? "Delete?" : "🗑"}</button>`; };
 const listCover = i => `<button class="lcov" data-open="${i.id}" aria-label="Open ${esc(i.title)}" title="Open the details">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}</button>`;
-// one row as a small form: title, authors, status, rating, pages, language, version (the rest is in the panel)
+// the date of the last finished reading / watch, as precise as it was recorded
+const lastRead = i => { const r = (i.reads || []).at(-1); return r ? String(r[0]).slice(0, r[1] === "year" ? 4 : r[1] === "month" ? 7 : 10) : ""; };
+// in edit mode every row is a small form: title, makers, status, rating, read/watched date, pages, language, version, categories, added
 function rowEditHtml(i) {
-  const book = i.kind === "book", L = LABEL[i.kind] || LABEL.book;
+  const book = i.kind === "book", L = LABEL[i.kind] || LABEL.book, cats = (st.rowCats[i.id] ??= [...i.genres]);
   const fmts = FORMATS.map(([c, l]) => `<option value="${c}" ${i.format === c ? "selected" : ""}>${l}</option>`).join("");
   return `<tr class="editing" data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}">
-    <td>${listCover(i)}</td>
-    <td class="acts"><span class="rowbtns"><button class="btn small primary" data-lesave="${i.id}">Save</button><button class="btn small" data-lecancel="1">Cancel</button></span></td>
-    <td><input class="le wide" id="le-title" value="${esc(i.title)}" aria-label="Title" maxlength="1000"></td>
-    <td><input class="le wide" id="le-authors" value="${esc(i.authors)}" aria-label="${makerLabel(i.kind)}, separated by commas"></td>
-    <td><select class="le" id="le-status" aria-label="Status">${STATUS_ORDER.map(x => `<option value="${x}" ${i.status === x ? "selected" : ""}>${L[x]}</option>`).join("")}</select></td>
-    <td><select class="le num" id="le-rating" aria-label="Rating"><option value="">—</option>${Array.from({length: 11}, (_, n) => `<option ${i.rating != null && Math.round(i.rating) === n ? "selected" : ""}>${n}</option>`).join("")}</select></td>
-    <td class="num">${i.year ?? ""}</td>
-    <td>${book ? `<input class="le num" id="le-pages" value="${i.pages ?? ""}" inputmode="numeric" aria-label="Pages">` : esc(amountText(i))}</td>
-    <td>${book ? `<select class="le" id="le-lang" aria-label="Language">${langOptions(i.lang)}</select>` : esc(langName(i.origLang))}</td>
-    <td>${book ? `<select class="le" id="le-format" aria-label="Version"><option value="">—</option>${fmts}</select>` : esc((i.platforms || []).map(platformName).join(", "))}</td>
-    <td class="lecats"><button type="button" class="le lecat-btn" id="le-cats" aria-expanded="false" aria-haspopup="true" title="Categories">${esc(st.rowCats.join(", ") || "—")} ▾</button></td>
-    <td><input type="date" class="le" id="le-added" value="${esc(i.added)}" max="${new Date().toISOString().slice(0, 10)}" aria-label="Added"></td></tr>`;
+    <td>${listCover(i)}</td><td class="acts"></td>
+    <td><input class="le wide" data-f="title" value="${esc(i.title)}" aria-label="Title of ${esc(i.title)}" maxlength="1000"></td>
+    <td><input class="le wide" data-f="authors" value="${esc(i.authors)}" aria-label="${makerLabel(i.kind)}, separated by commas"></td>
+    <td><select class="le" data-f="status" aria-label="Status">${STATUS_ORDER.map(x => `<option value="${x}" ${i.status === x ? "selected" : ""}>${L[x]}</option>`).join("")}</select></td>
+    <td><select class="le num" data-f="rating" aria-label="Rating"><option value="">—</option>${Array.from({length: 11}, (_, n) => `<option ${i.rating != null && Math.round(i.rating) === n ? "selected" : ""}>${n}</option>`).join("")}</select></td>
+    <td><input class="le date" data-f="ended" value="${esc(lastRead(i))}" placeholder="yyyy-mm-dd" aria-label="${SCREEN(i.kind) ? "Watched" : "Read"} on (the last time)" title="The last ${SCREEN(i.kind) ? "watch" : "reading"}: year, year-month or a day"></td>
+    <td>${book ? `<input class="le num" data-f="pages" value="${i.pages ?? ""}" inputmode="numeric" aria-label="Pages">` : esc(amountText(i))}</td>
+    <td>${book ? `<select class="le" data-f="lang" aria-label="Language">${langOptions(i.lang)}</select>` : esc(langName(i.origLang))}</td>
+    <td>${book ? `<select class="le" data-f="format" aria-label="Version"><option value="">—</option>${fmts}</select>` : esc((i.platforms || []).map(platformName).join(", "))}</td>
+    <td class="lecats"><button type="button" class="le lecat-btn" data-lecats="${i.id}" aria-expanded="false" aria-haspopup="true" title="Categories">${esc(cats.join(", ") || "—")} ▾</button></td>
+    <td><input type="date" class="le" data-f="added" value="${esc(i.added)}" max="${new Date().toISOString().slice(0, 10)}" aria-label="Added"></td></tr>`;
 }
 // the categories of the row being edited: a small list of checkboxes under the button, by group
 function catPopHtml() {
-  const cats = LIB.categories || [], on = new Set(st.rowCats.map(n => n.toLowerCase()));
+  const cats = LIB.categories || [], on = new Set((st.rowCats[st.catRow] || []).map(n => n.toLowerCase()));
   const box = c => `<label><input type="checkbox" data-lecat="${esc(c.name)}" ${on.has(c.name.toLowerCase()) ? "checked" : ""}> ${esc(c.name)}</label>`;
   const groups = cats.filter(c => c.parent == null && c.group), loose = cats.filter(c => c.parent == null && !c.group);
   return groups.map(g => `<div class="cpg"><b>${box(g)}</b>${cats.filter(c => c.parent === g.id).map(box).join("")}</div>`).join("")
     + (loose.length ? `<div class="cpg"><span class="muted">Other labels</span>${loose.map(box).join("")}</div>` : "")
     + `<div class="row-actions"><button class="btn small" data-lecatdone="1">Done</button></div>`;
 }
-function toggleCatPop(open) {
+const catBtn = () => st.catRow && document.querySelector(`[data-lecats="${st.catRow}"]`);
+function toggleCatPop(open, row) {
   $("le-catpop")?.remove();
-  const b = $("le-cats"); if (!b) return;
-  b.setAttribute("aria-expanded", String(open));
+  catBtn()?.setAttribute("aria-expanded", "false");
   if (!open) return;
+  st.catRow = row;
+  const b = catBtn(); if (!b) return;
+  b.setAttribute("aria-expanded", "true");
   const pop = document.createElement("div"), r = b.getBoundingClientRect();
   pop.id = "le-catpop"; pop.className = "lecat-pop"; pop.innerHTML = catPopHtml();
   document.body.append(pop);
@@ -1158,31 +1164,50 @@ function toggleCatPop(open) {
   pop.style.top = (r.bottom + 4 + pop.offsetHeight > innerHeight ? Math.max(8, r.top - pop.offsetHeight - 4) : r.bottom + 4) + "px";
 }
 // saves only what changed, so untouched values keep where they came from
-async function saveRow(id) {
-  const i = LIB.items.find(x => x.id === id), v = k => $("le-" + k)?.value, body = {}, item = {}, edition = {}, entry = {};
-  if (!i) return;
+function rowChanges(i, tr) {
+  const v = k => tr.querySelector(`[data-f="${k}"]`)?.value ?? "", body = {}, item = {}, edition = {}, entry = {};
   const title = v("title").trim(), authors = splitList(v("authors"), /[;,]/), rating = v("rating") === "" ? null : +v("rating");
-  if (title !== i.title) item.title = title;
+  if (title && title !== i.title) item.title = title;
   if (authors.join(", ") !== (i.authors || "")) body.authors = authors;
   if (rating !== (i.rating == null ? null : Math.round(i.rating))) entry.rating = rating;
   if (v("added") && v("added") !== i.added) entry.added = v("added");
-  const norm = xs => xs.map(x => x.toLowerCase()).sort().join("|");
-  if (norm(st.rowCats) !== norm(i.genres)) body.genres = st.rowCats;
+  const norm = xs => xs.map(x => x.toLowerCase()).sort().join("|"), cats = st.rowCats[i.id] || i.genres;
+  if (norm(cats) !== norm(i.genres)) body.genres = cats;
   if (i.kind === "book") {
     if (v("pages").trim() !== String(i.pages ?? "")) edition.pages = v("pages").trim();
     if (v("lang") !== (i.lang || "")) edition.lang = v("lang");
     if (v("format") !== (i.format || "")) edition.format = v("format") || null;
   }
   for (const [k, o] of [["item", item], ["edition", edition], ["entry", entry]]) if (Object.keys(o).length) body[k] = o;
-  const status = v("status") !== i.status ? v("status") : null;
-  if (!Object.keys(body).length && !status) { st.rowEdit = null; renderDatabase(); return; }
+  const ended = v("ended").trim();
+  return {body: Object.keys(body).length ? body : null, status: v("status") !== i.status ? v("status") : null,
+    ended: ended && ended !== lastRead(i) ? ended : null};
+}
+// the read/watched date moves the last finished reading / watch (and its start, when that was later); with none, adds one
+async function saveEnded(i, ended) {
+  const r = await api.bulk({items: [i.id], action: "edit", fields: {ended}});
+  if (r.errors?.length) throw new Error(r.errors[0].error);
+}
+async function saveTable() {
+  toggleCatPop(false);
+  const work = [...document.querySelectorAll("table.list tr.editing")].map(tr => [LIB.items.find(x => x.id === tr.dataset.id), tr])
+    .filter(([i]) => i).map(([i, tr]) => [i, rowChanges(i, tr)]).filter(([, c]) => c.body || c.status || c.ended);
+  if (!work.length) { st.tableEdit = false; st.rowCats = {}; renderDatabase(); toast("Nothing changed"); return; }
+  const failed = [];
   await act(async () => {
-    if (Object.keys(body).length) await api.patch(id, body);
-    if (status) await api.status(id, status);
-    st.rowEdit = null; LIB = await api.library();
-    if (st.selected === id) st.detail = await api.detail(id);
+    for (const [i, c] of work) {
+      try {
+        if (c.body) await api.patch(i.id, c.body);
+        if (c.ended) await saveEnded(i, c.ended);
+        if (c.status) await api.status(i.id, c.status);
+      } catch (e) { failed.push(i.title + ": " + e.message); }
+    }
+    LIB = await api.library();
+    if (st.selected) st.detail = await api.detail(st.selected).catch(() => null);
+    if (!failed.length) { st.tableEdit = false; st.rowCats = {}; }
     renderDatabase();
-  }, "Saved");
+  });
+  toast(failed.length ? `Saved ${work.length - failed.length}; not saved: ${failed.join("; ")}` : `Saved ${work.length} ${work.length === 1 ? "row" : "rows"}`, failed.length > 0);
 }
 
 // ----------------------------------------------------------- filter pane
@@ -1703,15 +1728,16 @@ document.addEventListener("click", async e => {
     if (st.selecting) { toggleSel(idsOf(t)); renderDatabase(); return; }
     return openBook(t); }
   if (t.dataset.open) return openDetail(t.dataset.open);
-  if (t.dataset.ledit) { if (!canEdit()) return act(() => 0); st.rowEdit = t.dataset.ledit; st.rowCats = [...(LIB.items.find(x => x.id === st.rowEdit)?.genres || [])];
-    toggleCatPop(false); renderDatabase(); $("le-title")?.focus(); return; }
-  if (t.dataset.lecancel) { st.rowEdit = null; toggleCatPop(false); renderDatabase(); return; }
-  if (t.dataset.lesave) { toggleCatPop(false); return saveRow(t.dataset.lesave); }
-  if (t.id === "le-cats") { toggleCatPop(!$("le-catpop")); return; }
-  if (t.dataset.lecatdone) { toggleCatPop(false); $("le-cats")?.focus(); return; }
-  if (t.dataset.lecat !== undefined) { const n = t.dataset.lecat;
-    st.rowCats = t.checked ? [...st.rowCats.filter(x => x.toLowerCase() !== n.toLowerCase()), n] : st.rowCats.filter(x => x.toLowerCase() !== n.toLowerCase());
-    const b = $("le-cats"); if (b) b.textContent = (st.rowCats.join(", ") || "—") + " ▾"; return; }
+  if (t.dataset.ltitle) return st.selected === t.dataset.ltitle ? closeDetail() : openDetail(t.dataset.ltitle);
+  if (t.matches("table.list tr[data-id]")) { if (st.selected && !st.tableEdit) closeDetail(); return; }
+  if (t.id === "tbl-edit") { if (!canEdit()) return act(() => 0); st.tableEdit = true; st.rowCats = {}; st.sel.clear(); renderDatabase(); document.querySelector("table.list [data-f=title]")?.focus(); return; }
+  if (t.id === "tbl-cancel") { st.tableEdit = false; st.rowCats = {}; toggleCatPop(false); renderDatabase(); return; }
+  if (t.id === "tbl-save") return saveTable();
+  if (t.dataset.lecats) { const open = !($("le-catpop") && st.catRow === t.dataset.lecats); toggleCatPop(open, t.dataset.lecats); return; }
+  if (t.dataset.lecatdone) { const b = catBtn(); toggleCatPop(false); b?.focus(); return; }
+  if (t.dataset.lecat !== undefined) { const n = t.dataset.lecat, cur = st.rowCats[st.catRow] || [];
+    st.rowCats[st.catRow] = t.checked ? [...cur.filter(x => x.toLowerCase() !== n.toLowerCase()), n] : cur.filter(x => x.toLowerCase() !== n.toLowerCase());
+    const b = catBtn(); if (b) b.textContent = (st.rowCats[st.catRow].join(", ") || "—") + " ▾"; return; }
   if (t.id === "d-close") return closeDetail();
   const id = st.selected;
   if (t.dataset.status) { if (await act(async () => afterItemChange(await api.status(id, t.dataset.status)), "Status saved")) {} return; }
@@ -2036,9 +2062,9 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape" && st.selecting && !st.selected) { st.selecting = false; st.sel.clear(); renderDatabase(); return; }
   if (e.key === "Escape" && st.fpane) { closeFilterPane(); filterBtn()?.focus(); return; }
   if (e.key === "Escape" && !typing && st.selected) { closeDetail(); return; }
-  if (e.key === "Escape" && $("le-catpop")) { e.preventDefault(); toggleCatPop(false); $("le-cats")?.focus(); return; }
-  if (e.target.classList?.contains("le") && e.target.id !== "le-cats" && st.rowEdit && (e.key === "Enter" || e.key === "Escape")) {
-    e.preventDefault(); toggleCatPop(false); if (e.key === "Enter") saveRow(st.rowEdit); else { st.rowEdit = null; renderDatabase(); } return; }
+  if (e.key === "Escape" && $("le-catpop")) { e.preventDefault(); const b = catBtn(); toggleCatPop(false); b?.focus(); return; }
+  if (e.target.classList?.contains("le") && !e.target.dataset.lecats && st.tableEdit && (e.key === "Enter" || e.key === "Escape")) {
+    e.preventDefault(); toggleCatPop(false); if (e.key === "Enter") saveTable(); else { st.tableEdit = false; st.rowCats = {}; renderDatabase(); } return; }
   if (e.target.id === "key-input" && e.key === "Enter") { unlock(); return; }
   if (e.target.id !== "search") return;
   if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (!hits.length) return; active = (active + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;

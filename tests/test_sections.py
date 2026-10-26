@@ -108,3 +108,20 @@ def test_test_data_comes_and_goes(cfg, app, tmp_path):
     assert not app.execute("SELECT 1 AS x FROM catalog.media_item WHERE title LIKE 'Test · %'").fetchone()
     assert not app.execute("SELECT 1 AS x FROM catalog.media_item i WHERE i.kind = 'season'"
                            " AND NOT EXISTS (SELECT 1 FROM catalog.season s WHERE s.item_id = i.id)").fetchone()
+
+
+def test_bulk_edit_moves_or_adds_the_last_watch(web, app):
+    from test_web import Client
+    c = Client(web).unlock()
+    a, b = books(app, 2, "planned")
+    c.call("POST", "api/items/" + a + "/readings", {"state": "completed", "started": "2020-04-20", "ended": "2020-05-01"})
+    s, r = c.call("POST", "api/bulk", {"items": [a, b], "action": "edit", "fields": {"ended": "2024-03"}})
+    assert s == 200 and r == {"done": 2, "errors": []}
+    for pid in (a, b):
+        _, d = c.call("GET", "api/items/" + pid)
+        done = [x for x in d["readings"] if x["state"] == "completed"]
+        assert len(done) == 1 and done[0]["ended"].startswith("2024-03") and d["status"] == "completed"
+    c.call("POST", "api/bulk", {"items": [a], "action": "edit", "fields": {"ended": "2019-01-02"}})   # before it started
+    _, d = c.call("GET", "api/items/" + a)
+    done = [x for x in d["readings"] if x["state"] == "completed"][0]
+    assert done["ended"] == "2019-01-02" and done["started"] == "2019-01-02"

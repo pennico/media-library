@@ -49,7 +49,7 @@ looks like a bookshelf.
   (shared with [agent-console](https://github.com/pennico/agent-console) if
   you use it).
 
-Status: 0.8.0, used daily by its author.
+Status: 0.8.1, used daily by its author.
 
 ## Docs
 

@@ -963,7 +963,7 @@ BULK_MAX = 2000
 def bulk(conn, login, body):
     """One action on many items: {items: [ids], action, ...}. Each item goes through the same
     write as a single edit (provenance, owner label, audit). -> {done, errors: [{id, title, error}]}.
-    edit: {fields: {status, rating, genres, tags (added), format, lang, added, collection}}: only
+    edit: {fields: {status, rating, genres, tags (added), format, lang, added, ended, collection}}: only
     the fields given change; the rest of each item stays as it is."""
     items, action = body.get("items"), body.get("action")
     if not isinstance(items, list) or not items or len(items) > BULK_MAX or not all(isinstance(x, str) for x in items):
@@ -977,7 +977,7 @@ def bulk(conn, login, body):
         return {"done": len(items), "errors": []}
     fields = body.get("fields") or {}
     if action == "edit":
-        unknown = set(fields) - {"status", "rating", "genres", "tags", "format", "lang", "added", "collection"}
+        unknown = set(fields) - {"status", "rating", "genres", "tags", "format", "lang", "added", "ended", "collection"}
         if unknown:
             raise BadRequest("unknown fields: " + ", ".join(sorted(unknown)))
         if not fields:
@@ -1031,6 +1031,18 @@ def edit_one(conn, login, pid, f):
             ed["lang"] = f["lang"]
     if body:
         edit_item(conn, login, pid, body)
+    if f.get("ended"):                         # moves the last finished reading / watch; with none, adds one
+        last = conn.execute("SELECT public_id::text AS rid, started_on FROM library.consumption WHERE item_id = %s"
+                            " AND state = 'completed' AND deleted_at IS NULL ORDER BY ended_on DESC NULLS LAST, id DESC LIMIT 1",
+                            (ids_for(conn, pid)["id"],)).fetchone()
+        if last:
+            ended, _ = partial_date(f["ended"], "finished")
+            change = {"ended": f["ended"]}
+            if last["started_on"] and last["started_on"] > ended:   # moved before it started: the start moves with it
+                change["started"] = f["ended"]
+            edit_reading(conn, login, last["rid"], change)
+        else:
+            add_reading(conn, login, pid, {"state": "completed", "ended": f["ended"]})
     if f.get("status"):
         set_status(conn, login, pid, {"status": f["status"]})
     if f.get("collection"):

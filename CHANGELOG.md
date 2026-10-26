@@ -2,6 +2,25 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.8.1] - 2026-10-26
+
+- **List view**:
+  - unlocked, every row has its check (and one at the top for all shown)
+    without pressing Select first; the quick-action bar appears as soon as
+    something is checked;
+  - a 🗑 on each row that asks once more before moving it to the trash;
+  - the title opens the details (again: closes them); a click elsewhere on
+    a row closes them;
+  - **Edit** in the toolbar turns the whole list into fields (it replaces the
+    ✎ on each row); **Save** stores only the rows that changed, Cancel or
+    Escape drops it all;
+  - the Read / Watched date can be edited: it moves the last finished
+    reading or watch (and its start, when that was later), or adds one when
+    there is none.
+- **Edit all…** has the Read / Watched date too (`ended` in `POST /api/bulk`).
+- **Grid**: no delete button on the covers any more (deleting one is in the
+  list and the details); Select still picks covers to act on together.
+
 ## [0.8.0] - 2026-10-26
 
 - **Sections** in the left pane: folders for your books, movies and series.
