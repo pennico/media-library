@@ -903,6 +903,29 @@ def section_row(conn, sid):
     return row
 
 
+def create_platform(conn, login, body):
+    """A place to watch of the owner's own: its code comes from the name; one with the same name is reused."""
+    label = text(body.get("label"), "label", required=True)
+    if len(label) > 60:
+        raise BadRequest("label is longer than 60 characters")
+    with tx(conn, login):
+        same = conn.execute("SELECT code FROM library.platform WHERE lower(label) = lower(%s)", (label,)).fetchone()
+        if same:
+            return same["code"]
+        base = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")[:30] or "own"
+        base = base if base[0].isalpha() else "p_" + base
+        code, n = base, 2
+        while conn.execute("SELECT 1 AS x FROM library.platform WHERE code = %s", (code,)).fetchone():
+            code, n = "{}_{}".format(base, n), n + 1
+        # before Other, which stays last
+        other = conn.execute("SELECT position FROM library.platform WHERE code = 'other'").fetchone()
+        top = conn.execute("SELECT coalesce(max(position), 0) AS p FROM library.platform WHERE code <> 'other'").fetchone()["p"]
+        conn.execute("INSERT INTO library.platform (code, label, position) VALUES (%s, %s, %s)", (code, label, top + 1))
+        if other and other["position"] <= top + 1:
+            conn.execute("UPDATE library.platform SET position = %s WHERE code = 'other'", (top + 2,))
+    return code
+
+
 def create_section(conn, login, body):
     name = text(body.get("name"), "name", required=True)
     if len(name) > 100:

@@ -218,7 +218,7 @@ first (step 1); the compose file needs it. To 0.3.0: create
 add the purge line (6b). To 0.6.0: create `secrets/tmdb.key` (empty is fine)
 before `docker compose up`; migration 0014 runs with `migrate`. To 0.8.0:
 migration 0016 (sections); `docker compose run --rm tools test-data` adds
-made-up items to the Test section to try the console with (`--remove` deletes them).
+made-up items to the Test section to try the console with (`--remove` deletes them). To 0.8.1: migration 0017 (places to watch).
 
 ## Upgrades
 

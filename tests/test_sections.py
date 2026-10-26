@@ -125,3 +125,18 @@ def test_bulk_edit_moves_or_adds_the_last_watch(web, app):
     _, d = c.call("GET", "api/items/" + a)
     done = [x for x in d["readings"] if x["state"] == "completed"][0]
     assert done["ended"] == "2019-01-02" and done["started"] == "2019-01-02"
+
+
+def test_places_to_watch_ssd_streaming_and_your_own(web, app):
+    from test_web import Client
+    c = Client(web).unlock()
+    _, lib = c.call("GET", "api/library")
+    codes = [p[0] for p in lib["platforms"]]
+    assert {"ssd", "streaming"} <= set(codes) and codes[-1] == "other"
+    name = uniq("My Plex")
+    s, r = c.call("POST", "api/platforms", {"label": name})
+    assert s == 200 and r["code"].startswith("my_plex")
+    assert c.call("POST", "api/platforms", {"label": name.upper()})[1]["code"] == r["code"]    # same name: reused
+    _, lib = c.call("GET", "api/library")
+    assert [p[0] for p in lib["platforms"]][-1] == "other" and r["code"] in [p[0] for p in lib["platforms"]]
+    assert c.call("POST", "api/platforms", {"label": ""})[0] == 400

@@ -727,6 +727,8 @@ def make_handler(app):
                     return self.send(200, {"ok": True})
                 if path == "/api/bulk" and method == "POST":
                     return self.send(200, writes.bulk(conn, login, req))
+                if path == "/api/platforms" and method == "POST":
+                    return self.send(200, {"code": writes.create_platform(conn, login, req)})
                 if path == "/api/sections" and method == "POST":
                     return self.send(200, {"id": writes.create_section(conn, login, req)})
                 m = re.fullmatch(r"/api/sections/" + UUID, path)

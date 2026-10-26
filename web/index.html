@@ -615,6 +615,7 @@ const serverApi = {
   fill(id) { return this.send("POST", "api/items/" + id + "/fill", {}); },
   bulk(body) { return this.send("POST", "api/bulk", body); },
   newSection(name) { return this.send("POST", "api/sections", {name}); },
+  newPlatform(label) { return this.send("POST", "api/platforms", {label}); },
   editSection(sid, body) { return this.send("PATCH", "api/sections/" + sid, body); },
   deleteSection(sid) { return this.send("DELETE", "api/sections/" + sid, {}); },
   tmdbSearch(kind, query, year) { return this.send("POST", "api/tmdb/search", {kind, query, year}); },
@@ -1494,7 +1495,8 @@ function readingForm(r) {
     <label>Finished <input id="rf-ended" placeholder="YYYY, YYYY-MM or YYYY-MM-DD" value="${esc(partial(r?.ended, r?.endedPrecision))}" inputmode="numeric"></label>
     ${screen ? `${d.kind === "series" ? `<label>Season<select id="rf-season"><option value="">The whole series</option>${seasons}</select></label>
     <label>Episodes seen <input id="rf-episodes" value="${r?.episodes ?? ""}" inputmode="numeric"></label>` : ""}
-    <label class="${d.kind === "series" ? "full" : ""}">Where<select id="rf-platform"><option value="">—</option>${(LIB.platforms || []).map(([c, l]) => `<option value="${c}" ${r?.platform === c ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`
+    <label class="${d.kind === "series" ? "full" : ""}">Where<select id="rf-platform"><option value="">—</option>${(LIB.platforms || []).map(([c, l]) => `<option value="${c}" ${r?.platform === c ? "selected" : ""}>${esc(l)}</option>`).join("")}<option value="__new">+ Your own…</option></select>
+      <input id="rf-platform-new" hidden placeholder="Where, e.g. Plex" maxlength="60" aria-label="Your own place to watch" style="margin-top:4px"></label>`
     : `<label>Read in<select id="rf-lang">${langOptions(r?.lang)}</select></label>
     <label>Read as<select id="rf-medium"><option value="">—</option>${FORMATS.map(([c, l]) => `<option value="${c}" ${(r ? r.medium : st.detail.edition?.format) === c ? "selected" : ""}>${l}</option>`).join("")}</select></label>`}
     <label class="full">Note <input id="rf-note" value="${esc(r?.note || "")}" maxlength="2000"></label>
@@ -1805,6 +1807,12 @@ document.addEventListener("submit", async e => {
     const body = {state: $("rf-state").value, started: $("rf-started").value.trim(), ended: $("rf-ended").value.trim(), note: $("rf-note").value.trim()};
     if ($("rf-lang")) Object.assign(body, {lang: $("rf-lang").value, medium: $("rf-medium").value});
     if ($("rf-platform")) body.platform = $("rf-platform").value;
+    if (body.platform === "__new") {           // a place of your own: added to the list for good, then used
+      const label = $("rf-platform-new").value.trim();
+      if (!label) { toast("Type where you watched it", true); $("rf-platform-new").focus(); return; }
+      try { body.platform = (await api.newPlatform(label)).code; } catch (er) { toast(er.message, true); return; }
+      LIB = await api.library();
+    }
     if ($("rf-season")) Object.assign(body, {season: $("rf-season").value, episodes: $("rf-season").value ? $("rf-episodes").value.trim() : ""});
     const rid = f.dataset.rid;
     if (await act(async () => { if (rid === "new") await api.addReading(id, body); else await api.editReading(rid, body); await afterItemChange(); }, SCREEN(st.detail?.kind) ? "Watch saved" : "Reading saved")) st.readingEdit = null;
@@ -1822,6 +1830,9 @@ document.addEventListener("submit", async e => {
 document.addEventListener("input", e => {
   if (e.target.id === "filter-q") { st.q = e.target.value; const pos = e.target.selectionStart; renderDatabase(); const n = $("filter-q"); n.focus(); n.setSelectionRange(pos, pos); }
   if (e.target.id === "search") runSearch(e.target.value);
+});
+document.addEventListener("change", e => {
+  if (e.target.id === "rf-platform") { const own = $("rf-platform-new"); if (own) { own.hidden = e.target.value !== "__new"; if (!own.hidden) own.focus(); } }
 });
 document.addEventListener("change", async e => {
   if (e.target.id === "cv-file" && e.target.files[0]) {

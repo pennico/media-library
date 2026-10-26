@@ -18,6 +18,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
     reading or watch (and its start, when that was later), or adds one when
     there is none.
 - **Edit all…** has the Read / Watched date too (`ended` in `POST /api/bulk`).
+- **Places to watch**: SSD and Streaming join the list, and "+ Your own…" in a
+  watch's Where adds one of your own for good (`POST /api/platforms`; Other
+  stays last). Migration 0017.
 - **Grid**: no delete button on the covers any more (deleting one is in the
   list and the details); Select still picks covers to act on together.
 
