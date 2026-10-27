@@ -623,6 +623,8 @@ const serverApi = {
   add(token, index, status, format) { return this.send("POST", "api/add", {token, index, status, format}); },
   fill(id) { return this.send("POST", "api/items/" + id + "/fill", {}); },
   bulk(body) { return this.send("POST", "api/bulk", body); },
+  batchEdit(rows) { return this.send("POST", "api/items/batch", {rows}); },
+  rows(ids) { return this.get("api/rows?ids=" + ids.join(",")); },
   newSection(name) { return this.send("POST", "api/sections", {name}); },
   newPlatform(label) { return this.send("POST", "api/platforms", {label}); },
   editSection(sid, body) { return this.send("PATCH", "api/sections/" + sid, body); },
@@ -1261,14 +1263,10 @@ async function saveTable() {
   if (!work.length) { st.tableEdit = false; st.rowCats = {}; renderDatabase(); toast("Nothing changed"); return; }
   const failed = [];
   await act(async () => {
-    for (const [i, c] of work) {
-      try {
-        if (c.body) await api.patch(i.id, c.body);
-        if (c.ended) await saveEnded(i, c.ended);
-        if (c.status) await api.status(i.id, c.status);
-      } catch (e) { failed.push(i.title + ": " + e.message); }
-    }
-    LIB = await api.library();
+    // one request for all the rows; each row is saved (or refused) on its own, and the answer carries the rows as saved
+    const r = await api.batchEdit(work.map(([i, c]) => ({id: i.id, patch: c.body || undefined, ended: c.ended || undefined, status: c.status || undefined})));
+    mergeRows(r);
+    for (const e of r.errors) failed.push(e.title + ": " + e.error);
     if (st.selected) st.detail = await api.detail(st.selected).catch(() => null);
     if (!failed.length) { st.tableEdit = false; st.rowCats = {}; }
     renderDatabase();
@@ -1701,9 +1699,16 @@ async function act(fn, okMsg) {
   try { await fn(); if (okMsg) toast(okMsg); st.err = ""; return true; }
   catch (e) { st.err = e.message; toast(e.message, true); renderDetail(); return false; }
 }
-async function afterItemChange(detail) {
+// rows saved or refreshed by the server go into the page's copy of the library (no full reload)
+function mergeRows(r) {
+  const at = new Map(LIB.items.map((x, k) => [x.id, k]));
+  for (const it of r.items || []) { if (at.has(it.id)) LIB.items[at.get(it.id)] = it; else LIB.items.push(it); }
+  if (r.categories) LIB.categories = r.categories;
+}
+// after an edit of one item: its detail, and just its row (collections change the shelves too: full = true)
+async function afterItemChange(detail, full) {
   if (detail && detail.id) st.detail = detail; else st.detail = await api.detail(st.selected);
-  LIB = await api.library();
+  if (full) LIB = await api.library(); else mergeRows(await api.rows([st.detail?.id || st.selected]));
   renderDatabase();
 }
 const splitList = (s, sep) => s.split(sep).map(x => x.trim()).filter(Boolean);
@@ -1850,7 +1855,7 @@ document.addEventListener("click", async e => {
   if (t.id === "ef-cancel") { st.editing = false; renderDetail(); return; }
   if (t.dataset.cover) { if (t.getAttribute("aria-pressed") === "true") return; await act(async () => afterItemChange(await api.cover(id, +t.dataset.cover)), "Cover changed"); return; }
   if (t.dataset.shelfcheck) { const sid = t.dataset.shelfcheck, on = t.checked;
-    await act(async () => { await api.shelfItems(sid, on ? {add: [id]} : {remove: [id]}); await afterItemChange(); }, on ? "Added to the collection" : "Removed from the collection"); return; }
+    await act(async () => { await api.shelfItems(sid, on ? {add: [id]} : {remove: [id]}); await afterItemChange(null, true); }, on ? "Added to the collection" : "Removed from the collection"); return; }
   if (t.id === "key-save") return unlock();
   if (t.id === "key-showpw") { st.showPw = true; renderKeybar(); $("key-input").focus(); return; }
   if (t.id === "key-passkey") return passkeyUnlock();
@@ -2691,6 +2696,17 @@ function makePreviewApi(P) {
     },
     async linkDocument() { throw new Error("Nothing to link in the preview"); },
     async library() { return clone(S.library); },
+    async rows(ids) { return {items: clone(S.library.items.filter(i => ids.includes(i.id))), categories: clone(S.library.categories || [])}; },
+    async batchEdit(rows) {
+      const errors = [];
+      for (const r of rows) {
+        try {
+          if (r.patch) await this.patch(r.id, r.patch);
+          if (r.status) await this.status(r.id, r.status);
+        } catch (e) { errors.push({id: r.id, title: sum(r.id)?.title || r.id, error: e.message}); }
+      }
+      return Object.assign(await this.rows(rows.map(r => r.id)), {done: rows.length - errors.length, errors});
+    },
     async stats() { return clone(S.stats); },
     async detail(id) { const d = S.details[id]; if (!d) throw new Error("No such item."); return clone(d); },
     async patch(id, body) {

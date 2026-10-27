@@ -2,6 +2,19 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.8.5] - 2026-10-27
+
+- **Saving many rows is fast**: the list's Edit mode sends all its changed rows
+  in one request (`POST /api/items/batch`) instead of one to three per row, and
+  gets the saved rows back; 150 rows went from about 10 s to half a second.
+  Each row is still saved on its own with the same provenance, audit and
+  database rules, and one that fails (a rating of 99) doesn't stop the others.
+- **No full reload after an edit**: saving in the detail panel (status, rating,
+  version, review, readings, cover, EPUB) refreshes just that item's row
+  (`GET /api/rows`) instead of loading the whole library again; collections
+  still reload it, as they change the shelves too.
+- A browser closing an idle connection no longer prints a traceback in the log.
+
 ## [0.8.4] - 2026-10-27
 
 - **Faster loading**: the page and the JSON are gzip-compressed (the page

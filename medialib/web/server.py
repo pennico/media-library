@@ -21,6 +21,7 @@ import json
 import os
 import re
 import secrets
+import sys
 import tempfile
 import threading
 import time
@@ -59,19 +60,7 @@ READER_CSP = ("default-src 'none'; script-src 'self'; style-src 'unsafe-inline' 
               " form-action 'none'; frame-ancestors 'self'")
 READER_JS = re.compile(r"^/(reader\.js|vendor/foliate-js/(vendor/)?[a-z-]+\.js)$")
 DOC = r"([0-9a-f]{32})"
-# database rules, in words (anything else shows the database's own message)
-FRIENDLY = {
-    "consumption_dates_ordered": "A reading can't finish before it started.",
-    "consumption_open_has_no_end": "A reading in progress has no finish date.",
-    "consumption_one_open": "This one already has a reading or watch in progress.",
-    "consumption_season_of_series": "That season is not one of this series'.",
-    "consumption_episodes_need_season": "Episodes go with a season.",
-    "consumption_started_ok": "Start date: use YYYY, YYYY-MM or YYYY-MM-DD.",
-    "consumption_ended_ok": "Finish date: use YYYY, YYYY-MM or YYYY-MM-DD.",
-    "shelf_name": "There is already a collection with that name.",
-    "person_name_key": "That person already exists.",
-    "tag_name": "That tag already exists.",
-}
+FRIENDLY = writes.FRIENDLY
 
 
 GZIP_MIN = 1024
@@ -105,6 +94,16 @@ class CountingReader:
 
     def __getattr__(self, name):
         return getattr(self.raw, name)
+
+
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        # with keep-alive a browser closing an idle connection is routine, not an error worth a traceback
+        if isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
 
 
 class App:
@@ -327,6 +326,12 @@ def make_handler(app):
                     with app.pool.connection() as conn:
                         return self.send(200, dict(queries.library(conn), google=app.fill.google.available,
                                                    tmdb=app.tmdb.available, **app.find_payload()))
+                if path == "/api/rows":
+                    ids = [x for x in urllib.parse.parse_qs(query).get("ids", [""])[0].split(",") if x]
+                    if not ids or len(ids) > 200 or not all(re.fullmatch(UUID, x) for x in ids):
+                        return self.error(400, "ids: 1 to 200 item ids, separated by commas.")
+                    with app.pool.connection() as conn:
+                        return self.send(200, queries.library_rows(conn, ids))
                 if path == "/api/trash":
                     with app.pool.connection() as conn:
                         return self.send(200, {"items": queries.trash(conn, writes.TRASH_DAYS), "days": writes.TRASH_DAYS})
@@ -811,6 +816,8 @@ def make_handler(app):
                 if m and method == "POST":
                     kosync.link(conn, login, m.group(1), req.get("item"))
                     return self.send(200, {"ok": True})
+                if path == "/api/items/batch" and method == "POST":
+                    return self.send(200, writes.batch_edit(conn, login, req.get("rows")))
                 if path == "/api/bulk" and method == "POST":
                     return self.send(200, writes.bulk(conn, login, req))
                 if path == "/api/platforms" and method == "POST":
@@ -942,8 +949,7 @@ def health(app):
 
 def serve(cfg, host="0.0.0.0", port=8099, log=print, **kw):
     app = App(cfg, **kw)
-    httpd = ThreadingHTTPServer((host, port), make_handler(app))
-    httpd.daemon_threads = True
+    httpd = Server((host, port), make_handler(app))
     threading.Thread(target=app.warm_thumbs, daemon=True, name="warm-thumbs").start()
     log("media-library console on http://{}:{}/ (schema {})".format(host, port, app.expected_version))
     try:

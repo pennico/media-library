@@ -137,6 +137,13 @@ def library(conn):
                                   " AND kind IN ('book', 'movie', 'series')").fetchone()["n"]}
 
 
+def library_rows(conn, pids):
+    """Some items as the shelf and list hold them, with the category tree (an edit can add a label):
+    what the page patches into its copy of the library after a save, instead of loading it all again."""
+    rows = conn.execute(LIBRARY + " AND i.public_id = ANY(%s::uuid[])", (list(pids),)).fetchall()
+    return {"items": [summary(r) for r in rows], "categories": categories(conn)}
+
+
 def categories(conn):
     """The genre tree: groups (parent null, with children) and the categories in them;
     old flat genres with no group are listed as groups of their own."""

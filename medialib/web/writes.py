@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 
 from .. import db
+from . import queries
 from ..covers import CoverError
 
 STATUSES = ("planned", "in_progress", "completed", "paused", "dropped")
@@ -26,6 +27,20 @@ class BadRequest(ValueError):
 def tx(conn, login):
     return db.write_tx(conn, "owner", "console:" + (login or "unknown"))
 
+
+# database rules, in words (anything else shows the database's own message)
+FRIENDLY = {
+    "consumption_dates_ordered": "A reading can't finish before it started.",
+    "consumption_open_has_no_end": "A reading in progress has no finish date.",
+    "consumption_one_open": "This one already has a reading or watch in progress.",
+    "consumption_season_of_series": "That season is not one of this series'.",
+    "consumption_episodes_need_season": "Episodes go with a season.",
+    "consumption_started_ok": "Start date: use YYYY, YYYY-MM or YYYY-MM-DD.",
+    "consumption_ended_ok": "Finish date: use YYYY, YYYY-MM or YYYY-MM-DD.",
+    "shelf_name": "There is already a collection with that name.",
+    "person_name_key": "That person already exists.",
+    "tag_name": "That tag already exists.",
+}
 
 # ------------------------------------------------------------ validation
 
@@ -1031,6 +1046,58 @@ def title_of(conn, pid):
     return row["title"] if row else pid
 
 
+def set_ended(conn, login, pid, value):
+    """The read / watched date moves the last finished reading / watch (and its start, when that was later);
+    with none, adds one."""
+    last = conn.execute("SELECT public_id::text AS rid, started_on FROM library.consumption WHERE item_id = %s"
+                        " AND state = 'completed' AND deleted_at IS NULL ORDER BY ended_on DESC NULLS LAST, id DESC LIMIT 1",
+                        (ids_for(conn, pid)["id"],)).fetchone()
+    if last:
+        ended, _ = partial_date(value, "finished")
+        change = {"ended": value}
+        if last["started_on"] and last["started_on"] > ended:   # moved before it started: the start moves with it
+            change["started"] = value
+        edit_reading(conn, login, last["rid"], change)
+    else:
+        add_reading(conn, login, pid, {"state": "completed", "ended": value})
+
+
+def batch_edit(conn, login, rows):
+    """Many rows of the list's Edit mode in one request: [{id, patch?, ended?, status?}], where patch is
+    an edit_item body. Each row is applied like the single edits (provenance, audit, database rules), in
+    that order, and fails alone: -> {done, errors: [{id, title, error}], items, categories} with the
+    saved rows as the list shows them, so the page needs no full reload."""
+    if not isinstance(rows, list) or not rows or len(rows) > BULK_MAX:
+        raise BadRequest("rows must be a list of 1 to {} rows".format(BULK_MAX))
+    seen, done, errors = set(), [], []
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("id"), str) or row["id"] in seen:
+            raise BadRequest("every row needs its own item id")
+        seen.add(row["id"])
+        if not (row.get("patch") or row.get("ended") or row.get("status")):
+            raise BadRequest("row without a change")
+        if row.get("patch") is not None and not isinstance(row["patch"], dict):
+            raise BadRequest("patch must be an object")
+    for row in rows:
+        pid = row["id"]
+        try:
+            if row.get("patch"):
+                edit_item(conn, login, pid, row["patch"])
+            if row.get("ended"):
+                set_ended(conn, login, pid, row["ended"])
+            if row.get("status"):
+                set_status(conn, login, pid, {"status": row["status"]})
+            done.append(pid)
+        except (BadRequest, LookupError) as e:
+            errors.append({"id": pid, "title": title_of(conn, pid), "error": str(e)})
+        except psycopg.Error as e:           # a database rule: that row only
+            errors.append({"id": pid, "title": title_of(conn, pid),
+                           "error": FRIENDLY.get(e.diag.constraint_name or "") or e.diag.message_primary or type(e).__name__})
+    # the rows that changed, even partly, as they are now
+    touched = [r["id"] for r in rows]
+    return dict(queries.library_rows(conn, touched), done=len(done), errors=errors)
+
+
 def edit_one(conn, login, pid, f):
     """The "apply to all" form for one item: only the given fields; book-only ones skip movies and series."""
     kind = ids_for(conn, pid)["kind"]
@@ -1054,18 +1121,8 @@ def edit_one(conn, login, pid, f):
             ed["lang"] = f["lang"]
     if body:
         edit_item(conn, login, pid, body)
-    if f.get("ended"):                         # moves the last finished reading / watch; with none, adds one
-        last = conn.execute("SELECT public_id::text AS rid, started_on FROM library.consumption WHERE item_id = %s"
-                            " AND state = 'completed' AND deleted_at IS NULL ORDER BY ended_on DESC NULLS LAST, id DESC LIMIT 1",
-                            (ids_for(conn, pid)["id"],)).fetchone()
-        if last:
-            ended, _ = partial_date(f["ended"], "finished")
-            change = {"ended": f["ended"]}
-            if last["started_on"] and last["started_on"] > ended:   # moved before it started: the start moves with it
-                change["started"] = f["ended"]
-            edit_reading(conn, login, last["rid"], change)
-        else:
-            add_reading(conn, login, pid, {"state": "completed", "ended": f["ended"]})
+    if f.get("ended"):
+        set_ended(conn, login, pid, f["ended"])
     if f.get("status"):
         set_status(conn, login, pid, {"status": f["status"]})
     if f.get("collection"):

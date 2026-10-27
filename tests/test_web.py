@@ -7,7 +7,6 @@ import socket
 import threading
 import urllib.request
 import uuid
-from http.server import ThreadingHTTPServer
 
 import pytest
 
@@ -32,7 +31,7 @@ def site(cfg, tmp_path_factory):
     cfg = dataclasses.replace(cfg, media_dir=str(tmp / "media"))
     app = server.App(cfg, owner_login=OWNER, origin=origin, password_file=str(tmp / "password"),
                      passkeys_file=str(tmp / "passkeys.json"), state_dir=str(tmp / "state"), cookie_secure=False)
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), server.make_handler(app))
+    httpd = server.Server(("127.0.0.1", port), server.make_handler(app))
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
     with db.connect(cfg) as conn:
@@ -370,3 +369,55 @@ def test_keep_alive_survives_a_refused_write(site):
     c.close()
     c.request("GET", "/healthz")     # http.client reconnects if the server closed
     assert c.getresponse().status == 200
+
+
+# ---------------------------------------------------------------- batch save (the list's Edit mode)
+
+def _books(cfg, n):
+    with db.connect(cfg) as conn:
+        with tx(conn, source="yamtrack", client="test"):
+            for k in range(n):
+                item, _ = new_book(conn, "Batch test {} {}".format(k, uuid.uuid4().hex[:6]))
+                add_entry(conn, item)
+    return None
+
+
+def test_batch_edit_saves_rows_in_one_request(site, cfg):
+    _books(cfg, 4)
+    c = Client(site).unlock()
+    ids = [i["id"] for i in c.call("GET", "api/library")[1]["items"] if i["title"].startswith("Batch test")][:4]
+    rows = [{"id": ids[0], "patch": {"entry": {"rating": 8}, "edition": {"pages": "321"}}},
+            {"id": ids[1], "status": "completed", "ended": "2026-05-04"},
+            {"id": ids[2], "patch": {"item": {"title": "Batch renamed"}, "genres": ["Fiction"]}},
+            {"id": ids[3], "patch": {"entry": {"rating": 99}}, "status": "completed"}]      # the bad one
+    s, r = c.call("POST", "api/items/batch", {"rows": rows})
+    assert s == 200 and r["done"] == 3 and len(r["errors"]) == 1 and r["errors"][0]["id"] == ids[3]
+    assert "rating" in r["errors"][0]["error"]
+    by = {i["id"]: i for i in r["items"]}
+    assert by[ids[0]]["rating"] == 8 and by[ids[0]]["pages"] == 321
+    assert by[ids[1]]["status"] == "completed" and by[ids[1]]["reads"][0][0] == "2026-05-04"
+    assert by[ids[2]]["title"] == "Batch renamed" and by[ids[2]]["genres"] == ["Fiction"]
+    assert by[ids[3]]["status"] == "planned"                       # a failed row leaves nothing half done
+    assert any(cat["name"] == "Fiction" for cat in r["categories"])
+    # the library read agrees with what the batch answered
+    lib = {i["id"]: i for i in c.call("GET", "api/library")[1]["items"]}
+    assert all(lib[k] == by[k] for k in by)
+
+
+def test_batch_edit_is_guarded_and_validated(site):
+    anon = Client(site)                                            # locked
+    assert anon.call("POST", "api/items/batch", {"rows": [{"id": site["item"], "status": "planned"}]})[0] == 401
+    c = Client(site).unlock()
+    for rows in (None, [], [{"id": site["item"]}], [{"id": site["item"], "status": "x"}, {"id": site["item"], "status": "planned"}],
+                 "text", [{"id": 5, "status": "planned"}], [{"id": site["item"], "patch": "no"}]):
+        assert c.call("POST", "api/items/batch", {"rows": rows})[0] == 400, rows
+    s, r = c.call("POST", "api/items/batch", {"rows": [{"id": str(uuid.uuid4()), "status": "planned"}]})
+    assert s == 200 and r["done"] == 0 and r["errors"][0]["error"]
+
+
+def test_rows_endpoint_returns_just_those_items(site):
+    c = Client(site, login=None)
+    s, r = c.call("GET", "api/rows?ids=" + site["item"])
+    assert s == 200 and [i["id"] for i in r["items"]] == [site["item"]] and "categories" in r
+    assert c.call("GET", "api/rows?ids=nope")[0] == 400
+    assert c.call("GET", "api/rows")[0] == 400
