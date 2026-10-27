@@ -421,3 +421,15 @@ def test_rows_endpoint_returns_just_those_items(site):
     assert s == 200 and [i["id"] for i in r["items"]] == [site["item"]] and "categories" in r
     assert c.call("GET", "api/rows?ids=nope")[0] == 400
     assert c.call("GET", "api/rows")[0] == 400
+
+
+def test_batch_row_is_all_or_nothing(site, cfg):
+    """A row is one transaction: if its status is refused, its rating is not saved either."""
+    _books(cfg, 1)
+    c = Client(site).unlock()
+    pid = next(i["id"] for i in c.call("GET", "api/library")[1]["items"] if i["title"].startswith("Batch test"))
+    s, r = c.call("POST", "api/items/batch", {"rows": [
+        {"id": pid, "patch": {"entry": {"rating": 4}}, "ended": "2026-01-02", "status": "nonsense"}]})
+    assert s == 200 and r["done"] == 0 and len(r["errors"]) == 1
+    item = r["items"][0]
+    assert item["rating"] != 4 and not item["reads"] and item["status"] == "planned"

@@ -208,6 +208,9 @@ table.list tr.editing { background: var(--sel); }
 table.list tr.editing td { white-space: normal; vertical-align: middle; }
 table.list .le { width: 100%; min-width: 64px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-size: 12.5px; }
 table.list .le.wide { min-width: 170px; } table.list .le.num { min-width: 56px; max-width: 74px; text-align: right; }
+table.list td.gsel { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+table.list td.dirty .le { background: var(--warn-soft); border-color: var(--warn); }
+table.list td.bad .le { background: var(--bad-soft); border-color: var(--bad); }
 table.list .rowbtns { display: inline-flex; flex-direction: column; gap: 4px; }
 table.list .lecat-btn { text-align: left; min-width: 150px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lecat-pop { position: fixed; z-index: 55; width: 300px; max-height: min(420px, 70vh); overflow: auto; background: var(--panel); border: 1px solid var(--line);
@@ -904,7 +907,7 @@ function renderDatabase() {
         ${shelf.kind === "manual" && !sec && canEdit() ? `<button class="btn small" id="shelf-menu">Collection…</button>` : ""}
         ${sec && sec.kind === "manual" && canEdit() ? `<button class="btn small" id="section-menu">Section…</button>` : ""}
         ${canEdit() ? `<button class="btn small" id="sel-toggle" aria-pressed="${st.selecting}" title="Select ${noun(kind)} to act on several at once">${st.selecting ? "Done" : "Select"}</button>` : ""}
-        ${canEdit() && st.listMode && !st.selecting ? (st.tableEdit ? `<button class="btn small primary" id="tbl-save" title="Save the rows you changed">Save</button><button class="btn small" id="tbl-cancel">Cancel</button>`
+        ${canEdit() && st.listMode && !st.selecting ? (st.tableEdit ? `<button class="btn small primary" id="tbl-save" title="Save the rows you changed">Save</button><button class="btn small" id="tbl-paste" title="Paste cells copied from Excel or Sheets at the selected cell">Paste</button><button class="btn small" id="tbl-cancel">Cancel</button>`
           : `<button class="btn small" id="tbl-edit" title="Edit the rows of this list in place">Edit</button>`) : ""}
         ${st.selecting ? `<button class="btn small" id="sel-all" title="Select everything shown">All</button><button class="btn small" id="sel-none" ${st.sel.size ? "" : "disabled"}>None</button>` : ""}
         ${kind === "book" ? `<button class="btn small primary" id="add-book" title="Find a book at Apple Books and Open Library and add it">+ Add book</button>`
@@ -915,6 +918,7 @@ function renderDatabase() {
     ${sec ? `<p class="hintline">${sec.kind === "archive" ? "Archived: out of the library, the Visuals and search; nothing is deleted. Select and Unarchive to bring them back."
       : sec.kind === "test" ? "Made-up items to try things on; kept out of the Visuals and search. <code>medialib test-data --remove</code> deletes them all."
       : "A section of your library: its " + noun(kind) + " are here, not on the main shelf."}</p>` : ""}
+    ${st.tableEdit ? `<p class="hintline">Spreadsheet mode: click, shift-click or drag to select cells · Ctrl/Cmd+C copies them, Ctrl/Cmd+V pastes from Excel or Sheets (one value fills the whole selection) · Ctrl/Cmd+D fills down · Delete clears · Ctrl/Cmd+Z undoes the last paste · changed cells are tinted, then Save.</p>` : ""}
     ${canDrag ? `<p class="hintline">Drag covers to reorder${shelf.kind === "all" ? " your library" : " this collection"}.</p>` : manual && prefs.layout === "grid" && canEdit() && (st.filter !== "all" || st.q || active.length) ? `<p class="hintline">Clear the filter to drag covers into a new order.</p>` : ""}
     <div class="lib ${st.selected ? "withdetail" : ""}" id="lib">
       <div id="content">${list.length ? (prefs.layout === "list" ? listHtml(list, prefs) : gridHtml(list, prefs)) : `<p class="empty">${shelfItems().length ? `Nothing matches the filter. <button class="linkbtn" data-fclear="*">Clear the filters</button>` : "Nothing here yet."}</p>`}</div>
@@ -926,6 +930,7 @@ function renderDatabase() {
   applyColWidths();
   watchShelves();
   renderBulk();
+  if (st.tableEdit) gridRefresh();
   if (st.fpane && !fDrag) renderFilterPane();
 }
 // The boards: one under each row of covers (rows found from where the covers end), then empty ones at the same
@@ -1273,6 +1278,174 @@ async function saveTable() {
   });
   toast(failed.length ? `Saved ${work.length - failed.length}; not saved: ${failed.join("; ")}` : `Saved ${work.length} ${work.length === 1 ? "row" : "rows"}`, failed.length > 0);
 }
+
+// ------------------------------------------------- grid: the Edit mode as a spreadsheet
+// Select cells (click, shift-click, drag), copy them as tab-separated text, paste what Excel or Sheets copied, fill
+// down, clear. It works on the same inputs the Edit mode already has; Save still sends only what changed.
+const GCOLS = ["title", "authors", "status", "rating", "ended", "pages", "lang", "format", "cats", "added"];
+const G = {a: null, f: null, drag: false, undo: [], lastGrid: false};   // anchor / focus cell [row, col]; undo: batches of [tr, col, old]
+const grows = () => [...document.querySelectorAll("table.list tr.editing")];
+const gel = (tr, c) => tr && (c === "cats" ? tr.querySelector("[data-lecats]") : tr.querySelector(`[data-f="${c}"]`));
+const gitem = tr => LIB.items.find(x => x.id === tr.dataset.id);
+const gnorm = xs => xs.map(x => x.toLowerCase()).sort().join("|");
+// the text a cell shows (what Copy gives), and its raw value (what Undo puts back)
+function gget(tr, c) {
+  const el = gel(tr, c); if (!el) return null;
+  if (c === "cats") return (st.rowCats[tr.dataset.id] || []).join(", ");
+  if (el.tagName === "SELECT") return el.value === "" ? "" : el.selectedOptions[0].textContent;
+  return el.value;
+}
+const graw = (tr, c) => !gel(tr, c) ? null : c === "cats" ? [...(st.rowCats[tr.dataset.id] || [])] : gel(tr, c).value;
+function gput(tr, c, v) {
+  const el = gel(tr, c); if (!el) return;
+  if (c === "cats") { st.rowCats[tr.dataset.id] = [...v]; el.textContent = (v.join(", ") || "—") + " ▾"; } else el.value = v;
+}
+// one pasted text -> a value for that cell, or the reason it isn't one
+function gparse(tr, c, text) {
+  const i = gitem(tr), t = String(text).trim(), k = t.toLowerCase(), L = LABEL[i.kind] || LABEL.book;
+  const pick = list => { const m = list.find(([v, l]) => v.toLowerCase() === k || String(l).toLowerCase() === k); return m && m[0]; };
+  const none = t === "" || t === "—" || t === "-";
+  switch (c) {
+    case "title": return t ? {v: t.slice(0, 1000)} : {err: "A title can't be empty."};
+    case "authors": return {v: splitList(t, /[;,]/).join(", ")};
+    case "status": { const v = pick(STATUS_ORDER.map(x => [x, L[x]])); return v ? {v} : {err: `"${t}" is not a status.`}; }
+    case "rating": { if (none) return {v: ""}; const n = Number(t.replace(",", ".")); return Number.isFinite(n) && n >= 0 && n <= 10 ? {v: String(Math.round(n))} : {err: "Rating: a number from 0 to 10."}; }
+    case "ended": return t === "" || /^\d{4}(-\d{2}(-\d{2})?)?$/.test(t) ? {v: t} : {err: "Date: yyyy, yyyy-mm or yyyy-mm-dd."};
+    case "pages": return t === "" || (/^\d{1,5}$/.test(t) && +t >= 1 && +t <= 20000) ? {v: t} : {err: "Pages: a whole number from 1 to 20000."};
+    case "lang": { if (none) return {v: ""}; const v = pick(Object.entries(LIB.languages)); return v ? {v} : {err: `Unknown language "${t}".`}; }
+    case "format": { if (none) return {v: ""}; const v = pick(FORMATS); return v ? {v} : {err: `"${t}" is not a version (${FORMATS.map(f => f[1]).join(", ")}).`}; }
+    case "added": return /^\d{4}-\d{2}-\d{2}$/.test(t) && t <= new Date().toISOString().slice(0, 10) ? {v: t} : {err: "Added: yyyy-mm-dd, not in the future."};
+    case "cats": { const out = []; for (const n of splitList(t, /[;,]/)) { const m = (LIB.categories || []).find(x => x.name.toLowerCase() === n.toLowerCase()); if (!m) return {err: `Unknown category "${n}".`}; out.push(m.name); } return {v: out}; }
+  }
+}
+// what the item has now, to tint the cells that differ
+function gorig(i, c) {
+  return {title: i.title, authors: i.authors || "", status: i.status, rating: i.rating == null ? "" : String(Math.round(i.rating)), ended: lastRead(i),
+    pages: String(i.pages ?? ""), lang: i.lang || "", format: i.format || "", added: i.added}[c];
+}
+function gmark(tr, c) {
+  const el = gel(tr, c), i = tr && gitem(tr); if (!el || !i) return;
+  const now = c === "title" ? el.value.trim() : c === "authors" ? splitList(el.value, /[;,]/).join(", ") : graw(tr, c);
+  el.closest("td").classList.toggle("dirty", c === "cats" ? gnorm(st.rowCats[i.id] || []) !== gnorm(i.genres) : now !== gorig(i, c));
+}
+function gridRefresh() { G.a = G.f = null; for (const tr of grows()) for (const c of GCOLS) gmark(tr, c); }
+// selection
+const gcellAt = el => {
+  const td = el?.closest?.("table.list tr.editing td"); if (!td) return null;
+  const tr = td.parentElement, c = GCOLS.find(x => gel(tr, x) && td.contains(gel(tr, x)));
+  return c ? [grows().indexOf(tr), GCOLS.indexOf(c)] : null;
+};
+const gbox = () => G.a && {r0: Math.min(G.a[0], G.f[0]), r1: Math.max(G.a[0], G.f[0]), c0: Math.min(G.a[1], G.f[1]), c1: Math.max(G.a[1], G.f[1])};
+const gmulti = () => G.a && (G.a[0] !== G.f[0] || G.a[1] !== G.f[1]);
+function gpaint() {
+  for (const td of document.querySelectorAll("td.gsel")) td.classList.remove("gsel");
+  const b = gbox(); if (!b) return;
+  const rows = grows();
+  for (let r = b.r0; r <= b.r1; r++) for (let c = b.c0; c <= b.c1; c++) gel(rows[r], GCOLS[c])?.closest("td").classList.add("gsel");
+}
+// tab-separated text, the way Excel and Sheets write and read it
+function tsvParse(text) {
+  const rows = [[""]]; let q = false;
+  for (let k = 0; k < text.length; k++) {
+    const ch = text[k], row = rows[rows.length - 1], n = row.length - 1;
+    if (q) { if (ch === '"') { if (text[k + 1] === '"') { row[n] += '"'; k++; } else q = false; } else row[n] += ch; }
+    else if (ch === '"' && row[n] === "") q = true;
+    else if (ch === "\t") row.push("");
+    else if (ch === "\n") rows.push([""]);
+    else if (ch !== "\r") row[n] += ch;
+  }
+  const last = rows[rows.length - 1];
+  if (rows.length > 1 && last.length === 1 && last[0] === "") rows.pop();
+  return rows;
+}
+const tsvCell = v => /[\t\n\r"]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+// put texts into cells: [[row, col, text]]; invalid ones are marked and left as they were
+function gapply(list, what) {
+  const rows = grows(), batch = []; let bad = 0, outside = 0;
+  for (const [r, ci, text] of list) {
+    const tr = rows[r], c = GCOLS[ci];
+    if (!tr || !c) { outside++; continue; }
+    const el = gel(tr, c); if (!el) continue;                       // a movie has no pages here
+    const td = el.closest("td"), p = gparse(tr, c, text);
+    if (p.err) { td.classList.add("bad"); td.title = p.err; bad++; continue; }
+    td.classList.remove("bad"); td.removeAttribute("title");
+    const old = graw(tr, c); gput(tr, c, p.v); gmark(tr, c); batch.push([tr, c, old]);
+  }
+  if (batch.length) { G.undo.push(batch); if (G.undo.length > 40) G.undo.shift(); G.lastGrid = true; }
+  toast((batch.length ? `${what} ${batch.length} ${batch.length === 1 ? "cell" : "cells"}` : "Nothing changed") + (bad ? `; ${bad} not valid (red, hover for why)` : "")
+    + (outside ? `; ${outside} past the end of the table left out` : ""), bad > 0 && !batch.length);
+}
+function gpaste(text) {
+  const data = tsvParse(text), b = gbox(), list = [];
+  if (b && gmulti() && data.length === 1 && data[0].length === 1) {            // one value: fill the selection
+    for (let r = b.r0; r <= b.r1; r++) for (let c = b.c0; c <= b.c1; c++) list.push([r, c, data[0][0]]);
+  } else {
+    const at = b ? [b.r0, b.c0] : gcellAt(document.activeElement); if (!at) return toast("Click a cell first", true);
+    data.forEach((row, y) => row.forEach((v, x) => list.push([at[0] + y, at[1] + x, v])));
+  }
+  gapply(list, "Pasted");
+}
+function gfill() {
+  const b = gbox(); if (!b) return;
+  const rows = grows(), list = [], top = b.r0 === b.r1 ? b.r0 - 1 : b.r0;      // one cell: copy the one above
+  if (top < 0) return;
+  for (let c = b.c0; c <= b.c1; c++) for (let r = Math.max(b.r0, top + 1); r <= b.r1; r++) { const v = gget(rows[top], GCOLS[c]); if (v != null) list.push([r, c, v]); }
+  gapply(list, "Filled");
+}
+function gclear() {
+  const b = gbox(), list = []; if (!b) return;
+  for (let r = b.r0; r <= b.r1; r++) for (let c = b.c0; c <= b.c1; c++) list.push([r, c, ""]);
+  gapply(list, "Cleared");
+}
+function gundo() {
+  const batch = G.undo.pop(); if (!batch) return;
+  for (const [tr, c, old] of batch.reverse()) { gput(tr, c, old); gmark(tr, c); gel(tr, c).closest("td").classList.remove("bad"); }
+  G.lastGrid = G.undo.length > 0; toast("Undone");
+}
+document.addEventListener("mousedown", e => {
+  if (!st.tableEdit) return;
+  const at = gcellAt(e.target);
+  if (!at) { if (!e.target.closest?.("#le-catpop, .toolbar, .bulkbar")) { G.a = G.f = null; gpaint(); } return; }
+  if (e.shiftKey && G.a) { e.preventDefault(); G.f = at; }
+  else { G.a = G.f = at; G.drag = true; }
+  gpaint();
+}, true);
+document.addEventListener("mouseover", e => {
+  if (!G.drag) return;
+  const at = gcellAt(e.target); if (!at || (at[0] === G.f[0] && at[1] === G.f[1])) return;
+  G.f = at; getSelection()?.removeAllRanges(); if (gmulti()) document.activeElement?.blur?.(); gpaint();
+});
+document.addEventListener("mouseup", () => { G.drag = false; });
+document.addEventListener("copy", e => {
+  if (!st.tableEdit || !gmulti()) return;
+  const b = gbox(), rows = grows(), out = [];
+  for (let r = b.r0; r <= b.r1; r++) { const line = []; for (let c = b.c0; c <= b.c1; c++) line.push(tsvCell(gget(rows[r], GCOLS[c]) ?? "")); out.push(line.join("\t")); }
+  e.clipboardData.setData("text/plain", out.join("\n")); e.preventDefault();
+});
+document.addEventListener("paste", e => {
+  if (!st.tableEdit) return;
+  const text = e.clipboardData?.getData("text/plain") ?? "";
+  if (!gmulti() && !/[\t\n]/.test(text.replace(/\n$/, ""))) return;            // plain text into one cell: the browser's own paste
+  if (!gmulti() && !gcellAt(document.activeElement) && !G.a) return;
+  e.preventDefault(); gpaste(text);
+});
+document.addEventListener("keydown", e => {
+  if (!st.tableEdit) return;
+  const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if (gmulti() && (k === "delete" || k === "backspace") && !mod) { e.preventDefault(); gclear(); }
+  else if (mod && k === "d" && G.a) { e.preventDefault(); gfill(); }
+  else if (mod && k === "z" && !e.shiftKey && G.lastGrid && G.undo.length) { e.preventDefault(); gundo(); }
+  else if (k === "escape" && gmulti()) { e.preventDefault(); e.stopImmediatePropagation(); G.a = G.f = null; gpaint(); }
+}, true);
+document.addEventListener("input", e => {
+  const el = e.target; if (!st.tableEdit || !el.dataset?.f) return;
+  G.lastGrid = false; const td = el.closest("td"); td.classList.remove("bad"); td.removeAttribute("title"); gmark(el.closest("tr"), el.dataset.f);
+});
+document.addEventListener("change", e => {
+  const el = e.target; if (!st.tableEdit) return;
+  if (el.dataset?.f) { gmark(el.closest("tr"), el.dataset.f); return; }
+  if (el.dataset?.lecat !== undefined) setTimeout(() => gmark(document.getElementById("r-" + st.catRow), "cats"));
+});
 
 // ----------------------------------------------------------- filter pane
 // Toggles show how many books each value would leave (with the other filters on); sliders run over the values the
@@ -1825,6 +1998,7 @@ document.addEventListener("click", async e => {
   if (t.id === "tbl-edit") { if (!canEdit()) return act(() => 0); st.tableEdit = true; st.rowCats = {}; st.sel.clear(); renderDatabase(); document.querySelector("table.list [data-f=title]")?.focus(); return; }
   if (t.id === "tbl-cancel") { st.tableEdit = false; st.rowCats = {}; toggleCatPop(false); renderDatabase(); return; }
   if (t.id === "tbl-save") return saveTable();
+  if (t.id === "tbl-paste") { try { gpaste(await navigator.clipboard.readText()); } catch (er) { toast("The browser didn't allow reading the clipboard: click a cell and press Ctrl/Cmd+V", true); } return; }
   if (t.dataset.lecats) { const open = !($("le-catpop") && st.catRow === t.dataset.lecats); toggleCatPop(open, t.dataset.lecats); return; }
   if (t.dataset.lecatdone) { const b = catBtn(); toggleCatPop(false); b?.focus(); return; }
   if (t.dataset.lecat !== undefined) { const n = t.dataset.lecat, cur = st.rowCats[st.catRow] || [];

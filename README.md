@@ -19,6 +19,8 @@ looks like a bookshelf.
   films (from TMDB, or your own groups), and each watch can name its
   season, the episodes seen and where it was watched. Add by TMDB search, or
   import a whole watch history (`medialib import-watch`).
+- **List edit as a spreadsheet**: select cells, copy and paste to and from Excel or
+  Sheets, fill down, clear and undo; one request saves all the changed rows.
 - **Sections and quick actions**: folders in the left pane (and an Archive);
   select covers, rows or everything and mark them read, move, archive,
   delete, or edit them all at once (only the fields you fill in change).
@@ -49,7 +51,7 @@ looks like a bookshelf.
   (shared with [agent-console](https://github.com/pennico/agent-console) if
   you use it).
 
-Status: 0.8.5, used daily by its author.
+Status: 0.9.0, used daily by its author.
 
 ## Docs
 

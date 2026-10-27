@@ -4,8 +4,10 @@ the owner's, protected from automated sources, and audited.
 
 Input is checked here against explicit allow-lists; the database checks it
 again (domains, CHECKs, triggers)."""
+import contextlib
 import datetime
 import re
+import threading
 from zoneinfo import ZoneInfo
 
 import psycopg
@@ -24,8 +26,28 @@ class BadRequest(ValueError):
     pass
 
 
+_row = threading.local()
+
+
+@contextlib.contextmanager
 def tx(conn, login):
-    return db.write_tx(conn, "owner", "console:" + (login or "unknown"))
+    if getattr(_row, "conn", None) is conn:       # inside one_tx(): the writes join its transaction
+        yield conn
+        return
+    with db.write_tx(conn, "owner", "console:" + (login or "unknown")) as c:
+        yield c
+
+
+@contextlib.contextmanager
+def one_tx(conn, login):
+    """Everything written inside the block, whichever functions do it, is one transaction: all of it or
+    none of it, and one round trip for the begin / commit instead of one per step."""
+    with tx(conn, login) as c:
+        _row.conn = conn
+        try:
+            yield c
+        finally:
+            _row.conn = None
 
 
 # database rules, in words (anything else shows the database's own message)
@@ -1081,12 +1103,13 @@ def batch_edit(conn, login, rows):
     for row in rows:
         pid = row["id"]
         try:
-            if row.get("patch"):
-                edit_item(conn, login, pid, row["patch"])
-            if row.get("ended"):
-                set_ended(conn, login, pid, row["ended"])
-            if row.get("status"):
-                set_status(conn, login, pid, {"status": row["status"]})
+            with one_tx(conn, login):
+                if row.get("patch"):
+                    edit_item(conn, login, pid, row["patch"])
+                if row.get("ended"):
+                    set_ended(conn, login, pid, row["ended"])
+                if row.get("status"):
+                    set_status(conn, login, pid, {"status": row["status"]})
             done.append(pid)
         except (BadRequest, LookupError) as e:
             errors.append({"id": pid, "title": title_of(conn, pid), "error": str(e)})

@@ -2,6 +2,21 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-10-27
+
+- **Spreadsheet mode in the list's Edit**: select cells by clicking, shift-clicking
+  or dragging; Ctrl/Cmd+C copies them as tab-separated text and Ctrl/Cmd+V pastes
+  what Excel or Sheets copied (one value fills the whole selection; a block lands
+  from the selected cell down and right); Ctrl/Cmd+D fills down, Delete clears,
+  Ctrl/Cmd+Z undoes the last grid action, and a Paste button reads the clipboard
+  for browsers where the shortcut is not at hand. Pasted text is checked per
+  column (status and language by name or code, rating 0-10, dates as
+  yyyy / yyyy-mm / yyyy-mm-dd, pages, version, categories by name); a value that
+  doesn't fit is marked red and left out. Changed cells are tinted until Save.
+- **Faster saves**: a row of the batch is now one transaction (status, date and
+  details together, all or nothing): 154 rows with status, rating and date
+  changes save in about 1.9 s instead of 3.2 s.
+
 ## [0.8.5] - 2026-10-27
 
 - **Saving many rows is fast**: the list's Edit mode sends all its changed rows
