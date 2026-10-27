@@ -309,3 +309,64 @@ def test_epub_upload_and_download(site):
     assert s == 400 and "already in the library" in e["error"]
     s, e = raw_post(site, c, "api/items/" + site["item"] + "/file", b"PK\x03\x04 not really a zip", "application/epub+zip")
     assert s == 400 and "not an EPUB" in e["error"]
+
+
+# ---------------------------------------------------------------- transfer: gzip, ETag, keep-alive
+
+def _conn(site):
+    import http.client
+    return http.client.HTTPConnection("127.0.0.1", int(site["origin"].rsplit(":", 1)[1]), timeout=10)
+
+
+def test_json_and_page_are_gzipped_and_revalidated(site):
+    import gzip
+    h = {"Tailscale-User-Login": OWNER, "Accept-Encoding": "gzip"}
+    c = _conn(site)
+    c.request("GET", "/api/library", headers=h)
+    r = c.getresponse()
+    raw, etag = r.read(), r.getheader("ETag")
+    assert r.getheader("Content-Encoding") == "gzip" and etag and r.getheader("Cache-Control") == "no-cache"
+    assert any(i["id"] == site["item"] for i in json.loads(gzip.decompress(raw))["items"])
+    c.request("GET", "/api/library", headers=dict(h, **{"If-None-Match": etag}))   # same connection
+    r = c.getresponse()
+    assert r.status == 304 and r.read() == b""
+    c.request("GET", "/api/library", headers={"Tailscale-User-Login": OWNER})       # no gzip asked
+    r = c.getresponse()
+    assert r.getheader("Content-Encoding") is None and json.loads(r.read())["items"]
+    c.request("GET", "/", headers=h)
+    r = c.getresponse()
+    page_etag = r.getheader("ETag")
+    assert r.getheader("Content-Encoding") == "gzip" and b"<html" in gzip.decompress(r.read())[:500].lower()
+    c.request("GET", "/", headers=dict(h, **{"If-None-Match": page_etag}))
+    assert c.getresponse().status == 304
+
+
+def test_library_etag_changes_with_the_data(site):
+    c = _conn(site)
+    c.request("GET", "/api/library", headers={"Tailscale-User-Login": OWNER})
+    r = c.getresponse(); r.read()
+    first = r.getheader("ETag")
+    client = Client(site).unlock()
+    s, _ = client.call("PATCH", "api/items/" + site["item"], {"entry": {"rating": 7}})
+    assert s == 200
+    c.request("GET", "/api/library", headers={"Tailscale-User-Login": OWNER, "If-None-Match": first})
+    r = c.getresponse(); r.read()
+    assert r.status == 200 and r.getheader("ETag") != first
+
+
+def test_keep_alive_survives_a_refused_write(site):
+    """A refused POST leaves its body unread; the server must close rather than misread it."""
+    c = _conn(site)
+    body = json.dumps({"x": "y" * 5000}).encode()
+    c.request("POST", "/api/items/" + site["item"], body=body, headers={
+        "Tailscale-User-Login": "someone@else.test", "X-Console-Action": "1", "Content-Type": "application/json"})
+    r = c.getresponse(); r.read()
+    assert r.status == 403
+    c2 = _conn(site)
+    for _ in range(3):    # an ordinary connection is reused
+        c2.request("GET", "/healthz")
+        r = c2.getresponse(); r.read()
+        assert r.status == 200 and r.version == 11
+    c.close()
+    c.request("GET", "/healthz")     # http.client reconnects if the server closed
+    assert c.getresponse().status == 200

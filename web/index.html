@@ -967,12 +967,12 @@ function collCard(coll, films) {
     status: seen === f.length ? "completed" : f.some(x => x.status === "completed" || x.status === "in_progress") ? "in_progress" : f[0].status};
 }
 const collCardHtml = g => `<button class="book group${g.members.every(m => st.sel.has(m)) && st.selecting ? " sel" : ""}" id="b-${g.id}" data-id="${g.id}" data-rep="${g.members[0]}" data-members="${g.members.join(",")}" aria-current="${st.selected === g.id}" aria-label="${esc(g.title)}, ${g.films.length} films">
-    <div class="stand"><div class="cov">${coverSrc(g.cover) ? `<img src="${coverSrc(g.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(g.title)}</span>`}<span class="gmark">${g.films.length}</span>${coverTools(g.members, g.id)}</div></div>
+    <div class="stand"><div class="cov">${coverSrc(g.cover) ? `<img src="${coverSrc(g.cover)}" alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(g.title)}</span>`}<span class="gmark">${g.films.length}</span>${coverTools(g.members, g.id)}</div></div>
     <span class="t">${esc(g.title)}</span><span class="a">${esc(g.authors || "—")}</span>
     <span class="s"><span class="dot ${g.status}"></span>${esc(g.line)}${g.rating != null ? " · " + g.rating + "/10" : ""}</span></button>`;
 function gridHtml(list, prefs) {
   return `<div class="shelfwrap" id="shelfwrap"><div class="boards" id="boards"></div><div class="grid ${prefs.size}${st.selecting ? " selecting" : ""}${canEdit() ? " canedit" : ""}" id="grid">${foldCollections(list).map(i => i.group ? collCardHtml(i) : `<button class="book${st.selecting && st.sel.has(i.id) ? " sel" : ""}" id="b-${i.id}" data-id="${i.id}" aria-current="${st.selected === i.id}">
-    <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}${coverTools([i.id], i.id)}</div></div>
+    <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}${coverTools([i.id], i.id)}</div></div>
     <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span>
     <span class="s"><span class="dot ${i.status}"></span>${esc(statusLine(i))}${i.rating != null ? " · " + i.rating + "/10" : ""}</span></button>`).join("")}</div></div>`;
 }
@@ -1186,7 +1186,7 @@ document.addEventListener("dblclick", e => {
 // a row's delete button: the first click asks, the second moves it to the trash (the same as on a cover)
 const listDel = i => { const ask = st.delAsk === i.id;
   return `<button class="btn small${ask ? " danger" : ""}" data-del="${i.id}" data-delkey="${i.id}" title="${ask ? "Click again to move to the trash" : "Move to the trash"}" aria-label="${ask ? "Confirm: move " + esc(i.title) + " to the trash" : "Move " + esc(i.title) + " to the trash"}">${ask ? "Delete?" : "🗑"}</button>`; };
-const listCover = i => `<button class="lcov" data-open="${i.id}" aria-label="Open ${esc(i.title)}" title="Open the details">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}</button>`;
+const listCover = i => `<button class="lcov" data-open="${i.id}" aria-label="Open ${esc(i.title)}" title="Open the details">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}</button>`;
 // the date of the last finished reading / watch, as precise as it was recorded
 const lastRead = i => { const r = (i.reads || []).at(-1); return r ? String(r[0]).slice(0, r[1] === "year" ? 4 : r[1] === "month" ? 7 : 10) : ""; };
 // in edit mode every row is a small form: title, makers, status, rating, read/watched date, pages, language, version, categories, added
@@ -1622,7 +1622,7 @@ function collDetailHtml(d) {
       <div style="min-width:0"><h2>${esc(d.name)}</h2><div>${esc(collMakers(f).join(", "))}</div>
         <div class="muted" style="font-size:12.5px;margin-top:4px">${esc([f.length + " films", ys.length ? y0 + (y1 > y0 ? "–" + y1 : "") : null, mins ? fmtRuntime(mins) : null].filter(Boolean).join(" · "))}</div></div></div>
     <div class="d-sec"><h3>Films</h3><p class="muted" style="font-size:12.5px;margin:0 0 10px">${seen} of ${f.length} watched. Open a film for its watches, rating and details.</p>
-      <div class="seasons">${f.map(x => `<button class="season collfilm" id="cf-${x.id}" data-open="${x.id}">${coverSrc(x.cover) ? `<img src="${coverSrc(x.cover)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}
+      <div class="seasons">${f.map(x => `<button class="season collfilm" id="cf-${x.id}" data-open="${x.id}">${coverSrc(x.cover) ? `<img src="${coverSrc(x.cover)}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}
         <span><b>${esc(x.title)}</b> <span class="muted">${esc(x.published || "")}</span><br><span class="pill ${x.status === "completed" ? "ok" : x.status === "dropped" ? "warn" : "plain"}">${esc(statusLine(x))}</span>${x.rating != null ? ` <span class="muted" style="font-size:12px">${x.rating}/10</span>` : ""}</span></button>`).join("")}</div></div>`;
 }
 // a series' seasons: each with its poster, episodes and what you did with it
@@ -1632,7 +1632,7 @@ function seasonsHtml(d) {
     const w = s.watches[s.watches.length - 1], done = w && w.state === "completed", st0 = w ? L[w.state] : "Not watched";
     const sub = [s.episodes ? (w?.episodes != null ? w.episodes + "/" : "") + s.episodes + " episodes" : null, s.aired ? s.aired.slice(0, 4) : null,
       w?.platform ? platformName(w.platform) : null, w?.ended ? fmtKey(w.ended.slice(0, 7)) : null].filter(Boolean);
-    return `<div class="season${w ? "" : " unseen"}">${coverSrc(s.poster) ? `<img src="${coverSrc(s.poster)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}
+    return `<div class="season${w ? "" : " unseen"}">${coverSrc(s.poster) ? `<img src="${coverSrc(s.poster)}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}
       <span><b>${esc(s.number ? "Season " + s.number : s.name)}</b>${s.name && s.number && !/^season \d+$/i.test(s.name) ? ` <span class="muted">${esc(s.name)}</span>` : ""}
       <br><span class="pill ${done ? "ok" : w ? "warn" : "plain"}">${esc(st0)}</span> <span class="muted" style="font-size:12px">${esc(sub.join(" · "))}</span></span></div>`;
   }).join("")}</div>`;
@@ -2339,7 +2339,7 @@ function pickCard() {
   return `<div class="card wide pick" id="card-pick" aria-live="polite"><h3>${esc(p.label)} <span class="muted">${list.length} ${noun(st.kind, list.length)}</span>
       ${p.dim !== "day" ? `<button class="btn small" id="pick-db" title="Open the Database with these books filtered">Show in Database</button>` : `<span style="margin-left:auto"></span>`}<button class="xbtn" id="pick-x" aria-label="Clear the selection">✕</button></h3>
     ${list.length ? `<div class="pickshelf">${list.map(i => `<button class="pb" data-gobook="${i.id}" title="${esc(i.title)}${i.authors ? " — " + esc(i.authors) : ""}">
-      <div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}</div>
+      <div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" decoding="async">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}</div>
       <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span></button>`).join("")}</div>`
       : `<p class="muted" style="margin:0">Nothing with a date or value to match here.</p>`}</div>`;
 }

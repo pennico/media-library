@@ -111,3 +111,15 @@ class CoverStore:
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(self._index, fh, indent=0, sort_keys=True)
         os.replace(tmp, self._index_path)
+
+
+def make_thumb(src, dest, width):
+    """A progressive JPEG of the cover at ``src``, ``width`` px wide, written atomically to ``dest``."""
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with Image.open(src) as im:
+        im = im.convert("RGB")
+        h = max(1, round(im.height * width / im.width))
+        im = im.resize((width, h), Image.LANCZOS)
+        tmp = dest + ".tmp"
+        im.save(tmp, "JPEG", quality=78, optimize=True, progressive=True)
+        os.replace(tmp, dest)

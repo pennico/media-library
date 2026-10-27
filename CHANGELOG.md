@@ -2,6 +2,15 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.8.4] - 2026-10-27
+
+- **Faster loading**: the page and the JSON are gzip-compressed (the page
+  267 KB to 74 KB, the library 144 KB to 25 KB); `index.html` and the library
+  are revalidated with an ETag, so an unchanged one costs a 304 and no body;
+  connections are kept alive (HTTP/1.1, `TCP_NODELAY`), so a shelf's covers no
+  longer open a connection each; the shelf thumbnails are made in the
+  background at start; covers decode off the main thread.
+
 ## [0.8.3] - 2026-10-26
 
 - **Filter**: the date and range sections (Read / Watched, Published /

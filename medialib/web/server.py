@@ -15,6 +15,7 @@ login plus the reading-app login (reader.py), no cookie, no Origin check
 (the app sends its own Origin).
 """
 import glob
+import gzip
 import hashlib
 import json
 import os
@@ -30,10 +31,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
-from PIL import Image
 
 from .. import db, migrate
-from ..covers import CoverStore
+from ..covers import CoverStore, make_thumb
 from ..feeds import kosync
 from ..fill import service as fill_service
 from ..fill import tmdb as tmdb_mod
@@ -74,6 +74,39 @@ FRIENDLY = {
 }
 
 
+GZIP_MIN = 1024
+GZIP_TYPES = {"application/json", "text/html", "text/javascript", "application/atom+xml",
+              "application/opensearchdescription+xml", "application/xml", "text/xml"}
+_gz_cache = {}
+
+
+def gzip_cached(data, key=None):
+    """gzip for a response; an entry with a key (ETag / file version) is compressed once."""
+    if key is not None and key in _gz_cache:
+        return _gz_cache[key]
+    out = gzip.compress(data, compresslevel=6, mtime=0)
+    if key is not None:
+        if len(_gz_cache) >= 32:
+            _gz_cache.clear()
+        _gz_cache[key] = out
+    return out
+
+
+class CountingReader:
+    """The request stream, counting the body bytes read (see Handler.handle_one_request)."""
+
+    def __init__(self, raw):
+        self.raw, self.count = raw, 0
+
+    def read(self, n=-1):
+        data = self.raw.read(n)
+        self.count += len(data)
+        return data
+
+    def __getattr__(self, name):
+        return getattr(self.raw, name)
+
+
 class App:
     def __init__(self, cfg, owner_login, origin, password_file, passkeys_file, state_dir, cookie_secure=True,
                  reader_user="", reader_password_file=None, find_url="", find_label=""):
@@ -101,6 +134,23 @@ class App:
         self.backup_dir = os.environ.get("MEDIALIB_BACKUP_DIR", "")
         self.audit_verified = None
         self.health_lock = threading.Lock()
+
+    def warm_thumbs(self, width=320):
+        """Make the shelf thumbnails nobody has asked for yet, one at a time, so the first
+        opening of a big shelf doesn't wait on image resizing. Runs in the background."""
+        try:
+            with self.pool.connection() as conn:
+                rows = conn.execute("SELECT DISTINCT sha256, local_path FROM catalog.cover"
+                                    " WHERE local_path IS NOT NULL AND deleted_at IS NULL").fetchall()
+            for r in rows:
+                dest = os.path.join(self.cfg.media_dir, "thumbs", "{}-{}.jpg".format(r["sha256"], width))
+                if os.path.exists(dest):
+                    continue
+                with self.thumb_lock:
+                    if not os.path.exists(dest):
+                        make_thumb(os.path.join(self.cfg.media_dir, r["local_path"]), dest, width)
+        except Exception:     # noqa: BLE001 - a bad image or a closing pool must not matter
+            traceback.print_exc()
 
     def close(self):
         self.pool.close()
@@ -162,16 +212,54 @@ def make_handler(app):
     class Handler(BaseHTTPRequestHandler):
         server_version = "media-library"
         sys_version = ""
+        protocol_version = "HTTP/1.1"     # keep-alive: one connection serves the page, the API and the covers
+        timeout = 120                     # drops idle keep-alive connections (and stalled uploads)
+        disable_nagle_algorithm = True    # headers and body are two writes; with Nagle + delayed ACK each reply waits ~40 ms
 
         def log_message(self, fmt, *args):
             pass
 
         # ------------------------------------------------------ responses
 
-        def send(self, code, body, ctype="application/json", cache=None, cookie=None, csp=CSP):
+        def setup(self):
+            super().setup()
+            self.rfile = CountingReader(self.rfile)
+
+        def handle_one_request(self):
+            self.rfile.count = 0
+            super().handle_one_request()
+            # keep-alive is only safe when the whole request body was read; an early refusal
+            # (403, 401, 413...) leaves it in the stream, so close instead of misreading it
+            try:
+                unread = int(self.headers.get("Content-Length", "0") or 0) > self.rfile.count
+            except (AttributeError, ValueError):
+                unread = False
+            if unread:
+                self.close_connection = True
+
+        def send(self, code, body, ctype="application/json", cache=None, cookie=None, csp=CSP, etag=None):
             data = body if isinstance(body, bytes) else json.dumps(body, default=str).encode()
+            if etag is None and ctype == "application/json" and code == 200 and self.command in ("GET", "HEAD") \
+                    and self.path.split("?", 1)[0] == "/api/library":
+                etag = '"{}"'.format(hashlib.sha1(data).hexdigest())
+                cache = cache or "no-cache"
+            if etag and etag in [t.strip() for t in self.headers.get("If-None-Match", "").split(",")] and code == 200:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", cache or "no-store")
+                self.end_headers()
+                return
+            gz = len(data) >= GZIP_MIN and ctype.split(";")[0] in GZIP_TYPES and \
+                "gzip" in self.headers.get("Accept-Encoding", "")
+            if gz:
+                data = gzip_cached(data, etag)
             self.send_response(code)
             self.send_header("Content-Type", ctype)
+            if gz:
+                self.send_header("Content-Encoding", "gzip")
+                self.send_header("Vary", "Accept-Encoding")
+            if etag:
+                self.send_header("ETag", etag)
             self.send_header("Content-Length", str(len(data)))
             self.send_header("X-Frame-Options", "DENY")
             self.send_header("X-Content-Type-Options", "nosniff")
@@ -274,9 +362,14 @@ def make_handler(app):
             return self.error(404, "Not found.")
 
         def static(self, name, ctype, csp=CSP, cache=None):
+            path = os.path.join(WEB_DIR, name)
             try:
-                with open(os.path.join(WEB_DIR, name), "rb") as fh:
-                    return self.send(200, fh.read(), ctype, csp=csp, cache=cache)
+                st = os.stat(path)
+                etag = '"{:x}-{:x}"'.format(st.st_mtime_ns, st.st_size)
+                if etag in [t.strip() for t in self.headers.get("If-None-Match", "").split(",")]:
+                    return self.send(200, b"", ctype, csp=csp, cache=cache or "no-cache", etag=etag)
+                with open(path, "rb") as fh:
+                    return self.send(200, fh.read(), ctype, csp=csp, cache=cache or "no-cache", etag=etag)
             except OSError:
                 return self.error(404, name + " missing")
 
@@ -332,14 +425,7 @@ def make_handler(app):
                     return self.error(404, "No such cover.")
                 with app.thumb_lock:
                     if not os.path.exists(dest):
-                        os.makedirs(os.path.dirname(dest), exist_ok=True)
-                        with Image.open(os.path.join(app.cfg.media_dir, row["local_path"])) as im:
-                            im = im.convert("RGB")
-                            h = max(1, round(im.height * width / im.width))
-                            im = im.resize((width, h), Image.LANCZOS)
-                            tmp = dest + ".tmp"
-                            im.save(tmp, "JPEG", quality=78, optimize=True, progressive=True)
-                            os.replace(tmp, dest)
+                        make_thumb(os.path.join(app.cfg.media_dir, row["local_path"]), dest, width)
             return self.file(dest)
 
         def healthz(self):
@@ -858,6 +944,7 @@ def serve(cfg, host="0.0.0.0", port=8099, log=print, **kw):
     app = App(cfg, **kw)
     httpd = ThreadingHTTPServer((host, port), make_handler(app))
     httpd.daemon_threads = True
+    threading.Thread(target=app.warm_thumbs, daemon=True, name="warm-thumbs").start()
     log("media-library console on http://{}:{}/ (schema {})".format(host, port, app.expected_version))
     try:
         httpd.serve_forever()
