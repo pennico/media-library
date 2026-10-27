@@ -45,7 +45,8 @@ WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 MAX_BODY = 256 * 1024
 MAX_COVER = 15 * 1024 * 1024
 MAX_EBOOK = 500 * 1024 * 1024
-THUMB_WIDTHS = (160, 320, 640)
+THUMB_WIDTHS = (160, 320, 480, 640)      # the shelf picks one for the cover's size and the screen (srcset)
+LIB_TTL = 30                              # seconds a built /api/library answer is reused while nothing changed
 SHA_RE = re.compile(r"^/thumbs/([0-9a-f]{64})-(\d+)\.jpg$")
 COVER_RE = re.compile(r"^/covers/([0-9a-f]{2})/([0-9a-f]{64})\.(jpg|png|webp)$")
 UUID = r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
@@ -128,28 +129,45 @@ class App:
         self.tmdb = tmdb_mod.Tmdb(fill_service.http_fetcher(os.path.join(cfg.media_dir, "cache", "http")), tmdb_mod.api_key())
         self.cookie_secure = cookie_secure
         self.cookie_name = "__Host-ml_session" if cookie_secure else "ml_session"
-        self.thumb_lock = threading.Lock()
+        self.lib_lock = threading.Lock()
+        self.lib_cache = None                 # (token, built at, JSON bytes): see library_bytes
+        self.write_gen = 0                    # bumped after every write through this server
         self.expected_version = migrate.latest_version()
         self.backup_dir = os.environ.get("MEDIALIB_BACKUP_DIR", "")
         self.audit_verified = None
         self.health_lock = threading.Lock()
 
-    def warm_thumbs(self, widths=(320, 160)):
-        """Make the thumbnails nobody has asked for yet (320 px for the shelf, 160 px for the list), one at
-        a time, so the first opening of a big shelf or list doesn't wait on image resizing. Runs in the background."""
+    def library_bytes(self):
+        """/api/library, built again only when something changed: every table it reads is audited, so the
+        newest audit id (one index lookup) moves with any write, from this server or from the importer and feeds.
+        A built answer is also dropped after LIB_TTL, for a slow transaction that commits after a newer one."""
+        with self.pool.connection() as conn:
+            token = (conn.execute("SELECT coalesce(max(id), 0) AS n FROM audit.change").fetchone()["n"], self.write_gen)
+            with self.lib_lock:
+                c = self.lib_cache
+                if c and c[0] == token and time.monotonic() - c[1] < LIB_TTL:
+                    return c[2]
+            data = json.dumps(dict(queries.library(conn), google=self.fill.google.available, tmdb=self.tmdb.available,
+                                   **self.find_payload()), default=str, separators=(",", ":")).encode()
+        with self.lib_lock:
+            self.lib_cache = (token, time.monotonic(), data)
+        return data
+
+    def warm_thumbs(self, widths=(320, 160, 480, 640)):
+        """Make the thumbnails of the chosen covers nobody has asked for yet (320 px first: the shelf; 160: the
+        list; 480 and 640: large covers and sharp screens), so a shelf doesn't wait on image resizing. Runs in the
+        background; a cover asked for meanwhile is made at once by its request."""
         try:
             with self.pool.connection() as conn:
                 rows = conn.execute("SELECT DISTINCT sha256, local_path FROM catalog.cover"
-                                    " WHERE local_path IS NOT NULL AND deleted_at IS NULL").fetchall()
+                                    " WHERE local_path IS NOT NULL AND deleted_at IS NULL AND is_chosen").fetchall()
             for width in widths:
                 for r in rows:
                     dest = os.path.join(self.cfg.media_dir, "thumbs", "{}-{}.jpg".format(r["sha256"], width))
                     if os.path.exists(dest):
                         continue
                     try:
-                        with self.thumb_lock:
-                            if not os.path.exists(dest):
-                                make_thumb(os.path.join(self.cfg.media_dir, r["local_path"]), dest, width)
+                        make_thumb(os.path.join(self.cfg.media_dir, r["local_path"]), dest, width)
                     except (OSError, ValueError) as e:          # one unreadable cover: skip it, warm the rest
                         print("warm thumbs: {} ({}): {}".format(r["sha256"][:12], width, e))
         except Exception:     # noqa: BLE001 - a bad image or a closing pool must not matter
@@ -327,9 +345,7 @@ def make_handler(app):
                 if path == "/api/session":
                     return self.session()
                 if path == "/api/library":
-                    with app.pool.connection() as conn:
-                        return self.send(200, dict(queries.library(conn), google=app.fill.google.available,
-                                                   tmdb=app.tmdb.available, **app.find_payload()))
+                    return self.send(200, app.library_bytes())
                 if path == "/api/rows":
                     ids = [x for x in urllib.parse.parse_qs(query).get("ids", [""])[0].split(",") if x]
                     if not ids or len(ids) > 200 or not all(re.fullmatch(UUID, x) for x in ids):
@@ -432,9 +448,7 @@ def make_handler(app):
                                        " LIMIT 1", (sha,)).fetchone()
                 if not row:
                     return self.error(404, "No such cover.")
-                with app.thumb_lock:
-                    if not os.path.exists(dest):
-                        make_thumb(os.path.join(app.cfg.media_dir, row["local_path"]), dest, width)
+                make_thumb(os.path.join(app.cfg.media_dir, row["local_path"]), dest, width)
             return self.file(dest)
 
         def healthz(self):
@@ -565,6 +579,12 @@ def make_handler(app):
             return self.write("DELETE")
 
         def write(self, method):
+            try:
+                return self.write_routes(method)
+            finally:
+                app.write_gen += 1            # the next /api/library is built again (find link, anything not audited)
+
+        def write_routes(self, method):
             path = self.path.split("?", 1)[0]
             if method == "POST" and path == "/kosync/users/create":
                 return self.kosync_create()

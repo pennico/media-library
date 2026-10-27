@@ -11,6 +11,7 @@ import io
 import json
 import os
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -114,12 +115,19 @@ class CoverStore:
 
 
 def make_thumb(src, dest, width):
-    """A progressive JPEG of the cover at ``src``, ``width`` px wide, written atomically to ``dest``."""
+    """A JPEG of the cover at ``src``, ``width`` px wide (or the original's width, if narrower: never enlarged),
+    written atomically to ``dest``. Safe to run twice at once for the same file: each writer has its own temporary
+    name, and the last rename wins with the same picture."""
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with Image.open(src) as im:
+        width = min(width, im.width)
         h = max(1, round(im.height * width / im.width))
         im.draft("RGB", (width, h))          # a JPEG is decoded at 1/2..1/8 scale, never below the size wanted
         im = im.convert("RGB").resize((width, h), Image.LANCZOS)
-        tmp = dest + ".tmp"
-        im.save(tmp, "JPEG", quality=78, optimize=True)     # baseline: decodes faster than progressive
-        os.replace(tmp, dest)
+        tmp = "{}.{}.tmp".format(dest, threading.get_ident())
+        try:
+            im.save(tmp, "JPEG", quality=78, optimize=True)     # baseline: decodes faster than progressive
+            os.replace(tmp, dest)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)

@@ -21,6 +21,12 @@ history. It is built to be reachable only from your own devices.
 can read the library and its statistics. Don't publish it with Tailscale
 Funnel.
 
+**In the browser.** The console keeps the last copy of the library listing
+(`/api/library`: titles, people, statuses, ratings, dates, tags; no review
+text, no files, no secrets) in the browser's Cache Storage, to draw it at
+once on the next visit. It holds what that browser could already read; clear
+the site's data to remove it. Unlock sessions are never stored there.
+
 **Who can write.** Every write needs all of these:
 
 - the `Tailscale-User-Login` header that Tailscale Serve adds equal to

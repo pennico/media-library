@@ -433,3 +433,54 @@ def test_batch_row_is_all_or_nothing(site, cfg):
     assert s == 200 and r["done"] == 0 and len(r["errors"]) == 1
     item = r["items"][0]
     assert item["rating"] != 4 and not item["reads"] and item["status"] == "planned"
+
+
+# ---------------------------------------------------------------- 1.0.0: history by index, bulk restore, cached library, thumbs
+
+def test_history_finds_edition_and_reading_changes(site, cfg):
+    """The audit history looks up editions and readings by their whole row key (the index), and still finds them."""
+    _books(cfg, 1)
+    c = Client(site).unlock()
+    pid = next(i["id"] for i in c.call("GET", "api/library")[1]["items"] if i["title"].startswith("Batch test"))
+    assert c.call("PATCH", "api/items/" + pid, {"edition": {"pages": "404"}})[0] == 200
+    assert c.call("POST", "api/items/" + pid + "/readings", {"state": "completed", "ended": "2025-02"})[0] == 200
+    s, d = c.call("GET", "api/items/" + pid)
+    whats = {h["what"] for h in d["history"]}
+    assert s == 200 and {"edition", "reading"} <= whats
+
+
+def test_bulk_restore_undoes_a_bulk_trash(site, cfg):
+    _books(cfg, 2)
+    c = Client(site).unlock()
+    ids = [i["id"] for i in c.call("GET", "api/library")[1]["items"] if i["title"].startswith("Batch test")][-2:]
+    assert c.call("POST", "api/bulk", {"items": ids, "action": "trash"})[1]["done"] == 2
+    assert not {i["id"] for i in c.call("GET", "api/library")[1]["items"]} & set(ids)
+    s, r = c.call("POST", "api/bulk", {"items": ids, "action": "restore"})
+    assert s == 200 and r["done"] == 2 and set(ids) <= {i["id"] for i in c.call("GET", "api/library")[1]["items"]}
+
+
+def test_library_answer_is_rebuilt_after_a_write_from_elsewhere(site, cfg):
+    """The built /api/library is reused while nothing changed, and rebuilt when another process (the importer,
+    a feed) writes: every table it reads is audited, and the newest audit id is its token."""
+    c = Client(site)
+    first = c.call("GET", "api/library")[1]
+    assert c.call("GET", "api/library")[1] == first                     # reused
+    title = "Written elsewhere " + uuid.uuid4().hex[:6]
+    with db.connect(cfg) as conn:
+        with tx(conn, source="yamtrack", client="test"):
+            item, _ = new_book(conn, title)
+            add_entry(conn, item)
+    assert any(i["title"] == title for i in c.call("GET", "api/library")[1]["items"])
+
+
+def test_thumbnails_never_enlarge_and_480_is_served(tmp_path):
+    from PIL import Image
+    from medialib.covers import make_thumb
+    src = tmp_path / "small.jpg"
+    Image.new("RGB", (300, 450), (120, 80, 40)).save(src, "JPEG")
+    make_thumb(str(src), str(tmp_path / "t-640.jpg"), 640)
+    make_thumb(str(src), str(tmp_path / "t-160.jpg"), 160)
+    assert Image.open(tmp_path / "t-640.jpg").size == (300, 450)        # not enlarged
+    assert Image.open(tmp_path / "t-160.jpg").size == (160, 240)
+    assert not list(tmp_path.glob("*.tmp"))
+    assert 480 in server.THUMB_WIDTHS

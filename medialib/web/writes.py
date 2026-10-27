@@ -1016,7 +1016,7 @@ def set_section(conn, login, pids, sid):
 
 # ---------------------------------------------------------- bulk (0.8.0)
 
-BULK_ACTIONS = ("trash", "section", "archive", "unarchive", "status", "edit", "collection")
+BULK_ACTIONS = ("trash", "restore", "section", "archive", "unarchive", "status", "edit", "collection")
 BULK_MAX = 2000
 
 
@@ -1049,6 +1049,8 @@ def bulk(conn, login, body):
         try:
             if action == "trash":
                 trash_item(conn, login, pid)
+            elif action == "restore":                 # the Undo of a trash
+                restore_item(conn, login, pid)
             elif action == "status":
                 set_status(conn, login, pid, {"status": body["status"]})
             elif action == "collection":

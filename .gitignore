@@ -11,3 +11,4 @@ private/
 .ruff_cache/
 .ci-secrets/
 .ci-media/
+tools/uicheck/node_modules

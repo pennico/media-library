@@ -185,8 +185,8 @@ def history(conn, iid, edition_ids, reading_ids, kind="book", limit=60):
           FROM audit.change
          WHERE (table_name = 'catalog.media_item' AND row_key = jsonb_build_object('id', %(i)s::bigint))
             OR (table_name = 'library.entry' AND row_key = jsonb_build_object('item_id', %(i)s::bigint))
-            OR (table_name = 'catalog.edition' AND (row_key ->> 'id')::bigint = ANY(%(e)s))
-            OR (table_name = 'library.consumption' AND (row_key ->> 'id')::bigint = ANY(%(r)s))
+            OR (table_name = 'catalog.edition' AND row_key = ANY(ARRAY(SELECT jsonb_build_object('id', x) FROM unnest(%(e)s::bigint[]) x)))
+            OR (table_name = 'library.consumption' AND row_key = ANY(ARRAY(SELECT jsonb_build_object('id', x) FROM unnest(%(r)s::bigint[]) x)))
          ORDER BY coalesce(occurred_at, at) DESC, id DESC LIMIT %(n)s""",
                         {"i": iid, "e": edition_ids or [0], "r": reading_ids or [0], "n": limit}).fetchall()
     out = []

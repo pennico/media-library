@@ -46,12 +46,18 @@ looks like a bookshelf.
   read-only roles. Data checksums are on, the database has no host port, and
   backups use dumps plus WAL archiving for point-in-time recovery, with a weekly
   restore test.
+- **Quick on a big library and on a phone**: only what changes is redrawn,
+  covers out of view cost nothing, long lists draw the rows on screen, covers
+  come in the size the screen needs; the last library is kept in the browser,
+  so the console opens at once (and offline); Undo after trash, archive and
+  move; the open book is in the address (Back closes it); the phone panel is
+  a sheet. Browser checks: `tools/uicheck/`.
 - **Access**: tailnet only through Tailscale Serve. Only the owner's
   Tailscale login can write, after unlocking with a password or a passkey
   (shared with [agent-console](https://github.com/pennico/agent-console) if
   you use it).
 
-Status: 0.10.0, used daily by its author.
+Status: 1.0.0, used daily by its author.
 
 ## Docs
 
@@ -74,6 +80,7 @@ Status: 0.10.0, used daily by its author.
 | `tests/` | one test per database rule, importer, metadata fill, web API |
 | `tools/devdb.py` | development PostgreSQL 18.6 without root (PGDG packages in `.devdb/`) |
 | `tools/restore_drill.py` | dump/restore + point-in-time recovery drill on the dev cluster |
+| `tools/uicheck/` | browser checks of the console (headless Chromium, a copy of the dev database): `run.py` |
 | `ops/` | WAL archiver, dump, base backup, restore test and Joplin feed scripts |
 | `deploy/` | Dockerfile, compose file, `pg_hba.conf`, `env.example`, `make-password.py` |
 
@@ -88,6 +95,7 @@ eval "$(python3 tools/devdb.py env)"; export MEDIALIB_MEDIA_DIR=$PWD/media
 .venv/bin/python -m medialib import data               # dry run: report in out/, nothing written
 .venv/bin/python -m medialib import data --apply       # commit; run it again: 0 changes
 .venv/bin/python -m pytest -q tests/
+.venv/bin/python tools/uicheck/run.py                  # the console in a browser (tools/uicheck/README.md)
 .venv/bin/python tools/restore_drill.py --db medialib  # backup/restore drill
 ```
 

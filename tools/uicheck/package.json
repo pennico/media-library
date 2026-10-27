@@ -1,0 +1,8 @@
+{
+  "name": "media-library-uicheck",
+  "private": true,
+  "description": "Browser checks of the media-library console (run.py)",
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

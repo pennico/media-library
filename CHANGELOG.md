@@ -2,6 +2,52 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-10-27
+
+The console is complete for its one user: fast on a big library, kind to
+mistakes, at home on the phone. From here on, versions follow semantic
+versioning strictly (a breaking change to the data or the API is 2.0).
+
+- **Covers in the size the screen needs**: a shelf cover offers 160, 320, 480
+  and 640 px and the browser takes what the column width and the screen's
+  density need (L covers on a Retina screen are sharp, S covers on a plain
+  screen are light); small places (list rows, search, Trash, seasons) take
+  160 px. The server makes the four sizes of the chosen covers in the
+  background (about 110 KB more per cover), never enlarges a small original,
+  and no longer makes thumbnails one at a time behind a single lock.
+- **The flying cover** lands as a book (2:3) on a phone too, centred above
+  the sheet, and turns sharp (640 px) as soon as that picture is decoded.
+- **Opens at once**: the console keeps the last library in the browser and
+  draws it before the server answers (read-only until it does: "Connecting…");
+  without the server it stays, marked "Offline · the last copy", with Try
+  again. Coming back to the tab after a minute away checks for changes and
+  redraws only if the library changed and nothing is being edited. The server
+  builds `/api/library` again only when something changed (the newest audit
+  entry, or a write through it), at most every 30 s otherwise.
+- **The book panel is a place**: an open book is in the address
+  (`#item=…`): Back (or the iPhone's swipe) closes the panel, Forward opens it
+  again on its own shelf, a reload or a link opens the same book (closing it
+  then stays in the console). Opened from the keyboard, focus goes to its title.
+- **Phone**: the panel is a sheet over a dimmed backdrop (a tap on it closes
+  the sheet, after asking if a form is open), its ✕ stays at the top while scrolling, scrolling it doesn't
+  scroll the page behind, the selection bar waits behind it; the "Filter this
+  list" box takes the room it needs.
+- **Undo**: Move to trash, Archive, Unarchive and Move to section offer Undo
+  in their message (each item goes back where it was; only what that action
+  changed); the bar's "Move to trash" is one click now, and focus goes to
+  its Undo. Messages stack above the selection bar (three at most), can be
+  dismissed, stay while pointed at or focused, are read by screen readers with
+  their action, and errors stay longer.
+- **The lock**: three minutes before it, a message and a "Keep unlocked"
+  button (Touch ID / Face ID, or the password); renewing keeps open forms
+  and typed rows as they are, and the password field keeps what is typed.
+- **Fit a column** of a long list measures every row, not only those drawn.
+- **Server**: opening a book reads its history through the audit index
+  (it read every edition and reading change before); bulk `restore`.
+- **Browser checks** in the repository: `tools/uicheck/` runs the console in
+  headless Chromium against a copy of the dev database (shelf, keyboard,
+  spreadsheet, the review regressions, this release, timings).
+
 ## [0.10.0] - 2026-10-27
 
 - **A big library stays quick**: measured at 1,680 items on a slow CPU (4x

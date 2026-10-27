@@ -304,7 +304,13 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; 
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
   .grid { --cw: 100px; gap: 16px 10px; } .grid.s { --cw: 76px; } .grid.l { --cw: 136px; }
   .shelfwrap { padding-top: 16px; }
+  .detail { overscroll-behavior: contain; }
+  .detail > .xbtn { position: sticky; top: 0; z-index: 3; padding: 6px 12px; font-size: 15px; box-shadow: 0 2px 8px var(--shadow); }
+  .scrim.on { display: block; }
+  .bulkbar.behind { display: none; }
+  .toolbar input[type=search] { width: auto; flex: 1 1 150px; min-width: 120px; }
 }
+.scrim { display: none; position: fixed; inset: 0; z-index: 39; border: 0; padding: 0; background: rgb(20 12 4 / 0.32); cursor: default; }
 
 /* visuals */
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
@@ -349,7 +355,13 @@ table.tv th, table.tv td { text-align: left; padding: 4px 8px; border-bottom: 1p
 table.tv td.num, table.tv th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .tip { position: fixed; z-index: 70; pointer-events: none; background: var(--fg); color: var(--bg); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; box-shadow: 0 6px 18px var(--shadow); }
 .tip b { font-size: 14px; }
-.toast { position: fixed; z-index: 80; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 10px; font-size: 13px; box-shadow: 0 6px 18px var(--shadow); }
+.toasts { position: fixed; z-index: 80; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; width: max-content; max-width: calc(100vw - 24px); }
+.toasts.above { bottom: calc(var(--bulk-h, 50px) + 26px + env(safe-area-inset-bottom, 0px)); }
+.toasts.above.sheet { bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; background: var(--fg); color: var(--bg); padding: 7px 8px 7px 14px; border-radius: 10px; font-size: 13px; box-shadow: 0 6px 18px var(--shadow); }
+.toast .tact { border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; padding: 2px 4px; }
+.unlocked.soon { color: var(--warn); }
+.toast .tx { border: 0; background: none; color: inherit; opacity: .7; padding: 2px 6px; font-size: 12px; }
 .toast.bad { background: var(--bad); color: var(--on-bad, #fff); }
 @media (hover: none) and (pointer: coarse) { input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea { font-size: 16px !important; } }
 body.busy, body.busy button { cursor: progress; }
@@ -548,7 +560,7 @@ table.list .ltitle:hover b { text-decoration: underline; }
   </main>
 </div>
 <div class="tip" id="tip" hidden></div>
-<div class="toast" id="toast" aria-hidden="true" hidden></div><div class="sr-only" id="live" role="status"></div><div class="sr-only" id="alertlive" role="alert"></div>
+<div class="toasts" id="toasts"></div><button class="scrim" id="scrim" data-scrim="1" tabindex="-1" aria-label="Close the details"></button><div class="sr-only" id="live" role="status"></div><div class="sr-only" id="alertlive" role="alert"></div>
 
 <script>
 "use strict";
@@ -603,7 +615,7 @@ const VICON = {
   audio: `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M2.5 10V8a5.5 5.5 0 0 1 11 0v2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="1.8" y="9" width="3.4" height="5" rx="1.2" fill="currentColor"/><rect x="10.8" y="9" width="3.4" height="5" rx="1.2" fill="currentColor"/></svg>`,
   paper: `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 3.5C6.5 2.4 4.4 2 2 2.2v10c2.4-.2 4.5.2 6 1.3 1.5-1.1 3.6-1.5 6-1.3v-10c-2.4-.2-4.5.2-6 1.3zM8 3.5v10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`,
 };
-let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, READING = null;
+let LIB = {items: [], shelves: [], languages: {}}, SESSION = {connecting: true}, READING = null;
 const st = {sec: "database", kind: "book", shelf: null, section: null, selecting: false, sel: new Set(), delAsk: null,
   filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
   listSort: null, err: "", unlockMsg: "", rowCats: {}, tableEdit: false, catRow: null, syncTab: "readest", readerPw: null, view: "shelf", trash: null,
@@ -612,20 +624,61 @@ const st = {sec: "database", kind: "book", shelf: null, section: null, selecting
 function load(key, dflt) { try { const v = localStorage.getItem("ml-" + key); return v == null ? dflt : JSON.parse(v); } catch (e) { return dflt; } }
 function save(key, v) { try { localStorage.setItem("ml-" + key, JSON.stringify(v)); } catch (e) {} }
 const langName = c => c ? (LIB.languages[c] || c) : "";
-function toast(msg, bad) {
-  const live = $(bad ? "alertlive" : "live"); live.textContent = ""; setTimeout(() => { live.textContent = msg; }, 30);
-  const t = $("toast"); t.textContent = msg; t.className = "toast" + (bad ? " bad" : ""); t.hidden = false;
-  clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, bad ? 6000 : 2200);
+// Messages stack at the bottom (three at most, above the selection bar): each can be dismissed, stays while pointed
+// at, and can carry an action (Undo). Errors stay longer. Screen readers get them through the live regions.
+function toast(msg, bad, action) {
+  const live = $(bad ? "alertlive" : "live"), said = action ? `${msg}. ${action.label}: in the message at the bottom.` : msg;
+  live.textContent = ""; setTimeout(() => { live.textContent = said; }, 30);
+  const box = $("toasts"), el = document.createElement("div");
+  el.className = "toast" + (bad ? " bad" : "");
+  el.innerHTML = `<span class="tmsg" aria-hidden="true"></span>${action ? `<button class="tact">${esc(action.label)}</button>` : ""}<button class="tx" aria-label="Dismiss" title="Dismiss">✕</button>`;
+  el.firstChild.textContent = msg;
+  box.append(el); while (box.children.length > 3) box.firstElementChild.remove();
+  let left = bad ? 10000 : action ? 8000 : 2600, t0 = 0, timer = 0;
+  const run = () => { t0 = Date.now(); timer = setTimeout(() => el.remove(), left); };
+  const pause = () => { clearTimeout(timer); left = Math.max(1500, left - (Date.now() - t0)); };
+  const resume = () => { if (!el.matches(":hover") && !el.contains(document.activeElement)) run(); };
+  el.addEventListener("pointerenter", pause); el.addEventListener("pointerleave", resume);
+  el.addEventListener("focusin", pause); el.addEventListener("focusout", e => { if (!el.contains(e.relatedTarget)) resume(); });
+  el.querySelector(".tx").addEventListener("click", () => el.remove());
+  if (action) el.querySelector(".tact").addEventListener("click", () => { el.remove(); action.run(); });
+  run();
 }
+const lastToast = () => $("toasts").lastElementChild?.firstChild?.textContent || "";
 function fmtDate(d, p) { if (!d) return ""; return p === "year" ? d.slice(0, 4) : p === "month" ? d.slice(0, 7) : d; }
 function partial(d, p) { return d ? fmtDate(d, p) : ""; }
 
 document.addEventListener("error", e => {
   const img = e.target; if (img.tagName !== "IMG" || !img.closest(".cov, .lcov")) return;
+  if (img.hasAttribute("srcset")) { img.removeAttribute("srcset"); img.removeAttribute("sizes"); return; }   // that size failed: the 320 one
   const card = img.closest("[data-id]"), it = card && LIB.items.find(x => x.id === card.dataset.id);
   BADCOV.add(img.getAttribute("src")); if (card) CARDS.delete(card.dataset.id);
   img.replaceWith(Object.assign(document.createElement("span"), img.closest(".cov") ? {className: "ph", textContent: it?.title || ""} : {className: "noimg"}));
 }, true);
+// something typed or open that a full redraw would throw away
+const editingNow = () => st.tableEdit || st.editing || st.readingEdit || st.editReview || st.findEdit || st.confirmTrash || st.fpane
+  || String(st.selected || "").startsWith("__") || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
+let hiddenAt = 0;
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden) { hiddenAt = Date.now(); return; }
+  if (PREVIEW || !hiddenAt || Date.now() - hiddenAt < 60e3) return;
+  hiddenAt = 0;
+  const tag = LIB_ETAG, lib0 = LIB, rev0 = LIBREV, could = canEdit(), offline = !!SESSION.offline;
+  let ses, lib;
+  try { [ses, lib] = await Promise.all([api.session(), api.library()]); } catch (e) { LIB_ETAG = tag; return; }
+  SESSION = ses;
+  // drawn only if the library changed elsewhere, nothing changed here meanwhile, and nothing is being edited now;
+  // otherwise LIB keeps its copy (and its tag, so the next return tries again)
+  const fresh = LIB_ETAG !== tag || offline;
+  if (fresh && LIB === lib0 && LIBREV === rev0 && !busyN && !editingNow()) {
+    LIB = lib; OFFLINE_COPY = false;
+    if (!st.shelf || !LIB.shelves.some(s => s.id === st.shelf)) st.shelf = allShelf(st.kind)?.id || null;
+    render();
+  } else {
+    if (fresh) LIB_ETAG = tag;
+    if (canEdit() !== could && !editingNow()) render(); else renderKeybar();
+  }
+});
 addEventListener("online", () => { if (BADCOV.size) { BADCOV.clear(); CARDS.clear(); if (st.sec === "database") renderDatabase(); } });
 // ------------------------------------------------------------------- api
 // the server out of reach (Tailscale off, the phone offline) is the usual failure on this tailnet-only console
@@ -640,7 +693,15 @@ const serverApi = {
     if (r.status === 401 && !path.startsWith("api/unlock") && !path.startsWith("api/passkey")) { SESSION.unlockedUntil = null; renderKeybar(); }
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j;
   },
-  session() { return this.get("api/session"); }, library() { return this.get("api/library"); }, stats() { return this.get("api/stats"); },
+  session() { return this.get("api/session"); },
+  // the library: its ETag is kept (to tell a changed library), and a copy goes to the browser's cache for the next visit
+  async library() {
+    const r = await reach("api/library", {credentials: "same-origin"}), j = await r.clone().json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    LIB_ETAG = r.headers.get("ETag");
+    if (window.caches) caches.open(LIBCACHE).then(c => c.put("api/library", r)).catch(() => {});
+    return j;
+  }, stats() { return this.get("api/stats"); },
   detail(id) { return this.get("api/items/" + id); },
   patch(id, body) { return this.send("PATCH", "api/items/" + id, body); },
   status(id, status, date) { return this.send("POST", "api/items/" + id + "/status", {status, date}); },
@@ -712,14 +773,48 @@ const coverSrc = url => !url || BADCOV.has(url) ? null : url.startsWith("data:")
 const canEdit = () => PREVIEW ? true : !!(SESSION.owner && SESSION.unlockedUntil && SESSION.unlockedUntil * 1000 > Date.now());
 
 // ------------------------------------------------------------- loading
+// A return visit draws the library kept from the last one at once (read-only until the server answers, then the
+// server's copy replaces it); without the server, that copy stays, marked offline.
+const LIBCACHE = "ml-library-v1";
+let LIB_ETAG = null, OFFLINE_COPY = false;
+async function cachedLibrary() {
+  if (PREVIEW || !window.caches) return null;
+  try { const r = await (await caches.open(LIBCACHE)).match("api/library"); return r ? await r.json() : null; } catch (e) { return null; }
+}
+let BOOT_ITEM = decodeURIComponent((location.hash.match(/^#item=(.+)$/) || [])[1] || "");   // a link or reload into a book
 async function refresh(keepDetail) {
+  const live = Promise.all([api.session(), api.library()]);            // the server first; the kept copy meanwhile
+  let settled = false; live.then(() => { settled = true; }, () => { settled = true; });
+  const useCopy = c => { LIB = c; OFFLINE_COPY = true; if (!st.shelf || !LIB.shelves.some(s => s.id === st.shelf)) st.shelf = allShelf(st.kind)?.id || null; };
+  const copy = LIB.items.length ? null : await cachedLibrary(), good = !!(copy?.items && copy.shelves);
+  if (good && !settled) { useCopy(copy); try { render(); } catch (e) { LIB = {items: [], shelves: [], languages: {}}; OFFLINE_COPY = false; } }
   try {
-    [SESSION, LIB] = await Promise.all([api.session(), api.library()]);
-  } catch (e) { $("v-database").innerHTML = `<p class="empty">Could not load the library: ${esc(e.message)} <button class="btn small" data-retry="1">Try again</button></p>`; return; }
+    [SESSION, LIB] = await live; OFFLINE_COPY = false;
+  } catch (e) {
+    if (good && !OFFLINE_COPY) useCopy(copy);
+    if (OFFLINE_COPY) { SESSION = {offline: true, error: e.message}; try { render(); } catch (er) {} renderKeybar(); return; }
+    $("v-database").innerHTML = `<p class="empty">Could not load the library: ${esc(e.message)} <button class="btn small" data-retry="1">Try again</button></p>`; return;
+  }
   if (!st.shelf || !LIB.shelves.some(s => s.id === st.shelf)) st.shelf = allShelf(st.kind)?.id || null;
   if (st.sec === "sync") await loadReading();
   if (keepDetail && st.selected) await openDetail(st.selected, true);
   render();
+  if (BOOT_ITEM) {                                   // once, on the first load that reached the server
+    const want = BOOT_ITEM; BOOT_ITEM = "";
+    history.replaceState(null, "", location.pathname + location.search);       // the console itself, under the book
+    if (showItem(want)) { history.pushState({ml: want}, "", "#item=" + encodeURIComponent(want)); HIST_OWN = true; openDetail(want, false, true); }
+  }
+}
+// the shelf an item is on, as a search hit puts it (its kind, its section, no filter that hides it); false if gone
+function showItem(id) {
+  const it = id.startsWith("c:") ? LIB.items.find(i => i.coll && "c:" + i.coll.id === id) : LIB.items.find(i => i.id === id);
+  if (!it) return false;
+  st.sec = "database"; st.kind = it.kind; st.shelf = allShelf(it.kind)?.id; st.view = "shelf"; st.filter = "all"; st.q = "";
+  st.section = it.section && sectionOf(it.section)?.kind !== "manual" ? it.section : null;
+  if (!fMatch(it)) { st.f = NOF(); saveF(); }
+  save("sec", st.sec); save("kind", st.kind);
+  render();
+  return true;
 }
 const allShelf = kind => LIB.shelves.find(s => s.kind === "all" && s.media_kind === kind);
 const shelvesOf = kind => LIB.shelves.filter(s => s.media_kind === kind);
@@ -749,6 +844,7 @@ function applySide() {
 }
 let qTimer = 0;
 function render() {
+  if ((!st.selected || st.sec !== "database") && history.state?.ml) historyClear();
   for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-selected", String(b.dataset.sec === st.sec));
   $("v-database").hidden = st.sec !== "database"; $("v-visuals").hidden = st.sec !== "visuals"; $("v-sync").hidden = st.sec !== "sync";
   renderKeybar(); if (st.sec !== "database") { renderSide(); LWIN = null; }       // renderDatabase draws the side pane itself
@@ -962,7 +1058,7 @@ function renderDatabase() {
   if (fid && $(fid)) { $(fid).focus({preventScroll: true}); if (caret) try { $(fid).setSelectionRange(...caret); } catch (e) {} }
   const lib = $("lib"), content = $("content"), pane = $("detail"), paneTop = pane.scrollTop, drafts = st.tableEdit ? gridDrafts() : null;
   LWIN = null;                                                    // listHtml sets it again for a long list
-  lib.classList.toggle("withdetail", !!st.selected); pane.hidden = !st.selected;
+  lib.classList.toggle("withdetail", !!st.selected); pane.hidden = !st.selected; syncSheet();
   if (!list.length) content.innerHTML = `<p class="empty">${shelfItems().length ? `Nothing matches the filter. <button class="linkbtn" data-fclear="*">Clear the filters</button>` : "Nothing here yet."}</p>`;
   else if (prefs.layout === "list") { content.innerHTML = listHtml(list, prefs); listWindow(true); }
   else syncGrid(content, list, prefs, canDrag);
@@ -999,6 +1095,8 @@ function layoutShelves() {
   const {tops, heights, cols, colW} = gridRows(grid), gy = grid.offsetTop, cover = colW * 1.5;
   const rows = tops.map(t => Math.round(gy + t + cover + BOARD));
   if (!rows.length) return;
+  const sz = Math.ceil(colW * 1.07 / 20) * 20 + "px";              // the width a cover is drawn at, lifted (in 20 px steps)
+  if (grid.dataset.sizes !== sz) { grid.dataset.sizes = sz; resizeCovers(grid, sz); }
   const pitch = rows.length > 1 ? rows[rows.length - 1] - rows[rows.length - 2] : heights[0] + (parseFloat(getComputedStyle(grid).rowGap) || 0);
   const all = rows.slice();
   if (pitch > 60) for (let y = rows[rows.length - 1] + pitch; y < wrap.clientHeight - 4; y += pitch) all.push(y);
@@ -1032,12 +1130,26 @@ function collCard(coll, films) {
     status: seen === f.length ? "completed" : f.some(x => x.status === "completed" || x.status === "in_progress") ? "in_progress" : f[0].status};
 }
 const collCardHtml = g => `<button class="book group" id="b-${g.id}" data-id="${g.id}" data-rep="${g.members[0]}" data-members="${g.members.join(",")}" aria-label="${esc(g.title)}, ${g.films.length} films">
-    <div class="stand"><div class="cov">${coverSrc(g.cover) ? `<img src="${coverSrc(g.cover)}" alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(g.title)}</span>`}<span class="gmark">${g.films.length}</span>${SELBOX}</div></div>
+    <div class="stand"><div class="cov">${coverSrc(g.cover) ? `<img src="${coverSrc(g.cover)}"${srcsetOf(coverSrc(g.cover))} alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(g.title)}</span>`}<span class="gmark">${g.films.length}</span>${SELBOX}</div></div>
     <span class="t">${esc(g.title)}</span><span class="a">${esc(g.authors || "—")}</span>
     <span class="s"><span class="dot ${g.status}"></span>${esc(g.line)}${g.rating != null ? " · " + g.rating + "/10" : ""}</span></button>`;
+// A shelf cover offers 160..640 px (srcset): the browser takes what the column width (sizes, set by layoutShelves
+// from the real width) and the screen's density need. Other places take the 160 px one when they are small.
+const TW = [160, 320, 480, 640];
+const srcsetOf = u => !u || PREVIEW || !/-320\.jpg$/.test(u) ? "" : ` srcset="${TW.map(w => u.replace(/-320\.jpg$/, "-" + w + ".jpg") + " " + w + "w").join(", ")}" sizes="140px"`;
+// a new drawn width: the covers on screen take it at once, the rest a few hundred at a time when the page is idle
+// (each one asked makes the browser pick its picture again; 1,500 at once cost a slow phone a quarter second)
+function resizeCovers(grid, sz) {
+  const set = el => { if (el._sz === sz) return; const im = el.querySelector("img[srcset]"); if (im && im.sizes !== sz) im.sizes = sz; el._sz = sz; };
+  nearCards().forEach(set);
+  const kids = [...grid.children], idle = window.requestIdleCallback || (f => setTimeout(f, 50));
+  let k = 0;
+  const step = () => { if (grid.dataset.sizes !== sz || !grid.isConnected) return; for (const end = k + 300; k < end && k < kids.length; k++) set(kids[k]); if (k < kids.length) idle(step); };
+  idle(step);
+}
 // one card; what changes without the item changing (selected, the open book) is set by paintCard
 const bookCardHtml = i => `<button class="book" id="b-${i.id}" data-id="${i.id}">
-    <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}${SELBOX}</div></div>
+    <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}"${srcsetOf(coverSrc(i.cover))} alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}${SELBOX}</div></div>
     <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span>
     <span class="s"><span class="dot ${i.status}"></span>${esc(statusLine(i))}${i.rating != null ? " · " + i.rating + "/10" : ""}</span></button>`;
 // the cards on the shelf, by item: a card is built again only when its item (or a collection's films) changed
@@ -1063,7 +1175,8 @@ function syncGrid(content, list, prefs, canDrag) {
   if (fresh.length) {
     const t = document.createElement("template");
     t.innerHTML = html.join("");
-    const made = [...t.content.children];
+    const made = [...t.content.children], sz = grid.dataset.sizes;
+    if (sz) for (const el of made) { const im = el.querySelector("img[srcset]"); if (im) im.sizes = sz; el._sz = sz; }   // before they load
     fresh.forEach((n, k) => { els[n] = made[k]; CARDS.set(cards[n].id, {src: cards[n].group ? cards[n].films : cards[n], el: made[k], html: html[k]}); });
   }
   if (CARDS.size > 2 * LIB.items.length + 50) {                 // items gone or replaced: drop their old cards
@@ -1074,6 +1187,9 @@ function syncGrid(content, list, prefs, canDrag) {
   let same = kids.length === els.length;
   for (let n = 0; same && n < els.length; n++) same = kids[n] === els[n];
   if (!same) grid.replaceChildren(...els);
+  // cards kept aside while the drawn width changed take the width now (those on screen at once, the rest when idle)
+  const sz = grid.dataset.sizes;
+  if (sz && els.some(el => el._sz !== sz)) resizeCovers(grid, sz);
 }
 // the state of a card that is not the item's: selected (in Select mode) and the book open in the panel
 function paintCard(el) {
@@ -1125,7 +1241,6 @@ function paintRowToggles() {
 }
 // after the selection changed: the cards, the row toggles, the list's checks and the bar, without redrawing the shelf
 function selChanged() {
-  if (st.delAsk === "__bulk") st.delAsk = null;               // a pending "Delete N?" was asked about another set
   for (const el of document.querySelectorAll("#grid > .book")) paintCard(el);
   paintRowToggles();
   for (const c of document.querySelectorAll("table.list input[data-lsel]")) { const on = st.sel.has(c.dataset.lsel); if (c.checked !== on) c.checked = on; c.closest("tr")?.classList.toggle("picked", on); }
@@ -1139,19 +1254,22 @@ function toggleSel(ids, on) {
   for (const i of ids) want ? st.sel.add(i) : st.sel.delete(i);
 }
 const shownIds = () => filtered(visibleItems()).map(i => i.id);
+// (the bar's height goes on the toasts only: a variable or a class on <body> would make the browser re-check every cover)
+const bulkWatch = window.ResizeObserver ? new ResizeObserver(es => { for (const e of es) $("toasts").style.setProperty("--bulk-h", Math.ceil(e.target.offsetHeight) + "px"); }) : null;
 function renderBulk() {
   let bar = $("bulkbar");
   const n = st.sel.size;
-  if (!(st.sec === "database" && (st.selecting || st.listMode && canEdit() && !st.tableEdit) && n && st.view !== "trash")) { bar?.remove(); closeBulkPop(); return; }
-  if (!bar) { bar = document.createElement("div"); bar.id = "bulkbar"; bar.className = "bulkbar"; bar.setAttribute("role", "toolbar"); bar.setAttribute("aria-label", "Actions on the selection"); document.body.append(bar); }
+  if (!(st.sec === "database" && (st.selecting || st.listMode && canEdit() && !st.tableEdit) && n && st.view !== "trash")) { bar?.remove(); closeBulkPop(); $("toasts").classList.remove("above"); return; }
+  $("toasts").classList.add("above");
+  if (!bar) { bar = document.createElement("div"); bar.id = "bulkbar"; bulkWatch?.observe(bar); bar.classList.toggle("behind", sheetOn()); bar.className = "bulkbar"; bar.setAttribute("role", "toolbar"); bar.setAttribute("aria-label", "Actions on the selection"); document.body.append(bar); }
   const archived = st.section && sectionOf(st.section)?.kind === "archive", done = LABEL[st.kind].completed;
   bar.innerHTML = `<b>${n} selected</b>
     <button class="btn small" data-bulk="status">Mark as ${esc(done.toLowerCase())}</button>
-    <button class="btn small" data-bulk="move" aria-haspopup="true">Move to…</button>
+    <button class="btn small" data-bulk="move" aria-haspopup="true">Move to section…</button>
     <button class="btn small" data-bulk="${archived ? "unarchive" : "archive"}">${archived ? "Unarchive" : "Archive"}</button>
     <button class="btn small" data-bulk="collection" aria-haspopup="true">Add to collection…</button>
     <button class="btn small primary" data-bulk="edit" title="Fill in what they should all have; the rest stays as it is">Edit all…</button>
-    <button class="btn small danger" data-bulk="trash">${st.delAsk === "__bulk" ? "Delete " + n + "?" : "Delete"}</button>
+    <button class="btn small danger" data-bulk="trash" title="It stays in the Trash 30 days; Undo right after">Move to trash</button>
     <button class="xbtn" data-bulk="clear" aria-label="Clear the selection" style="float:none">✕</button>`;
 }
 function closeBulkPop() { $("bulkpop")?.remove(); }
@@ -1163,17 +1281,36 @@ function bulkPop(btn, html) {
   pop.style.top = Math.max(8, r.top - pop.offsetHeight - 6) + "px";
   pop.querySelector("button")?.focus();
 }
+// what puts a trash or a move back: the items' own sections before it, one request per section
+// (each for exactly the items its action changed; what it could not put back is said)
+const undoSaid = (r, msg) => r.errors?.length ? toast(`${msg}: ${r.done} back, ${r.errors.length} not (${r.errors.slice(0, 2).map(e => e.title + ": " + e.error).join("; ")})`, true) : toast(msg);
+const undoTrash = ids => () => act(async () => {
+  const r = await api.bulk({items: ids, action: "restore"}); st.trash = null; LIB = await api.library(); render(); undoSaid(r, "Back from the trash");
+}, null, "undo:" + ids.join(","));
+function undoSections(was) {          // was: [[id, its section before]]
+  return () => act(async () => {
+    const by = new Map(); for (const [id, sec] of was) by.set(sec, [...(by.get(sec) || []), id]);
+    const r = {done: 0, errors: []};
+    for (const [sec, items] of by) { const x = await api.bulk({items, action: "section", section: sec}); r.done += x.done; r.errors.push(...x.errors); }
+    LIB = await api.library(); render(); undoSaid(r, "Back where they were");
+  }, null, "undo:" + was.map(w => w[0]).join(","));
+}
+const doneIds = (ids, r) => { const bad = new Set((r.errors || []).map(e => e.id)); return ids.filter(i => !bad.has(i)); };
 async function bulkRun(body, okMsg, keep) {
-  const items = [...st.sel];
+  const items = [...st.sel], before = items.map(id => [id, LIB.items.find(i => i.id === id)?.section ?? null]);
   await act(async () => {
-    const r = await api.bulk(Object.assign({items}, body));
+    const r = await api.bulk(Object.assign({items}, body)), ok = doneIds(items, r);
+    const undo = !ok.length ? null : body.action === "trash" ? undoTrash(ok)
+      : ["section", "archive", "unarchive"].includes(body.action) ? undoSections(before.filter(([id]) => ok.includes(id))) : null;
     LIB = await api.library();
     if (!keep) st.sel.clear();
     st.delAsk = null; closeBulkPop();
     if (st.selected && !LIB.items.some(i => i.id === st.selected)) { st.selected = null; st.detail = null; }
     else if (st.selected && !st.selected.startsWith("c:")) st.detail = await api.detail(st.selected);
     render();
-    toast(r.errors.length ? `${okMsg}: ${r.done} done, ${r.errors.length} not (${r.errors.slice(0, 2).map(e => e.title + ": " + e.error).join("; ")})` : okMsg + ": " + r.done, !!r.errors.length);
+    toast(r.errors.length ? `${okMsg}: ${r.done} done, ${r.errors.length} not (${r.errors.slice(0, 2).map(e => e.title + ": " + e.error).join("; ")})` : okMsg + ": " + r.done, !!r.errors.length,
+      undo ? {label: "Undo", run: undo} : null);
+    if (undo && (document.activeElement === document.body || !document.activeElement)) $("toasts").lastElementChild?.querySelector(".tact")?.focus({preventScroll: true});
   }, null, "bulk");
 }
 // "Edit all": one blank row laid over the shelf; what is filled in goes to every selected item, the rest stays
@@ -1236,7 +1373,7 @@ async function renderTrash() {
   const day = iso => new Date(iso).toLocaleDateString("en-GB", {day: "numeric", month: "short"});
   v.innerHTML = `<div class="toolbar"><h2>Trash</h2><span class="muted" style="font-size:13px">Deleted books stay here ${T.days} days, then go for good with their files.</span></div>
     ${T.items.length ? `<div class="card">${T.items.map(i => `<div class="trashrow" id="tr-${i.id}">
-      ${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="">` : `<span class="noimg"></span>`}
+      ${coverSrc(i.cover) ? `<img src="${smallCover(coverSrc(i.cover))}" alt="">` : `<span class="noimg"></span>`}
       <div style="min-width:0"><b>${esc(i.title)}</b><div class="muted" style="font-size:12.5px">${esc(i.authors || KINDS.find(k => k[0] === i.kind)?.[1] || "")}</div>
         <div class="muted" style="font-size:12px">Deleted ${esc(day(i.deletedAt))} · gone for good on ${esc(day(i.purgeOn))}</div></div>
       <div class="acts">${edit ? (st.confirmPurge === i.id ? `<span class="confirm">Delete for good? <button class="btn small danger" data-purge="${i.id}">Delete</button><button class="btn small" data-purgecancel="1">Keep</button></span>`
@@ -1326,8 +1463,21 @@ function setColWidth(t, th, w) {
   const old = parseFloat(th.style.width) || th.getBoundingClientRect().width;
   th.style.width = w + "px"; t.style.width = (parseFloat(t.style.width) - old + w) + "px";
 }
+const LIST_TEXT = {title: i => i.title, author: i => i.authors || "—", status: i => statusLabel(i.kind, i.status), rating: i => String(i.rating ?? ""),
+  finished: i => lastRead(i), pages: i => amountText(i), language: i => langName(SCREEN(i.kind) ? i.origLang : i.lang), added: i => i.added,
+  version: i => SCREEN(i.kind) ? (i.platforms || []).map(platformName).join(", ") : versionOf(i) ? versionLabel(versionOf(i)) : "", genre: i => i.genres.slice(0, 2).join(", ")};
+const LIST_EXTRA = {status: 13, version: 22};       // the status dot, the version icon
 function fitCol(t, th) {
-  const n = [...th.parentElement.cells].indexOf(th), r = document.createRange();
+  const n = [...th.parentElement.cells].indexOf(th), r = document.createRange(), ck = th.dataset.ck;
+  const cell = LWIN && LIST_TEXT[ck] && t.tBodies[0].querySelector("tr[data-id]")?.cells[n];
+  if (cell) {                                         // a long list draws only some rows: measure the text of all of them
+    const ctx = (fitCol.c ||= document.createElement("canvas").getContext("2d")), cs = getComputedStyle(cell.querySelector("b") || cell);
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    let w = 0; for (const i of LWIN.list) w = Math.max(w, ctx.measureText(LIST_TEXT[ck](i)).width);
+    const head = th.querySelector("button, .thl"); if (head) { r.selectNodeContents(head); w = Math.max(w, r.getBoundingClientRect().width); }
+    const c = getComputedStyle(cell);
+    return setColWidth(t, th, Math.min(Math.max(Math.ceil(w + parseFloat(c.paddingLeft) + parseFloat(c.paddingRight) + (LIST_EXTRA[ck] || 0)) + 12, 36), 700));
+  }
   const pad = el => { const c = getComputedStyle(el); return parseFloat(c.paddingLeft) + parseFloat(c.paddingRight); };
   t.classList.add("measuring");
   let w = 0;
@@ -1800,7 +1950,38 @@ addEventListener("scroll", () => { if ($("le-catpop")) toggleCatPop(false); });
 
 // ---------------------------------------------------------------- detail
 const reduceMotion = () => !Element.prototype.animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
-async function openDetail(id, quiet) {
+// the page's place in the browser history: #item=<id> while a book is open (pushed once, replaced when moving
+// from book to book), so Back closes the panel and a reload opens the same book again
+let popping = false, HIST_OWN = false;      // HIST_OWN: the #item entry was pushed by this page (Back returns to the console)
+function historyOpen(id) {
+  if (PREVIEW || String(id).startsWith("__")) return;
+  const url = "#item=" + encodeURIComponent(id);
+  if (history.state?.ml) { if (history.state.ml !== id) history.replaceState({ml: id}, "", url); }
+  else { history.pushState({ml: id}, "", url); HIST_OWN = true; }
+}
+// the book's entry goes with the panel: closing it steps back to the console when this page pushed the entry
+// (back), anything else (a kind, a shelf, the trash, another section, a link into a book) turns it into the console
+function historyClear(back) {
+  if (popping || !history.state?.ml) return;
+  if (back && HIST_OWN) { HIST_OWN = false; popping = true; history.back(); setTimeout(() => { popping = false; }, 400); }
+  else history.replaceState(null, "", location.pathname + location.search);
+}
+addEventListener("popstate", e => {
+  if (popping && !e.state?.ml) { popping = false; return; }          // the back() of historyClear
+  const id = e.state?.ml;
+  if (id && id !== st.selected) {                                   // Forward into a book: its shelf first, then the panel
+    popping = true; const there = showItem(id); popping = false;          // (its redraw must not clear this entry)
+    if (!there) { history.replaceState(null, "", location.pathname + location.search); return; }
+    HIST_OWN = true; openDetail(id, false, true);
+  } else if (!id) { HIST_OWN = false; if (st.selected && !String(st.selected).startsWith("__")) { popping = true; closeDetail(); popping = false; } }
+});
+const sheetOn = () => !!st.selected && st.sec === "database" && matchMedia("(max-width: 900px)").matches;
+function syncSheet() {
+  const on = sheetOn();
+  $("scrim")?.classList.toggle("on", on); $("toasts")?.classList.toggle("sheet", on); $("bulkbar")?.classList.toggle("behind", on);
+}
+async function openDetail(id, quiet, fromHistory) {
+  if (!quiet && !fromHistory) historyOpen(id);
   st.selected = id; st.editing = false; st.editReview = false; st.readingEdit = null; st.err = ""; st.confirmTrash = false; st.findEdit = false;
   if (id.startsWith("c:")) { st.detail = collDetail(id); if (!quiet) { showSelection(); renderDetail(); } return; }
   if (!quiet) { st.detail = null; showSelection(); renderDetail(); }    // the panel opens at once with what the shelf knows
@@ -1812,12 +1993,14 @@ async function openDetail(id, quiet) {
 }
 function closeDetail() {
   const was = st.selected, inPane = $("detail")?.contains(document.activeElement) || document.activeElement === document.body;
-  st.selected = null; st.detail = null; st.editing = false; showSelection();
+  st.selected = null; st.detail = null; st.editing = false; st.focusPanel = false; showSelection(); syncSheet();
+  historyClear(true);                                       // its history entry goes too
   if (inPane && was) (document.getElementById("b-" + was) || document.querySelector(`[data-ltitle="${CSS.escape(was)}"]`))?.focus({preventScroll: true});
 }
 // Opening or closing the panel without redrawing the shelf: the current book is marked, and when the panel takes
 // its column the covers glide to their new places (FLIP) instead of jumping.
 function showSelection() {
+  syncSheet();
   const lib = $("lib"), pane = $("detail");
   if (!lib || !pane || st.selected?.startsWith?.("__")) return renderDatabase();
   for (const el of lib.querySelectorAll("[data-id][aria-current]")) { const v = String(el.dataset.id === st.selected); if (el.getAttribute("aria-current") !== v) el.setAttribute("aria-current", v); }
@@ -1850,10 +2033,12 @@ function nearCards() {
 // animation under "Reduce motion".
 // The timeline in ms: the flight, then the cover opening ([delay, duration]), the page fading, the copy going.
 const OPEN_MS = {fly: 720, cover: [440, 980], page: [900, 560], gone: [1340, 260]};
-async function openBook(btn) {
+async function openBook(btn, kb) {
   const cov = btn.querySelector(".cov"), id = btn.dataset.id;
+  // opened from the keyboard: focus goes into the panel once it shows (at once, or when the flight lands)
+  if (st.selected === id && st.detail) { if (kb) $("d-title")?.focus({preventScroll: true}); return; }
+  st.focusPanel = !!kb && (!cov || reduceMotion() || !!$("lib")?.classList.contains("withdetail"));
   if (!cov || reduceMotion()) return openDetail(id);
-  if (st.selected === id && st.detail) return;
   if ($("lib")?.classList.contains("withdetail") && st.selected && !String(st.selected).startsWith("__")) return openDetail(id);
   const run = openBook.run = (openBook.run || 0) + 1, px = r => ({left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px"});
   document.querySelector(".flybook")?.remove();
@@ -1863,6 +2048,14 @@ async function openBook(btn) {
   const fly = document.createElement("div");
   fly.className = "flybook";
   fly.innerHTML = `<div class="fb-page"></div><div class="fb-cover"><div class="fb-front">${cov.innerHTML.replace(/<span class="[vg]mark"[\s\S]*?<\/span>/g, "")}</div><div class="fb-back"></div></div>`;
+  const face = fly.querySelector(".fb-front img");
+  if (face) {                                         // the copy shows the shelf's 320 at once, then the 640 when ready
+    const shown = cov.querySelector("img")?.currentSrc;
+    for (const a of ["srcset", "sizes", "loading", "decoding"]) face.removeAttribute(a);
+    const src = face.getAttribute("src");
+    if (shown) face.src = shown;                    // what the shelf shows (already loaded), then the 640
+    if (/-320\.jpg$/.test(src) && !/-640\.jpg$/.test(shown || "")) { const big = new Image(); big.src = src.replace(/-320\.jpg$/, "-640.jpg"); big.decode().then(() => { if (fly.isConnected) face.src = big.src; }, () => {}); }
+  }
   document.body.append(fly);
   const done = () => { fly.remove(); if (openBook.run === run) document.body.classList.remove("fb-pane"); };
   loading.then(() => { if (openBook.run === run && !$("detail")) done(); });
@@ -1870,21 +2063,33 @@ async function openBook(btn) {
   if (!pane || pane.hidden) return done();
   // the copy moves to its landing place at once and is drawn back over the shelf by a transform, which then
   // runs to none: a compositor animation, smooth on phones while the panel renders
-  const p = pane.getBoundingClientRect(), w = Math.min(p.width, 420), h = Math.max(120, Math.min(w * 1.5, innerHeight - p.top - 8));
-  const from = `translate(${a.left - p.left}px, ${a.top - p.top}px) scale(${a.width / w}, ${a.height / h})`;
-  Object.assign(fly.style, px({left: p.left, top: p.top, width: w, height: h}), {transformOrigin: "0 0", transform: from});
+  // it lands as a book (2:3): over the panel on a wide screen, centred above the sheet on a phone
+  const p = pane.getBoundingClientRect(), phone = matchMedia("(max-width: 900px)").matches;
+  const w = phone ? Math.min(innerWidth * 0.62, 280, (innerHeight - 24) / 1.5) : Math.min(p.width, 420, (innerHeight - p.top - 8) / 1.5), h = w * 1.5;
+  const L = phone ? (innerWidth - w) / 2 : p.left, T = phone ? Math.max(8, innerHeight - h - 16) : p.top;
+  const from = `translate(${a.left - L}px, ${a.top - T}px) scale(${a.width / w}, ${a.height / h})`;
+  Object.assign(fly.style, px({left: L, top: T, width: w, height: h}), {transformOrigin: "0 0", transform: from});
   const anims = [
     fly.animate([{transform: from}, {transform: "none"}], {duration: OPEN_MS.fly, easing: "cubic-bezier(.3, .7, .2, 1)", fill: "forwards"}),
     fly.querySelector(".fb-cover").animate([{transform: "rotateY(0deg)"}, {transform: "rotateY(-180deg)"}], {delay: OPEN_MS.cover[0], duration: OPEN_MS.cover[1], easing: "cubic-bezier(.45, 0, .25, 1)", fill: "forwards"}),
     fly.querySelector(".fb-page").animate([{opacity: 1}, {opacity: 0}], {delay: OPEN_MS.page[0], duration: OPEN_MS.page[1], fill: "forwards"}),
     fly.animate([{opacity: 1}, {opacity: 0}], {delay: OPEN_MS.gone[0], duration: OPEN_MS.gone[1], fill: "forwards"}),
   ];
-  setTimeout(() => { if (openBook.run !== run) return; document.body.classList.remove("fb-pane"); $("detail")?.animate([{opacity: 0}, {opacity: 1}], {duration: 500, easing: "ease-out"}); }, OPEN_MS.fly);
+  setTimeout(() => {
+    if (openBook.run !== run) return;
+    document.body.classList.remove("fb-pane"); $("detail")?.animate([{opacity: 0}, {opacity: 1}], {duration: 500, easing: "ease-out"});
+    if (kb) { if ($("d-title")) $("d-title").focus({preventScroll: true}); else st.focusPanel = true; }   // the panel shows now
+  }, OPEN_MS.fly);
   await Promise.allSettled(anims.map(x => x.finished));
   done();
 }
 function srcTag(group, col) { const s = group === "screen" ? st.detail?.screen?.prov?.[col] : st.detail?.prov?.[group]?.[col]; return s ? `<span class="src" title="where this value came from">${esc(SRC[s] || s)}</span>` : ""; }
 function renderDetail() {
+  renderDetailNow();
+  if (st.focusPanel && st.detail && $("d-title")) { st.focusPanel = false; $("d-title").focus({preventScroll: true}); }
+  else if (st.detail?.error) st.focusPanel = false;
+}
+function renderDetailNow() {
   const el = $("detail"); if (!el) return;
   const d = st.detail;
   if (d?.coll === true) { el.innerHTML = collDetailHtml(d); return; }
@@ -1902,7 +2107,7 @@ function renderDetail() {
   const ratingBtns = Array.from({length: 11}, (_, n) => `<button id="rt-${n}" data-rating="${n}" class="${r != null && n < r ? "on" : ""}" aria-pressed="${r != null && Math.round(r) === n}" ${edit ? "" : "disabled"} aria-label="Rate ${n} of 10">${n}</button>`).join("");
   el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button>
     <div class="head"><div class="cov">${coverSrc(chosen?.thumb) ? `<img src="${coverSrc(chosen.thumb)}" alt="Cover of ${esc(d.title)}">` : `<span class="ph">no cover</span>`}</div>
-      <div style="min-width:0"><h2>${esc(d.title)}</h2>
+      <div style="min-width:0"><h2 id="d-title" tabindex="-1">${esc(d.title)}</h2>
         <div>${d.authorsList.map(a => esc(a.name)).join(", ") || `<span class="muted">no ${makerLabel(d.kind, 1).toLowerCase()}</span>`}</div>
         <div class="muted" style="font-size:12.5px;margin-top:4px">${(SCREEN(d.kind) ? screenFacts(d) : [e?.published ? fmtDate(e.published, e.publishedPrecision) : null, e?.pages ? e.pages + " pages" : null, langName(e?.lang)]).filter(Boolean).map(esc).join(" · ")}</div>
         ${d.locked ? `<div style="margin-top:6px"><span class="pill warn" title="Automated sources may not change it">locked: tts-ereader copy</span></div>` : ""}
@@ -2008,7 +2213,7 @@ function collDetailHtml(d) {
   const ys = f.map(x => x.published).filter(Boolean), y0 = Math.min(...ys), y1 = Math.max(...ys);
   return `<button class="xbtn" id="d-close" aria-label="Close">✕</button>
     <div class="head"><div class="cov">${coverSrc(f[0].cover) ? `<img src="${coverSrc(f[0].cover)}" alt="">` : `<span class="ph">${esc(d.name)}</span>`}</div>
-      <div style="min-width:0"><h2>${esc(d.name)}</h2><div>${esc(collMakers(f).join(", "))}</div>
+      <div style="min-width:0"><h2 id="d-title" tabindex="-1">${esc(d.name)}</h2><div>${esc(collMakers(f).join(", "))}</div>
         <div class="muted" style="font-size:12.5px;margin-top:4px">${esc([f.length + " films", ys.length ? y0 + (y1 > y0 ? "–" + y1 : "") : null, mins ? fmtRuntime(mins) : null].filter(Boolean).join(" · "))}</div></div></div>
     <div class="d-sec"><h3>Films</h3><p class="muted" style="font-size:12.5px;margin:0 0 10px">${seen} of ${f.length} watched. Open a film for its watches, rating and details.</p>
       <div class="seasons">${f.map(x => `<button class="season collfilm" id="cf-${x.id}" data-open="${x.id}">${coverSrc(x.cover) ? `<img src="${coverSrc(x.cover)}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}
@@ -2021,7 +2226,7 @@ function seasonsHtml(d) {
     const w = s.watches[s.watches.length - 1], done = w && w.state === "completed", st0 = w ? L[w.state] : "Not watched";
     const sub = [s.episodes ? (w?.episodes != null ? w.episodes + "/" : "") + s.episodes + " episodes" : null, s.aired ? s.aired.slice(0, 4) : null,
       w?.platform ? platformName(w.platform) : null, w?.ended ? fmtKey(w.ended.slice(0, 7)) : null].filter(Boolean);
-    return `<div class="season${w ? "" : " unseen"}">${coverSrc(s.poster) ? `<img src="${coverSrc(s.poster)}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}
+    return `<div class="season${w ? "" : " unseen"}">${coverSrc(s.poster) ? `<img src="${smallCover(coverSrc(s.poster))}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}
       <span><b>${esc(s.number ? "Season " + s.number : s.name)}</b>${s.name && s.number && !/^season \d+$/i.test(s.name) ? ` <span class="muted">${esc(s.name)}</span>` : ""}
       <br><span class="pill ${done ? "ok" : w ? "warn" : "plain"}">${esc(st0)}</span> <span class="muted" style="font-size:12px">${esc(sub.join(" · "))}</span></span></div>`;
   }).join("")}</div>`;
@@ -2117,7 +2322,9 @@ function runPending() {
   if (p.intent) p.intent(); else act(p.fn, p.okMsg, p.key);
 }
 // rows saved or refreshed by the server go into the page's copy of the library (no full reload)
+let LIBREV = 0;                 // bumped by every local change to LIB's rows (a tab-return copy must not undo one)
 function mergeRows(r) {
+  LIBREV++;
   const at = new Map(LIB.items.map((x, k) => [x.id, k]));
   for (const it of r.items || []) { if (at.has(it.id)) LIB.items[at.get(it.id)] = it; else LIB.items.push(it); }
   if (r.categories) LIB.categories = r.categories;
@@ -2144,16 +2351,18 @@ document.addEventListener("click", async e => {
     if (st.delAsk !== key) { st.delAsk = key; row ? asking(true) : renderDatabase();
       setTimeout(() => { if (st.delAsk === key) { st.delAsk = null; row ? asking(false) : renderDatabase(); } }, 4000); return; }
     st.delAsk = null;
-    if (row) { await act(async () => { await api.bulk({items: ids, action: "trash"}); row.remove(); LIB.items = LIB.items.filter(x => !ids.includes(x.id)); renderSide(); }, "Moved to the trash"); return; }
-    await act(async () => { const r = await api.bulk({items: ids, action: "trash"}); LIB = await api.library();
+    if (row) { await act(async () => { await api.bulk({items: ids, action: "trash"}); row.remove(); LIB.items = LIB.items.filter(x => !ids.includes(x.id)); renderSide();
+      toast("Moved to the trash", false, {label: "Undo", run: undoTrash(ids)}); }); return; }   // (one row: trashed, or it threw)
+    await act(async () => { const r = await api.bulk({items: ids, action: "trash"}), ok = doneIds(ids, r); LIB = await api.library();
       for (const i of ids) st.sel.delete(i);
       if (ids.includes(st.selected) || st.selected === key) { st.selected = null; st.detail = null; }
-      render(); toast(ids.length > 1 ? r.done + " moved to the trash" : "Moved to the trash"); });
+      render(); toast(ids.length > 1 ? r.done + " moved to the trash" : "Moved to the trash", !!r.errors.length, ok.length ? {label: "Undo", run: undoTrash(ok)} : null); });
     return;
   }
   const t = e.target.closest("button, [data-id], input[type=checkbox]"); if (!t) return;
   if (st.pending && (/-cancel$|^d-trash-no$|^key-lock$/.test(t.id) || t.dataset.purgecancel)) { st.pending = null; st.unlockMsg = ""; }
-  if (t.dataset.retry) { $("v-database").innerHTML = `<p class="empty">Opening the library…</p>`; refresh(true); return; }
+  if (t.dataset.scrim) { if (editingNow() && !confirm("Close it and lose what you typed?")) return; closeDetail(); return; }
+  if (t.dataset.retry) { if (!LIB.items.length) $("v-database").innerHTML = `<p class="empty">Opening the library…</p>`; refresh(true); return; }
   if (t.id === "sel-toggle") { if (hasDrafts() && !confirm("Throw away the changes typed in the rows?")) return; st.selecting = !st.selecting; st.sel.clear(); st.delAsk = null; renderDatabase(); return; }
   if (t.id === "sel-all") { toggleSel(shownIds(), true); selChanged(); return; }
   if (t.id === "sel-none") { st.sel.clear(); selChanged(); return; }
@@ -2171,8 +2380,7 @@ document.addEventListener("click", async e => {
     if (b === "archive") return bulkRun({action: "archive"}, "Archived");
     if (b === "unarchive") return bulkRun({action: "unarchive"}, "Back in the library");
     if (b === "edit") { closeBulkPop(); return editAllOverlay(); }
-    if (b === "trash") { if (st.delAsk !== "__bulk") { st.delAsk = "__bulk"; renderBulk(); setTimeout(() => { if (st.delAsk === "__bulk") { st.delAsk = null; renderBulk(); } }, 4000); return; }
-      return bulkRun({action: "trash"}, "Moved to the trash"); }
+    if (b === "trash") return bulkRun({action: "trash"}, "Moved to the trash");
     if (b === "move") return bulkPop(t, `<h4>Move to</h4>${st.section ? `<button data-bulkmove="">The library (no section)</button>` : ""}` +
       (LIB.sections || []).filter(x => x.id !== st.section).map(x => `<button data-bulkmove="${x.id}">${esc(x.name)}</button>`).join("")
       + `<p class="muted" style="margin:6px 8px;font-size:12px">New sections: the left pane, under Sections.</p>`);
@@ -2220,7 +2428,8 @@ document.addEventListener("click", async e => {
   if (t.id === "fd-cancel") { st.findEdit = false; renderDetail(); return; }
   if (t.id === "fd-save" || t.id === "fd-reset") { const body = t.id === "fd-reset" ? {reset: true} : {url: $("fd-url").value, label: $("fd-label").value};
     await act(async () => { Object.assign(LIB, await api.setFind(body)); st.findEdit = false; renderDetail(); }, t.id === "fd-reset" ? "Back to the server's search link" : "Search link saved"); return; }
-  if (t.id === "d-trash-yes") { const tid = st.selected; await act(async () => { await api.trashItem(tid); st.selected = null; st.detail = null; st.confirmTrash = false; LIB = await api.library(); render(); }, "Moved to the trash"); return; }
+  if (t.id === "d-trash-yes") { const tid = st.selected; await act(async () => { await api.trashItem(tid); st.selected = null; st.detail = null; st.confirmTrash = false; LIB = await api.library(); render();
+    toast("Moved to the trash", false, {label: "Undo", run: undoTrash([tid])}); }); return; }
   if (t.dataset.filter) { st.filter = t.dataset.filter; renderDatabase(); return; }
   if (t.dataset.size) return setPref("size", t.dataset.size);
   if (t.dataset.layout) { if (t.dataset.layout === "grid" && hasDrafts() && !confirm("Throw away the changes typed in the rows?")) return; st.listSort = null; return setPref("layout", t.dataset.layout); }
@@ -2241,7 +2450,7 @@ document.addEventListener("click", async e => {
     toast(r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know")); await afterItemChange(r.item); }); return; }
   if (t.matches(".book")) { if (drag.suppressClick) { drag.suppressClick = false; return; }
     if (st.selecting) { toggleSel(idsOf(t)); selChanged(); return; }
-    return openBook(t); }
+    return openBook(t, e.detail === 0); }
   if (t.dataset.open) return openDetail(t.dataset.open);
   if (t.dataset.ltitle) return st.selected === t.dataset.ltitle ? closeDetail() : openDetail(t.dataset.ltitle);
   if (t.matches("table.list tr[data-id]")) { if (st.selected && !st.tableEdit) closeDetail(); return; }
@@ -2283,6 +2492,7 @@ document.addEventListener("click", async e => {
   if (t.id === "key-save") return unlock();
   if (t.id === "key-showpw") { st.showPw = true; renderKeybar(); $("key-input").focus(); return; }
   if (t.id === "key-passkey") return passkeyUnlock();
+  if (t.id === "key-extend") { keepUnlocked(); return; }
   if (t.id === "key-lock") { try { await api.lock(); } catch (er) {} SESSION.unlockedUntil = null; st.editing = false; render(); return; }
   if (t.id === "preview-reset") { try { localStorage.removeItem("ml-preview-state"); } catch (er) {} location.reload(); return; }
 });
@@ -2569,7 +2779,7 @@ function runSearch(q) {
   pop.innerHTML = groups.map(([k, label]) => `<div class="sr-group">${label}</div>` + hits.filter(h => h.kind === k).map(h => {
     const idx = hits.indexOf(h);
     return `<button class="pop-item${idx === active ? " active" : ""}" role="option" id="hit-${idx}" data-hit="${idx}" aria-selected="${idx === active}">
-      ${coverSrc(h.cover) ? `<img src="${coverSrc(h.cover)}" alt="">` : `<span class="noimg"></span>`}<span class="pop-name">${mark(h.title, rawTerms)}</span>
+      ${coverSrc(h.cover) ? `<img src="${smallCover(coverSrc(h.cover))}" alt="">` : `<span class="noimg"></span>`}<span class="pop-name">${mark(h.title, rawTerms)}</span>
       <span class="pop-sub">${mark(h.authors || "—", rawTerms)} · ${esc(statusLabel(h.kind, h.status))}${h.year ? " " + h.year : ""}</span></button>`;
   }).join("")).join("");
   pop.hidden = false;
@@ -2624,12 +2834,23 @@ document.addEventListener("click", e => {
 
 // ---------------------------------------------------------------- unlock
 function renderKeybar() {
+  const old = $("key-input"), keepVal = old?.value || "", keepFocus = !!old && document.activeElement === old;
+  renderKeybarNow();
+  const inp = $("key-input");
+  if (inp && (keepVal || keepFocus)) { inp.value = keepVal; if (keepFocus) inp.focus({preventScroll: true}); }
+}
+function renderKeybarNow() {
   const bar = $("keybar");
   if (PREVIEW) { bar.innerHTML = `<span class="pill warn" title="This page runs in your browser only. On the server every edit is saved and audited.">Preview · edits stay in this browser</span><button class="btn small" id="preview-reset">Reset</button>`; return; }
+  if (SESSION.connecting) { bar.innerHTML = `<span class="muted">Connecting…</span>`; return; }
+  if (SESSION.offline) { bar.innerHTML = `<span class="muted" title="${esc(SESSION.error || "")}">Offline · the last copy</span><button class="btn small" data-retry="1">Try again</button>`; return; }
   if (!SESSION.owner) { bar.innerHTML = `<span class="muted">Read-only${SESSION.login ? " for " + esc(SESSION.login) : ""}: editing needs the owner's Tailscale login.</span>`; return; }
   if (canEdit()) {
     const mins = Math.max(1, Math.round((SESSION.unlockedUntil * 1000 - Date.now()) / 60000));
-    bar.innerHTML = `<span class="unlocked">Unlocked · locks in ${mins} min</span><button class="btn small" id="key-lock">Lock</button>`;
+    const soon = mins <= 3;
+    bar.innerHTML = `<span class="unlocked${soon ? " soon" : ""}">Unlocked · locks in ${mins} min</span>${soon ? `<button class="btn small primary" id="key-extend">Keep unlocked</button>` : ""}`
+      + (st.showPw && soon ? `<input id="key-input" type="password" autocomplete="current-password" placeholder="Password" aria-label="Console password (the agent console's)"><button class="btn small" id="key-save">Unlock</button>` : "")
+      + `<button class="btn small" id="key-lock">Lock</button>` + (st.unlockMsg ? `<span class="key-msg" role="status">${esc(st.unlockMsg)}</span>` : "");
   } else {
     const pk = SESSION.passkeys?.available && window.PublicKeyCredential;
     bar.innerHTML = (pk ? `<button class="btn primary" id="key-passkey" title="Unlock for 30 minutes with the passkey you added in the agent console">Touch ID / Face ID</button>` : "") +
@@ -2638,9 +2859,19 @@ function renderKeybar() {
       (st.unlockMsg ? `<span class="key-msg" role="status">${esc(st.unlockMsg)}</span>` : "");
   }
 }
+// renewing before the lock (Keep unlocked) only updates the key bar: open forms and drafts stay as they are
+function unlocked(r, was) {
+  SESSION.unlockedUntil = r.expiresAt; st.unlockMsg = ""; st.showPw = false; st.lockWarned = false;
+  if (was && editingNow()) renderKeybar(); else { render(); if (!was) runPending(); }
+}
+function keepUnlocked() {
+  if (SESSION.passkeys?.available && window.PublicKeyCredential) return passkeyUnlock();
+  st.showPw = true; renderKeybar(); $("key-input")?.focus({preventScroll: true});
+}
 async function unlock() {
   const pw = $("key-input")?.value || ""; if (!pw) return;
-  try { const r = await api.unlock(pw); SESSION.unlockedUntil = r.expiresAt; st.unlockMsg = ""; st.showPw = false; render(); runPending(); }
+  const was = canEdit();
+  try { unlocked(await api.unlock(pw), was); }
   catch (e) { st.unlockMsg = e.message; renderKeybar(); }
 }
 const toBuf = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0)).buffer;
@@ -2651,13 +2882,18 @@ async function passkeyUnlock() {
     pk.challenge = toBuf(pk.challenge); for (const c of pk.allowCredentials || []) c.id = toBuf(c.id);
     const cred = await navigator.credentials.get({publicKey: pk});
     const res = cred.response;
-    const r = await api.passkeyLogin({id: cred.id, clientDataJSON: toB64u(res.clientDataJSON), authenticatorData: toB64u(res.authenticatorData), signature: toB64u(res.signature)});
-    SESSION.unlockedUntil = r.expiresAt; st.unlockMsg = ""; render(); runPending();
+    const was = canEdit();
+    unlocked(await api.passkeyLogin({id: cred.id, clientDataJSON: toB64u(res.clientDataJSON), authenticatorData: toB64u(res.authenticatorData), signature: toB64u(res.signature)}), was);
   } catch (e) { st.unlockMsg = e && e.name === "NotAllowedError" ? "Touch ID / Face ID was cancelled or timed out." : (e.message || String(e)); renderKeybar(); }
 }
 setInterval(() => {
   if (PREVIEW || !SESSION.unlockedUntil) return;
-  if (SESSION.unlockedUntil * 1000 >= Date.now()) return renderKeybar();
+  if (SESSION.unlockedUntil * 1000 >= Date.now()) {
+    if (!st.lockWarned && SESSION.unlockedUntil * 1000 - Date.now() < 180e3) {
+      st.lockWarned = true; toast("The console locks in 3 minutes.", false, {label: "Keep unlocked", run: keepUnlocked});
+    }
+    return renderKeybar();
+  }
   SESSION.unlockedUntil = null;
   // typing in the Edit rows when the console locks: the rows stay as they are; unlocking keeps them, Save asks for it
   if (hasDrafts()) { renderKeybar(); toast("The console locked. Your changes are still here: unlock to save them.", true); }

@@ -1,2 +1,2 @@
 """media-library: the owner's own book (and later movie/series) database."""
-__version__ = "0.10.0"
+__version__ = "1.0.0"
