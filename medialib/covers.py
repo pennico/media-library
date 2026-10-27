@@ -117,9 +117,9 @@ def make_thumb(src, dest, width):
     """A progressive JPEG of the cover at ``src``, ``width`` px wide, written atomically to ``dest``."""
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with Image.open(src) as im:
-        im = im.convert("RGB")
         h = max(1, round(im.height * width / im.width))
-        im = im.resize((width, h), Image.LANCZOS)
+        im.draft("RGB", (width, h))          # a JPEG is decoded at 1/2..1/8 scale, never below the size wanted
+        im = im.convert("RGB").resize((width, h), Image.LANCZOS)
         tmp = dest + ".tmp"
-        im.save(tmp, "JPEG", quality=78, optimize=True, progressive=True)
+        im.save(tmp, "JPEG", quality=78, optimize=True)     # baseline: decodes faster than progressive
         os.replace(tmp, dest)

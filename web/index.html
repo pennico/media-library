@@ -31,7 +31,7 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #1f1812; --panel: #2a2119; --sunk: #33281e; --fg: #efe5d6; --muted: #c0aa8f; --line: #47392b;
   --sel: #3e3024; --accent: #7cc4a9; --accent-soft: #2b3a30; --on-accent: #10201a;
-  --ok: #5cc28f; --ok-soft: #233528; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
+  --ok: #5cc28f; --ok-soft: #233528; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e; --on-bad: #1f1812;
   --chart: #3aa877;
   --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767; --c-other: #6f604f; --grid: #3a2e23; --shadow: rgb(0 0 0 / 0.5);
   --head-a: #4e3a29; --head-b: #3f2e20; --head-edge: #24180f; --nav-sel: rgb(255 235 210 / 0.11); --nav-hover: rgb(255 235 210 / 0.06);
@@ -43,7 +43,7 @@
 :root[data-theme="dark"] {
   --bg: #1f1812; --panel: #2a2119; --sunk: #33281e; --fg: #efe5d6; --muted: #c0aa8f; --line: #47392b;
   --sel: #3e3024; --accent: #7cc4a9; --accent-soft: #2b3a30; --on-accent: #10201a;
-  --ok: #5cc28f; --ok-soft: #233528; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e;
+  --ok: #5cc28f; --ok-soft: #233528; --warn: #e0a84a; --warn-soft: #3a2f1b; --bad: #ef7a64; --bad-soft: #3d231e; --on-bad: #1f1812;
   --chart: #3aa877;
   --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767; --c-other: #6f604f; --grid: #3a2e23; --shadow: rgb(0 0 0 / 0.5);
   --head-a: #4e3a29; --head-b: #3f2e20; --head-edge: #24180f; --nav-sel: rgb(255 235 210 / 0.11); --nav-hover: rgb(255 235 210 / 0.06);
@@ -154,6 +154,7 @@ select, .toolbar input[type=search] { padding: 4px 8px; border: 1px solid var(--
 .segsmall { display: inline-flex; gap: 2px; padding: 2px; background: var(--sunk); border-radius: 8px; }
 .segsmall button { border: 0; background: none; border-radius: 6px; padding: 3px 9px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
 .segsmall button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 1px 2px var(--shadow); }
+h2 .count { font-size: 12.5px; font-weight: 500; color: var(--muted); margin-left: 6px; }
 .hintline { font-size: 12px; color: var(--muted); margin: -6px 0 12px; }
 
 /* content + detail */
@@ -175,6 +176,16 @@ select, .toolbar input[type=search] { padding: 4px 8px; border: 1px solid var(--
   background: linear-gradient(to right, rgb(0 0 0 / 0.22), rgb(255 255 255 / 0.18) 2px, rgb(0 0 0 / 0.08) 5px, transparent); }
 .shelfwrap .book .t { color: var(--wood-ink); } .shelfwrap .book .a, .shelfwrap .book .s, .shelfwrap .cov .ph { color: var(--wood-muted); }
 .grid.s { --cw: 92px; } .grid.l { --cw: 168px; }
+/* A big shelf costs what is on screen (0.9.1): cards out of view are not styled, laid out, painted or hit-tested
+   (content-visibility; a card not drawn yet counts as a typical card of its size, then as its own last size). Each card has room around it for
+   the lift, its shadow and the selection ring (padding, given back by a negative margin, so nothing moves), and only
+   its parts take the pointer, so that room never catches a click or a hover meant for a neighbour. */
+.shelfwrap .book { content-visibility: auto; contain-intrinsic-block-size: auto 290px;
+  padding: 40px 22px 0; margin: -40px -22px 0; gap: 0; pointer-events: none; }
+.shelfwrap .book:focus-visible { outline: none; } .shelfwrap .book:focus-visible .cov { outline: 2px solid var(--fg); outline-offset: 3px; }
+.shelfwrap .grid.s .book { contain-intrinsic-block-size: auto 190px; } .shelfwrap .grid.l .book { contain-intrinsic-block-size: auto 370px; }
+.shelfwrap .book > * { pointer-events: auto; }
+.shelfwrap .book > .t, .shelfwrap .book > .a, .shelfwrap .book > .s { padding-top: 6px; }
 .book { border: 0; background: none; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; touch-action: manipulation; }
 .cov { aspect-ratio: 2 / 3; width: 100%; max-width: 100%; border-radius: 3px 6px 6px 3px; overflow: hidden; background: var(--sunk); box-shadow: 0 2px 6px var(--shadow);
   display: grid; place-items: end start; position: relative; }
@@ -205,6 +216,10 @@ table.list th[aria-sort] button { color: var(--fg); }
 table.list td.acts { width: 1%; padding-left: 0; }
 table.list select.le { min-width: 104px; } table.list select.le.num { min-width: 64px; }
 table.list tr.editing { background: var(--sel); }
+table.list tr.picked { background: var(--accent-soft); }
+table.list.win td.wrap { white-space: nowrap; }
+table.list.win .ltitle { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+table.list tr.lspacer td { padding: 0; border: 0; }
 table.list tr.editing td { white-space: normal; vertical-align: middle; }
 table.list .le { width: 100%; min-width: 64px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-size: 12.5px; }
 table.list .le.wide { min-width: 170px; } table.list .le.num { min-width: 56px; max-width: 74px; text-align: right; }
@@ -335,7 +350,10 @@ table.tv td.num, table.tv th.num { text-align: right; font-variant-numeric: tabu
 .tip { position: fixed; z-index: 70; pointer-events: none; background: var(--fg); color: var(--bg); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; box-shadow: 0 6px 18px var(--shadow); }
 .tip b { font-size: 14px; }
 .toast { position: fixed; z-index: 80; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 10px; font-size: 13px; box-shadow: 0 6px 18px var(--shadow); }
-.toast.bad { background: var(--bad); color: #fff; }
+.toast.bad { background: var(--bad); color: var(--on-bad, #fff); }
+@media (hover: none) and (pointer: coarse) { input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea { font-size: 16px !important; } }
+body.busy, body.busy button { cursor: progress; }
+table.list tr.editing.bad td:first-child { box-shadow: inset 4px 0 var(--bad); }
 /* pointing at a book lifts it off the shelf, a little larger, with a glint across the cover */
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .book .cov { transition: transform .22s cubic-bezier(.2, .8, .3, 1), box-shadow .22s; transform-origin: 50% 100%; }
@@ -372,8 +390,9 @@ body.fb-pane .detail { visibility: hidden; }
 /* selecting and quick actions (0.8.0): a check on each cover, a toggle at the start of each shelf row,
    and a bar of actions for what is selected (deleting one: the list rows and the details) */
 .book { position: relative; }
-.selbox { position: absolute; left: 6px; top: 6px; z-index: 3; width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center;
+.selbox { position: absolute; left: 6px; top: 6px; z-index: 3; width: 26px; height: 26px; border-radius: 6px; display: none; place-items: center;
   background: rgb(255 252 245 / 0.92); border: 2px solid rgb(59 44 29 / 0.55); color: transparent; font-size: 14px; font-weight: 800; pointer-events: none; }
+.grid.selecting .selbox { display: grid; }
 .book.sel .selbox { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .book.sel .cov { outline: 3px solid var(--accent); outline-offset: 2px; }
 .grid.selecting .gmark { left: auto; right: 5px; }
@@ -523,13 +542,13 @@ table.list .ltitle:hover b { text-decoration: underline; }
     <div class="side-foot" id="side-foot"></div>
   </aside>
   <main id="main">
-    <div id="v-database"></div>
+    <div id="v-database"><p class="empty">Opening the library…</p></div>
     <div id="v-visuals" hidden></div>
     <div id="v-sync" hidden></div>
   </main>
 </div>
 <div class="tip" id="tip" hidden></div>
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" aria-hidden="true" hidden></div><div class="sr-only" id="live" role="status"></div><div class="sr-only" id="alertlive" role="alert"></div>
 
 <script>
 "use strict";
@@ -584,7 +603,7 @@ const VICON = {
   audio: `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M2.5 10V8a5.5 5.5 0 0 1 11 0v2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="1.8" y="9" width="3.4" height="5" rx="1.2" fill="currentColor"/><rect x="10.8" y="9" width="3.4" height="5" rx="1.2" fill="currentColor"/></svg>`,
   paper: `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 3.5C6.5 2.4 4.4 2 2 2.2v10c2.4-.2 4.5.2 6 1.3 1.5-1.1 3.6-1.5 6-1.3v-10c-2.4-.2-4.5.2-6 1.3zM8 3.5v10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`,
 };
-let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, STATS = null, READING = null;
+let LIB = {items: [], shelves: [], languages: {}}, SESSION = {}, READING = null;
 const st = {sec: "database", kind: "book", shelf: null, section: null, selecting: false, sel: new Set(), delAsk: null,
   filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
   listSort: null, err: "", unlockMsg: "", rowCats: {}, tableEdit: false, catRow: null, syncTab: "readest", readerPw: null, view: "shelf", trash: null,
@@ -594,18 +613,30 @@ function load(key, dflt) { try { const v = localStorage.getItem("ml-" + key); re
 function save(key, v) { try { localStorage.setItem("ml-" + key, JSON.stringify(v)); } catch (e) {} }
 const langName = c => c ? (LIB.languages[c] || c) : "";
 function toast(msg, bad) {
+  const live = $(bad ? "alertlive" : "live"); live.textContent = ""; setTimeout(() => { live.textContent = msg; }, 30);
   const t = $("toast"); t.textContent = msg; t.className = "toast" + (bad ? " bad" : ""); t.hidden = false;
   clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, bad ? 6000 : 2200);
 }
 function fmtDate(d, p) { if (!d) return ""; return p === "year" ? d.slice(0, 4) : p === "month" ? d.slice(0, 7) : d; }
 function partial(d, p) { return d ? fmtDate(d, p) : ""; }
 
+document.addEventListener("error", e => {
+  const img = e.target; if (img.tagName !== "IMG" || !img.closest(".cov, .lcov")) return;
+  const card = img.closest("[data-id]"), it = card && LIB.items.find(x => x.id === card.dataset.id);
+  BADCOV.add(img.getAttribute("src")); if (card) CARDS.delete(card.dataset.id);
+  img.replaceWith(Object.assign(document.createElement("span"), img.closest(".cov") ? {className: "ph", textContent: it?.title || ""} : {className: "noimg"}));
+}, true);
+addEventListener("online", () => { if (BADCOV.size) { BADCOV.clear(); CARDS.clear(); if (st.sec === "database") renderDatabase(); } });
 // ------------------------------------------------------------------- api
+// the server out of reach (Tailscale off, the phone offline) is the usual failure on this tailnet-only console
+async function reach(path, opts) {
+  try { return await fetch(path, opts); } catch (e) { throw new Error("Can't reach the library server. Is Tailscale on?"); }
+}
 const JSON_POST = (method, body) => ({method, headers: {"Content-Type": "application/json", "X-Console-Action": "1"}, body: JSON.stringify(body || {})});
 const serverApi = {
-  async get(path) { const r = await fetch(path, {credentials: "same-origin"}); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j; },
+  async get(path) { const r = await reach(path, {credentials: "same-origin"}); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j; },
   async send(method, path, body) {
-    const r = await fetch(path, JSON_POST(method, body)); const j = await r.json().catch(() => ({}));
+    const r = await reach(path, JSON_POST(method, body)); const j = await r.json().catch(() => ({}));
     if (r.status === 401 && !path.startsWith("api/unlock") && !path.startsWith("api/passkey")) { SESSION.unlockedUntil = null; renderKeybar(); }
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j;
   },
@@ -676,16 +707,16 @@ const serverApi = {
   setFind(body) { return this.send("POST", "api/settings/find", body); },
 };
 const api = PREVIEW ? makePreviewApi(PREVIEW) : serverApi;
-const coverSrc = url => !url ? null : url.startsWith("data:") ? url : PREVIEW ? (PREVIEW.covers[(url.match(/[0-9a-f]{64}/) || [""])[0]] || null) : url;
+const BADCOV = new Set();
+const coverSrc = url => !url || BADCOV.has(url) ? null : url.startsWith("data:") ? url : PREVIEW ? (PREVIEW.covers[(url.match(/[0-9a-f]{64}/) || [""])[0]] || null) : url;
 const canEdit = () => PREVIEW ? true : !!(SESSION.owner && SESSION.unlockedUntil && SESSION.unlockedUntil * 1000 > Date.now());
 
 // ------------------------------------------------------------- loading
 async function refresh(keepDetail) {
   try {
     [SESSION, LIB] = await Promise.all([api.session(), api.library()]);
-  } catch (e) { $("v-database").innerHTML = `<p class="empty">Could not load the library: ${esc(e.message)}</p>`; return; }
+  } catch (e) { $("v-database").innerHTML = `<p class="empty">Could not load the library: ${esc(e.message)} <button class="btn small" data-retry="1">Try again</button></p>`; return; }
   if (!st.shelf || !LIB.shelves.some(s => s.id === st.shelf)) st.shelf = allShelf(st.kind)?.id || null;
-  if (st.sec === "visuals") { try { STATS = await api.stats(); } catch (e) { STATS = null; } }
   if (st.sec === "sync") await loadReading();
   if (keepDetail && st.selected) await openDetail(st.selected, true);
   render();
@@ -698,15 +729,17 @@ function shelfPrefs(shelf) {
   return {sort: local.sort ?? shelf.sort_key, desc: local.desc ?? shelf.sort_desc, size: local.size ?? shelf.cover_size,
     layout: local.layout ?? shelf.layout, locale: shelf.sort_locale};
 }
-async function setPref(key, value) {
+// a shelf's look (sort, direction, cover size, layout): kept in this browser at once, and on the shelf when unlocked
+async function setPrefs(ch) {
   const shelf = LIB.shelves.find(s => s.id === st.shelf); if (!shelf) return;
-  const local = load("prefs-" + shelf.id, {}); local[key] = value; save("prefs-" + shelf.id, local);
-  render();
+  save("prefs-" + shelf.id, Object.assign(load("prefs-" + shelf.id, {}), ch));
+  renderDatabase();
   if (canEdit()) {
-    const map = {sort: "sortKey", desc: "sortDesc", size: "coverSize", layout: "layout"};
-    try { await api.editShelf(shelf.id, {[map[key]]: value}); shelf[{sort: "sort_key", desc: "sort_desc", size: "cover_size", layout: "layout"}[key]] = value; } catch (e) {}
+    const api_ = {sort: "sortKey", desc: "sortDesc", size: "coverSize", layout: "layout"}, col = {sort: "sort_key", desc: "sort_desc", size: "cover_size", layout: "layout"};
+    try { await api.editShelf(shelf.id, Object.fromEntries(Object.entries(ch).map(([k, v]) => [api_[k], v]))); for (const [k, v] of Object.entries(ch)) shelf[col[k]] = v; } catch (e) {}
   }
 }
+const setPref = (key, value) => setPrefs({[key]: value});
 
 // ---------------------------------------------------------------- render
 // the left pane can be hidden (remembered per browser); the button stays in the header to bring it back
@@ -714,10 +747,11 @@ function applySide() {
   $("app").classList.toggle("noside", !st.side);
   const b = $("side-toggle"); b.setAttribute("aria-expanded", String(st.side)); b.title = st.side ? "Hide the side panel" : "Show the side panel";
 }
+let qTimer = 0;
 function render() {
   for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-selected", String(b.dataset.sec === st.sec));
   $("v-database").hidden = st.sec !== "database"; $("v-visuals").hidden = st.sec !== "visuals"; $("v-sync").hidden = st.sec !== "sync";
-  renderKeybar(); renderSide();
+  renderKeybar(); if (st.sec !== "database") { renderSide(); LWIN = null; }       // renderDatabase draws the side pane itself
   if (st.sec === "database") renderDatabase(); else if (st.sec === "visuals") renderVisuals(); else renderSync();
 }
 function renderSide() {
@@ -829,7 +863,7 @@ function activeFilters(f = st.f) {
 }
 function clearFilter(key) {
   const C = FC(), [k, v] = key.split(/:(.*)/s);
-  if (key === "*") { for (const [x, val] of Object.entries(NOF())) C.f[x] = val; }
+  if (key === "*") { for (const [x, val] of Object.entries(NOF())) C.f[x] = val; if (!C.page) { st.q = ""; st.filter = "all"; } }
   else if (v !== undefined) C.f[k] = C.f[k].filter(x => String(x) !== v); else C.f[k] = null;
   C.save();
 }
@@ -878,12 +912,13 @@ function sorted(list, prefs) {
 }
 function renderDatabase() {
   renderSide();
-  if (st.view === "trash") return renderTrash();
+  if (st.view === "trash") { LWIN = null; return renderTrash(); }
   const shelf = LIB.shelves.find(s => s.id === st.shelf);
   if (!shelf) { $("v-database").innerHTML = `<p class="empty">No collection.</p>`; return; }
   const prefs = shelfPrefs(shelf), base = visibleItems(), list = sorted(filtered(base), prefs);
   st.listMode = prefs.layout === "list";
-  if (!st.listMode || !canEdit() || st.selecting) st.tableEdit = false;
+  // Edit mode ends with the list, or with Select; a lock only ends it when nothing typed would be lost
+  if (!st.listMode || st.selecting || (!canEdit() && !hasDrafts())) { st.tableEdit = false; st.drafts = {}; }
   const kind = st.kind, labels = LABEL[kind], active = activeFilters();
   const present = STATUS_ORDER.filter(s => ["planned", "in_progress", "completed"].includes(s) || base.some(i => i.status === s));
   const chips = [["all", "All", base.length], ...present.map(s => [s, labels[s], base.filter(i => i.status === s).length])];
@@ -892,10 +927,14 @@ function renderDatabase() {
   const sec = st.section && sectionOf(st.section);
   const title = (sec ? sec.name : shelf.kind === "all" ? "All " + KINDS.find(k => k[0] === kind)[1].toLowerCase() : shelf.name) + (st.f.cats.length === 1 ? " · " + catName(st.f.cats[0]) : "");
   const v = $("v-database");
-  // covers already on the shelf are kept as they are (no image reload, no blink); only changed ones are redrawn
-  const kept = new Map([...v.querySelectorAll("#grid > .book")].map(b => [b.id, b])), paneTop = $("detail")?.scrollTop || 0;
-  v.innerHTML = `<div class="toolbar">
-      <h2>${esc(title)}</h2>
+  // The view keeps its parts between renders (0.9.1): the toolbar is redrawn (small), the covers are reused by item and
+  // only what changed is touched, so selecting, opening a book or changing the size costs what changes, not the library.
+  if (!$("dbhead") || !v.contains($("dbhead")))
+    v.innerHTML = `<div id="dbhead"></div><div class="lib" id="lib"><div id="content"></div><aside class="detail" id="detail" hidden></aside></div>`;
+  const head = $("dbhead"), focused = document.activeElement, fid = head.contains(focused) && focused.id;
+  const caret = fid && typeof focused.selectionStart === "number" ? [focused.selectionStart, focused.selectionEnd] : null;
+  head.innerHTML = `<div class="toolbar">
+      <h2>${esc(title)}${list.length !== shelfItems().length ? ` <span class="count">${list.length} of ${shelfItems().length}</span>` : ""}</h2>
       <div class="chips" role="group" aria-label="Status">${chips.map(([k, label, n]) => `<button class="chip" id="f-${k}" data-filter="${k}" aria-pressed="${st.filter === k}">${esc(label)}<span class="n">${n}</span></button>`).join("")}</div>
       <button class="btn small" id="filter-btn" aria-expanded="${st.fpane}" aria-controls="fpane" title="Filter by language, version, category, dates, rating…">Filter${active.length ? `<span class="fbadge">${active.length}</span>` : ""}</button>
       <div class="tools">
@@ -907,7 +946,7 @@ function renderDatabase() {
         ${shelf.kind === "manual" && !sec && canEdit() ? `<button class="btn small" id="shelf-menu">Collection…</button>` : ""}
         ${sec && sec.kind === "manual" && canEdit() ? `<button class="btn small" id="section-menu">Section…</button>` : ""}
         ${canEdit() ? `<button class="btn small" id="sel-toggle" aria-pressed="${st.selecting}" title="Select ${noun(kind)} to act on several at once">${st.selecting ? "Done" : "Select"}</button>` : ""}
-        ${canEdit() && st.listMode && !st.selecting ? (st.tableEdit ? `<button class="btn small primary" id="tbl-save" title="Save the rows you changed">Save</button><button class="btn small" id="tbl-paste" title="Paste cells copied from Excel or Sheets at the selected cell">Paste</button><button class="btn small" id="tbl-cancel">Cancel</button>`
+        ${(canEdit() || st.tableEdit) && st.listMode && !st.selecting ? (st.tableEdit ? `<button class="btn small primary" id="tbl-save" title="Save the rows you changed">Save</button><button class="btn small" id="tbl-paste" title="Paste cells copied from Excel or Sheets at the selected cell">Paste</button><button class="btn small" id="tbl-cancel">Cancel</button>`
           : `<button class="btn small" id="tbl-edit" title="Edit the rows of this list in place">Edit</button>`) : ""}
         ${st.selecting ? `<button class="btn small" id="sel-all" title="Select everything shown">All</button><button class="btn small" id="sel-none" ${st.sel.size ? "" : "disabled"}>None</button>` : ""}
         ${kind === "book" ? `<button class="btn small primary" id="add-book" title="Find a book at Apple Books and Open Library and add it">+ Add book</button>`
@@ -918,38 +957,57 @@ function renderDatabase() {
     ${sec ? `<p class="hintline">${sec.kind === "archive" ? "Archived: out of the library, the Visuals and search; nothing is deleted. Select and Unarchive to bring them back."
       : sec.kind === "test" ? "Made-up items to try things on; kept out of the Visuals and search. <code>medialib test-data --remove</code> deletes them all."
       : "A section of your library: its " + noun(kind) + " are here, not on the main shelf."}</p>` : ""}
-    ${st.tableEdit ? `<p class="hintline">Spreadsheet mode: click, shift-click or drag to select cells · Ctrl/Cmd+C copies them, Ctrl/Cmd+V pastes from Excel or Sheets (one value fills the whole selection) · Ctrl/Cmd+D fills down · Delete clears · Ctrl/Cmd+Z undoes the last paste · changed cells are tinted, then Save.</p>` : ""}
-    ${canDrag ? `<p class="hintline">Drag covers to reorder${shelf.kind === "all" ? " your library" : " this collection"}.</p>` : manual && prefs.layout === "grid" && canEdit() && (st.filter !== "all" || st.q || active.length) ? `<p class="hintline">Clear the filter to drag covers into a new order.</p>` : ""}
-    <div class="lib ${st.selected ? "withdetail" : ""}" id="lib">
-      <div id="content">${list.length ? (prefs.layout === "list" ? listHtml(list, prefs) : gridHtml(list, prefs)) : `<p class="empty">${shelfItems().length ? `Nothing matches the filter. <button class="linkbtn" data-fclear="*">Clear the filters</button>` : "Nothing here yet."}</p>`}</div>
-      <aside class="detail" id="detail" ${st.selected ? "" : "hidden"}></aside>
-    </div>`;
-  if (kept.size) for (const b of v.querySelectorAll("#grid > .book")) { const o = kept.get(b.id); if (o && o.outerHTML === b.outerHTML) b.replaceWith(o); }
-  if (st.selected) { renderDetail(); $("detail").scrollTop = paneTop; }
-  if (canDrag) enableDrag(shelf);
+    ${st.tableEdit ? `<p class="hintline">Spreadsheet mode: click, shift-click or drag to select cells · Ctrl/Cmd+C copies them, Ctrl/Cmd+V pastes from Excel or Sheets (one value fills the whole selection) · Ctrl/Cmd+D fills down · Delete clears · Ctrl/Cmd+Z undoes the last paste · Enter goes down a row · changed cells are tinted, then Save (or Ctrl/Cmd+Enter).</p>` : ""}
+    ${canDrag ? `<p class="hintline">Drag covers to reorder${shelf.kind === "all" ? " your library" : " this collection"}.</p>` : manual && prefs.layout === "grid" && canEdit() && (st.filter !== "all" || st.q || active.length) ? `<p class="hintline">Clear the filter to drag covers into a new order.</p>` : ""}`;
+  if (fid && $(fid)) { $(fid).focus({preventScroll: true}); if (caret) try { $(fid).setSelectionRange(...caret); } catch (e) {} }
+  const lib = $("lib"), content = $("content"), pane = $("detail"), paneTop = pane.scrollTop, drafts = st.tableEdit ? gridDrafts() : null;
+  LWIN = null;                                                    // listHtml sets it again for a long list
+  lib.classList.toggle("withdetail", !!st.selected); pane.hidden = !st.selected;
+  if (!list.length) content.innerHTML = `<p class="empty">${shelfItems().length ? `Nothing matches the filter. <button class="linkbtn" data-fclear="*">Clear the filters</button>` : "Nothing here yet."}</p>`;
+  else if (prefs.layout === "list") { content.innerHTML = listHtml(list, prefs); listWindow(true); }
+  else syncGrid(content, list, prefs, canDrag);
+  if (st.selected) { renderDetail(); pane.scrollTop = paneTop; }
   applyColWidths();
   watchShelves();
   renderBulk();
-  if (st.tableEdit) gridRefresh();
+  if (st.tableEdit) { gridRefresh(); if (drafts) gridRestore(drafts); }
   if (st.fpane && !fDrag) renderFilterPane();
 }
 // The boards: one under each row of covers (rows found from where the covers end), then empty ones at the same
 // spacing down to the bottom of the case. Redone whenever the grid or the case changes size.
 const BOARD = 18;
 const shelfWatch = window.ResizeObserver ? new ResizeObserver(() => layoutShelves()) : null;
+let shelfWatched = null;
 function watchShelves() {
-  if (shelfWatch) { shelfWatch.disconnect(); for (const id of ["grid", "shelfwrap"]) if ($(id)) shelfWatch.observe($(id)); }
+  const wrap = $("shelfwrap");
+  if (shelfWatch && wrap !== shelfWatched) { shelfWatch.disconnect(); if (wrap) { shelfWatch.observe(wrap); shelfWatch.observe($("grid")); } shelfWatched = wrap; }
   layoutShelves();
 }
+// The shelf's rows and columns from the grid's own track sizes (one style read; nothing inside a card is measured,
+// so cards out of view stay skipped): each row's top, the column width, the column count.
+function gridRows(grid) {
+  const cs = getComputedStyle(grid), tracks = cs.gridTemplateRows.split(" ").map(parseFloat).filter(x => x >= 0);
+  const colsT = cs.gridTemplateColumns.split(" ").map(parseFloat), gap = parseFloat(cs.rowGap) || 0, tops = [];
+  let y = parseFloat(cs.paddingTop) || 0;
+  for (const h of tracks) { tops.push(y); y += h + gap; }
+  return {tops, heights: tracks, cols: Math.max(1, colsT.length), colW: colsT[0] || 0};
+}
 function layoutShelves() {
-  const wrap = $("shelfwrap"), grid = $("grid"), boards = $("boards"); if (!wrap || !grid || !boards) return;
-  const top = wrap.getBoundingClientRect().top, rows = [];
-  for (const s of grid.querySelectorAll(".stand")) { const y = Math.round(s.getBoundingClientRect().bottom - top); if (!rows.some(r => Math.abs(r - y) < 3)) rows.push(y); }
-  if (!rows.length) { boards.innerHTML = ""; return; }
-  rows.sort((a, b) => a - b);
-  const first = grid.firstElementChild, pitch = rows.length > 1 ? rows[1] - rows[0] : first.offsetHeight + (parseFloat(getComputedStyle(grid).rowGap) || 0);
-  if (pitch > 60) for (let y = rows[rows.length - 1] + pitch; y < wrap.clientHeight - 4; y += pitch) rows.push(y);
-  boards.innerHTML = rows.map(y => `<div class="board" style="top:${y - BOARD}px"></div>`).join("") + (st.selecting ? rowToggles(grid, top, rows) : "");
+  const wrap = $("shelfwrap"), grid = $("grid"), boards = $("boards"); if (!wrap || !grid || !boards || !wrap.isConnected) return;
+  const kids = grid.children, n = kids.length;
+  if (!n) { boards.innerHTML = ""; boards.dataset.sig = ""; return; }
+  const {tops, heights, cols, colW} = gridRows(grid), gy = grid.offsetTop, cover = colW * 1.5;
+  const rows = tops.map(t => Math.round(gy + t + cover + BOARD));
+  if (!rows.length) return;
+  const pitch = rows.length > 1 ? rows[rows.length - 1] - rows[rows.length - 2] : heights[0] + (parseFloat(getComputedStyle(grid).rowGap) || 0);
+  const all = rows.slice();
+  if (pitch > 60) for (let y = rows[rows.length - 1] + pitch; y < wrap.clientHeight - 4; y += pitch) all.push(y);
+  const sig = all.join() + "|" + cols + "|" + n + "|" + st.selecting;
+  if (boards.dataset.sig !== sig) {
+    boards.dataset.sig = sig;
+    boards.innerHTML = all.map(y => `<div class="board" style="top:${y - BOARD}px"></div>`).join("") + (st.selecting ? rowToggles(kids, rows, cols) : "");
+  }
+  if (st.selecting) paintRowToggles();
 }
 // Films of one collection fold into one card on the Movies grid (D49), where the first of them stands, with
 // those the list shows (filters still count each film); a collection with one film here stays a plain card.
@@ -973,15 +1031,58 @@ function collCard(coll, films) {
     rating: rated.length ? Math.round(rated.reduce((n, x) => n + x.rating, 0) / rated.length * 10) / 10 : null,
     status: seen === f.length ? "completed" : f.some(x => x.status === "completed" || x.status === "in_progress") ? "in_progress" : f[0].status};
 }
-const collCardHtml = g => `<button class="book group${g.members.every(m => st.sel.has(m)) && st.selecting ? " sel" : ""}" id="b-${g.id}" data-id="${g.id}" data-rep="${g.members[0]}" data-members="${g.members.join(",")}" aria-current="${st.selected === g.id}" aria-label="${esc(g.title)}, ${g.films.length} films">
-    <div class="stand"><div class="cov">${coverSrc(g.cover) ? `<img src="${coverSrc(g.cover)}" alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(g.title)}</span>`}<span class="gmark">${g.films.length}</span>${coverTools(g.members, g.id)}</div></div>
+const collCardHtml = g => `<button class="book group" id="b-${g.id}" data-id="${g.id}" data-rep="${g.members[0]}" data-members="${g.members.join(",")}" aria-label="${esc(g.title)}, ${g.films.length} films">
+    <div class="stand"><div class="cov">${coverSrc(g.cover) ? `<img src="${coverSrc(g.cover)}" alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(g.title)}</span>`}<span class="gmark">${g.films.length}</span>${SELBOX}</div></div>
     <span class="t">${esc(g.title)}</span><span class="a">${esc(g.authors || "—")}</span>
     <span class="s"><span class="dot ${g.status}"></span>${esc(g.line)}${g.rating != null ? " · " + g.rating + "/10" : ""}</span></button>`;
-function gridHtml(list, prefs) {
-  return `<div class="shelfwrap" id="shelfwrap"><div class="boards" id="boards"></div><div class="grid ${prefs.size}${st.selecting ? " selecting" : ""}${canEdit() ? " canedit" : ""}" id="grid">${foldCollections(list).map(i => i.group ? collCardHtml(i) : `<button class="book${st.selecting && st.sel.has(i.id) ? " sel" : ""}" id="b-${i.id}" data-id="${i.id}" aria-current="${st.selected === i.id}">
-    <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}${coverTools([i.id], i.id)}</div></div>
+// one card; what changes without the item changing (selected, the open book) is set by paintCard
+const bookCardHtml = i => `<button class="book" id="b-${i.id}" data-id="${i.id}">
+    <div class="stand"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(i.title)}</span>`}${vmark(i)}${SELBOX}</div></div>
     <span class="t">${esc(i.title)}</span><span class="a">${esc(i.authors || "—")}</span>
-    <span class="s"><span class="dot ${i.status}"></span>${esc(statusLine(i))}${i.rating != null ? " · " + i.rating + "/10" : ""}</span></button>`).join("")}</div></div>`;
+    <span class="s"><span class="dot ${i.status}"></span>${esc(statusLine(i))}${i.rating != null ? " · " + i.rating + "/10" : ""}</span></button>`;
+// the cards on the shelf, by item: a card is built again only when its item (or a collection's films) changed
+const CARDS = new Map();
+const sameFilms = (a, b) => a.length === b.length && a.every((x, n) => x === b[n]);
+function syncGrid(content, list, prefs, canDrag) {
+  let grid = $("grid");
+  if (!grid || !content.contains(grid)) {
+    content.innerHTML = `<div class="shelfwrap" id="shelfwrap"><div class="boards" id="boards"></div><div class="grid" id="grid"></div></div>`;
+    grid = $("grid"); enableDrag(grid);
+  }
+  const cls = `grid ${prefs.size}${st.selecting ? " selecting" : ""}${canEdit() ? " canedit" : ""}`;
+  if (grid.className !== cls) grid.className = cls;
+  grid.dataset.drag = canDrag ? "1" : "";
+  if (canDrag !== !!grid._tmOn) { grid[canDrag ? "addEventListener" : "removeEventListener"]("touchmove", grid._touchmove, {passive: false}); grid._tmOn = canDrag; }
+  const cards = foldCollections(list), els = new Array(cards.length), fresh = [], html = [];
+  cards.forEach((c, n) => {
+    const old = CARDS.get(c.id), src = c.group ? c.films : c;
+    if (old && (c.group ? sameFilms(old.src, src) : old.src === src)) { els[n] = old.el; return; }
+    const h = c.group ? collCardHtml(c) : bookCardHtml(c);           // a new object (a reload): same markup keeps the card
+    if (old && old.html === h) { old.src = src; els[n] = old.el; } else { fresh.push(n); html.push(h); }
+  });
+  if (fresh.length) {
+    const t = document.createElement("template");
+    t.innerHTML = html.join("");
+    const made = [...t.content.children];
+    fresh.forEach((n, k) => { els[n] = made[k]; CARDS.set(cards[n].id, {src: cards[n].group ? cards[n].films : cards[n], el: made[k], html: html[k]}); });
+  }
+  if (CARDS.size > 2 * LIB.items.length + 50) {                 // items gone or replaced: drop their old cards
+    const live = new Set(els); for (const [k, v] of CARDS) if (!live.has(v.el)) CARDS.delete(k);
+  }
+  for (const el of els) paintCard(el);
+  const kids = grid.children;
+  let same = kids.length === els.length;
+  for (let n = 0; same && n < els.length; n++) same = kids[n] === els[n];
+  if (!same) grid.replaceChildren(...els);
+}
+// the state of a card that is not the item's: selected (in Select mode) and the book open in the panel
+function paintCard(el) {
+  const cur = String(el.dataset.id === st.selected);
+  if (el.getAttribute("aria-current") !== cur) el.setAttribute("aria-current", cur);
+  const on = st.selecting && idsOf(el).every(i => st.sel.has(i));
+  if (el.classList.contains("sel") !== on) el.classList.toggle("sel", on);
+  if (st.selecting) { if (el.getAttribute("aria-pressed") !== String(on)) el.setAttribute("aria-pressed", String(on)); }
+  else if (el.hasAttribute("aria-pressed")) el.removeAttribute("aria-pressed");
 }
 function vmark(i) {
   const v = versionOf(i);
@@ -1000,17 +1101,38 @@ function sectionsNav() {
     + (canEdit() ? `<form class="newshelf" id="newsection"><input id="newsection-name" placeholder="New section" aria-label="New section name" maxlength="100"><button class="btn small" type="submit">Add</button></form>` : "");
 }
 // on a cover: the selection check (deleting is in the list and the details)
-const coverTools = () => st.selecting ? `<span class="selbox" aria-hidden="true">✓</span>` : "";
+const SELBOX = `<span class="selbox" aria-hidden="true">✓</span>`;      // shown only in Select mode (CSS)
 const idsOf = el => el.dataset.members ? el.dataset.members.split(",") : [el.dataset.id];
 // a toggle at the start of each shelf row: selects (or clears) the covers standing on that board
-function rowToggles(grid, top, rows) {
-  const byRow = new Map();
-  for (const b of grid.querySelectorAll(".book")) {
-    const y = Math.round(b.querySelector(".stand").getBoundingClientRect().bottom - top), r = rows.find(x => Math.abs(x - y) < 3);
-    if (r != null) byRow.set(r, [...(byRow.get(r) || []), ...idsOf(b)]);
+// (a toggle knows only its row: the covers on it are read from the shelf as it is, after any sort or filter)
+function rowToggles(kids, rows, cols) {
+  return rows.map((y, r) => `<button class="rowsel" style="top:${y - BOARD - 1}px" data-row="${r}"></button>`).join("");
+}
+function rowIds(r) {
+  const grid = $("grid"), kids = grid.children, cols = gridRows(grid).cols, ids = [];
+  for (let k = r * cols; k < Math.min(kids.length, (r + 1) * cols); k++) ids.push(...idsOf(kids[k]));
+  return ids;
+}
+function paintRowToggles() {
+  const grid = $("grid"); if (!grid) return;
+  const kids = grid.children, cols = gridRows(grid).cols;
+  for (const b of document.querySelectorAll("#boards .rowsel")) {
+    const r = +b.dataset.row, ids = []; for (let k = r * cols; k < Math.min(kids.length, (r + 1) * cols); k++) ids.push(...idsOf(kids[k]));
+    const on = ids.length > 0 && ids.every(i => st.sel.has(i)), label = on ? "Clear this row" : "Select this row";
+    if (b.getAttribute("aria-pressed") === String(on)) continue;
+    b.setAttribute("aria-pressed", String(on)); b.title = label; b.setAttribute("aria-label", label); b.textContent = on ? "✓" : "";
   }
-  return [...byRow].map(([y, ids]) => { const on = ids.every(i => st.sel.has(i));
-    return `<button class="rowsel" style="top:${y - BOARD - 1}px" data-rowids="${ids.join(",")}" aria-pressed="${on}" title="${on ? "Clear this row" : "Select this row"}" aria-label="${on ? "Clear this row" : "Select this row"}">${on ? "✓" : ""}</button>`; }).join("");
+}
+// after the selection changed: the cards, the row toggles, the list's checks and the bar, without redrawing the shelf
+function selChanged() {
+  if (st.delAsk === "__bulk") st.delAsk = null;               // a pending "Delete N?" was asked about another set
+  for (const el of document.querySelectorAll("#grid > .book")) paintCard(el);
+  paintRowToggles();
+  for (const c of document.querySelectorAll("table.list input[data-lsel]")) { const on = st.sel.has(c.dataset.lsel); if (c.checked !== on) c.checked = on; c.closest("tr")?.classList.toggle("picked", on); }
+  const all = document.querySelector("table.list input[data-lselall]");
+  if (all) { const ids = LWIN ? LWIN.list.map(i => i.id) : [...document.querySelectorAll("table.list input[data-lsel]")].map(c => c.dataset.lsel); all.checked = !!ids.length && ids.every(i => st.sel.has(i)); }
+  const none = $("sel-none"); if (none) none.disabled = !st.sel.size;
+  renderBulk();
 }
 function toggleSel(ids, on) {
   const want = on ?? !ids.every(i => st.sel.has(i));
@@ -1052,7 +1174,7 @@ async function bulkRun(body, okMsg, keep) {
     else if (st.selected && !st.selected.startsWith("c:")) st.detail = await api.detail(st.selected);
     render();
     toast(r.errors.length ? `${okMsg}: ${r.done} done, ${r.errors.length} not (${r.errors.slice(0, 2).map(e => e.title + ": " + e.error).join("; ")})` : okMsg + ": " + r.done, !!r.errors.length);
-  });
+  }, null, "bulk");
 }
 // "Edit all": one blank row laid over the shelf; what is filled in goes to every selected item, the rest stays
 function editAllOverlay() {
@@ -1132,26 +1254,69 @@ function listHtml(list, prefs) {
   const pick = (edit || st.selecting) && !st.tableEdit;   // unlocked, the list always has its checks (no Select first)
   const shown = list.map(i => i.id), all = shown.length && shown.every(x => st.sel.has(x));
   const grip = `<span class="colgrip" title="Drag to change the width; double-click to fit" aria-hidden="true"></span>`;
+  // fixed layout from the first paint (widths in the header), except in Edit mode before any width was set
+  const saved = load("colw-" + st.kind, {}), fixed = !st.tableEdit || Object.keys(saved).length, cks = [];
+  const win = !st.tableEdit && list.length > LWIN_MIN;
   const head = (pick ? `<th data-ck="sel"><input type="checkbox" data-lselall="1" ${all ? "checked" : ""} aria-label="Select all shown"></th>` : "") + listCols(st.kind).map(([c, label, sk]) => sk ? `<th data-ck="${c}" class="${["rating", "pages", "finished"].includes(c) ? "num" : ""}" ${key === sk ? `aria-sort="${desc ? "descending" : "ascending"}"` : ""}><button id="col-${c}" data-col="${sk}">${label}${key === sk ? (desc ? " ↓" : " ↑") : ""}</button>${grip}</th>` : c !== "cover" ? `<th data-ck="${c}"><span class="thl">${label}</span>${grip}</th>` : `<th data-ck="cover"></th>${st.tableEdit ? `<th data-ck="acts"><span class="sr-only">Delete</span></th>` : ""}`).join("");
-  return `<div class="listbox"><table class="list"><thead><tr>${head}</tr></thead><tbody>${list.map(i => st.tableEdit ? rowEditHtml(i) : `<tr data-id="${i.id}" id="r-${i.id}" aria-current="${st.selected === i.id}">
+  const sized = !fixed ? head : head.replace(/<th data-ck="([a-z]+)"/g, (m, ck) => { const w = saved[ck] ?? COLW[ck] ?? 120; cks.push(w); return `<th data-ck="${ck}" style="width:${w}px"`; });
+  LWIN = win ? {list, pick, screen, rowH: LWIN_H, measured: LWIN_H !== 49, from: 0, to: 0, cols: cks.length || 13, index: new Map(list.map((i, k) => [i.id, k]))} : null;
+  return `<div class="listbox"><table class="list${fixed ? " sized" : ""}${win ? " win" : ""}"${win ? ` aria-rowcount="${list.length + 1}"` : ""}${fixed ? ` style="width:${cks.reduce((a, b) => a + b, 0)}px"` : ""}><thead><tr>${sized}</tr></thead><tbody>${st.tableEdit ? list.map(rowEditHtml).join("") : win ? `<tr class="lspacer" aria-hidden="true" style="height:${list.length * LWIN.rowH}px"><td colspan="${LWIN.cols}"></td></tr>` : list.map(i => listRowHtml(i, pick, screen)).join("")}</tbody></table></div>`;
+}
+// one row of the list (not in Edit mode)
+const listRowHtml = (i, pick, screen, k) => `<tr data-id="${i.id}" id="r-${i.id}"${k != null ? ` aria-rowindex="${k + 2}"` : ""} aria-current="${st.selected === i.id}"${pick && st.sel.has(i.id) ? ' class="picked"' : ""}>
     ${pick ? `<td><input type="checkbox" data-lsel="${i.id}" ${st.sel.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.title)}"></td>` : ""}
     <td>${listCover(i)}</td>
     <td class="wrap"><button class="ltitle" data-ltitle="${i.id}" title="Open the details"><b>${esc(i.title)}</b></button></td><td>${esc(i.authors || "—")}</td>
     <td><span class="dot ${i.status}" style="display:inline-block;margin-right:6px"></span>${esc(statusLabel(i.kind, i.status))}</td>
     <td class="num">${i.rating ?? ""}</td><td class="num">${esc(lastRead(i) || "")}</td><td class="num">${esc(amountText(i))}</td>
-    <td>${esc(langName(screen ? i.origLang : i.lang))}</td><td>${screen ? esc((i.platforms || []).map(platformName).join(", ")) : versionOf(i) ? `<span class="vico">${VICON[versionOf(i)]}</span> ${versionLabel(versionOf(i))}` : ""}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`).join("")}</tbody></table></div>`;
+    <td>${esc(langName(screen ? i.origLang : i.lang))}</td><td>${screen ? esc((i.platforms || []).map(platformName).join(", ")) : versionOf(i) ? `<span class="vico">${VICON[versionOf(i)]}</span> ${versionLabel(versionOf(i))}` : ""}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`;
+// A long list (not in Edit mode) holds only the rows around what is on screen, between two spacer rows. Its rows are
+// one line high, so where a row is follows from its index; scrolling moves the window (listWindow).
+const LWIN_MIN = 150, LWIN_BUF = 40;
+let LWIN = null, LWIN_H = 49, lwinFrame = 0;
+// around: a row index the window must hold (the row keyboard focus is moving to)
+function listWindow(force, around) {
+  const W = LWIN, tb = document.querySelector("#content table.list.win tbody"); if (!W || !tb) return;
+  const top = tb.getBoundingClientRect().top, H = W.rowH, n = W.list.length;
+  let first = Math.max(0, Math.floor(-top / H)), last = Math.min(n, Math.ceil((innerHeight - top) / H));
+  if (around != null) { first = Math.min(first, around); last = Math.max(last, around + 1); }
+  if (!force && first >= W.from && last <= W.to) return;            // still inside what is drawn
+  W.from = Math.max(0, first - LWIN_BUF); W.to = Math.min(n, last + LWIN_BUF);
+  const f = document.activeElement, fr = tb.contains(f) && f.closest("tr[data-id]");    // focus stays where it was
+  const fsel = fr && ["lsel", "ltitle", "open", "del"].find(k => f.dataset[k] != null);
+  const pad = h => `<tr class="lspacer" aria-hidden="true" style="height:${h}px"><td colspan="${W.cols}"></td></tr>`;
+  tb.innerHTML = (W.from ? pad(W.from * H) : "") + W.list.slice(W.from, W.to).map((i, k) => listRowHtml(i, W.pick, W.screen, W.from + k)).join("") + (W.to < n ? pad((n - W.to) * H) : "");
+  if (fr && fsel) document.getElementById(fr.id)?.querySelector(`[data-${fsel}]`)?.focus({preventScroll: true});
+  if (!W.measured) {                                                  // the real row height, once
+    W.measured = true; const r = tb.querySelector("tr[data-id]");
+    if (r && r.offsetHeight && Math.abs(r.offsetHeight - H) > 0.5) { W.rowH = LWIN_H = r.offsetHeight; listWindow(true, around); }
+  }
 }
+// Tab towards the edge of what is drawn draws more first, so the keyboard can reach every row
+document.addEventListener("focusin", e => {
+  const W = LWIN, tr = W && e.target.closest?.("table.list.win tr[data-id]"); if (!tr) return;
+  const k = W.index.get(tr.dataset.id);
+  if (k != null && ((k >= W.to - 6 && W.to < W.list.length) || (k < W.from + 6 && W.from > 0))) listWindow(true, k);
+});
+const lwinTick = () => { if (LWIN && !lwinFrame) lwinFrame = requestAnimationFrame(() => { lwinFrame = 0; listWindow(); }); };
+addEventListener("scroll", lwinTick, {passive: true});
+addEventListener("resize", lwinTick);
 // column widths in the list: dragged by hand or fitted to the content (double-click), kept per kind in this browser
-function fixCols(t, saved = {}) {
-  const ths = [...t.tHead.rows[0].cells];
-  t.classList.remove("sized"); t.style.width = "auto"; for (const th of ths) th.style.width = "";   // natural widths, not stretched
-  const w = ths.map(th => saved[th.dataset.ck] ?? Math.min(320, Math.ceil(th.getBoundingClientRect().width)));
+// widths a column has before it is dragged or fitted: the table can then be laid out "fixed", from its header
+// alone, instead of measuring every cell of every row (a big list)
+const COLW = {sel: 36, cover: 46, acts: 56, title: 250, author: 170, status: 112, rating: 70, finished: 96, pages: 76, language: 104, version: 116, genre: 160, added: 106};
+function fixCols(t, saved = {}, measure = true) {
+  const ths = [...t.tHead.rows[0].cells], sized = t.classList.contains("sized");
+  const known = ths.map(th => saved[th.dataset.ck] ?? (sized ? parseFloat(th.style.width) || null : null));   // as shown now
+  const need = measure && known.some(w => w == null);
+  if (need) { t.classList.remove("sized"); t.style.width = "auto"; for (const th of ths) th.style.width = ""; }   // natural widths, not stretched
+  const w = ths.map((th, n) => known[n] ?? (need ? Math.min(320, Math.ceil(th.getBoundingClientRect().width)) : COLW[th.dataset.ck] ?? 120));
   ths.forEach((th, n) => { th.style.width = w[n] + "px"; });
   t.style.width = w.reduce((a, b) => a + b, 0) + "px"; t.classList.add("sized");
 }
 function applyColWidths() {
   const t = document.querySelector("#content table.list"), saved = load("colw-" + st.kind, {});
-  if (t && Object.keys(saved).length) fixCols(t, saved);
+  if (t && !t.classList.contains("sized") && Object.keys(saved).length) fixCols(t, saved, false);
 }
 function saveColWidths(t) {
   const m = {}; for (const th of t.tHead.rows[0].cells) m[th.dataset.ck] = Math.round(parseFloat(th.style.width));
@@ -1193,7 +1358,8 @@ document.addEventListener("dblclick", e => {
 // a row's delete button: the first click asks, the second moves it to the trash (the same as on a cover)
 const listDel = i => { const ask = st.delAsk === i.id;
   return `<button class="btn small${ask ? " danger" : ""}" data-del="${i.id}" data-delkey="${i.id}" title="${ask ? "Click again to move to the trash" : "Move to the trash"}" aria-label="${ask ? "Confirm: move " + esc(i.title) + " to the trash" : "Move " + esc(i.title) + " to the trash"}">${ask ? "Delete?" : "🗑"}</button>`; };
-const listCover = i => `<button class="lcov" data-open="${i.id}" aria-label="Open ${esc(i.title)}" title="Open the details">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}</button>`;
+const smallCover = url => url && !url.startsWith("data:") ? url.replace(/-320\.jpg$/, "-160.jpg") : url;   // a list row shows 24x36
+const listCover = i => `<button class="lcov" data-open="${i.id}" aria-label="Open ${esc(i.title)}" title="Open the details">${coverSrc(i.cover) ? `<img src="${BADCOV.has(smallCover(coverSrc(i.cover))) ? coverSrc(i.cover) : smallCover(coverSrc(i.cover))}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}</button>`;
 // the date of the last finished reading / watch, as precise as it was recorded
 const lastRead = i => { const r = (i.reads || []).at(-1); return r ? String(r[0]).slice(0, r[1] === "year" ? 4 : r[1] === "month" ? 7 : 10) : ""; };
 // in edit mode every row is a small form: title, makers, status, rating, read/watched date, pages, language, version, categories, added
@@ -1208,7 +1374,7 @@ function rowEditHtml(i) {
     <td><select class="le num" data-f="rating" aria-label="Rating"><option value="">—</option>${Array.from({length: 11}, (_, n) => `<option ${i.rating != null && Math.round(i.rating) === n ? "selected" : ""}>${n}</option>`).join("")}</select></td>
     <td><input class="le date" data-f="ended" value="${esc(lastRead(i))}" placeholder="yyyy-mm-dd" aria-label="${SCREEN(i.kind) ? "Watched" : "Read"} on (the last time)" title="The last ${SCREEN(i.kind) ? "watch" : "reading"}: year, year-month or a day"></td>
     <td>${book ? `<input class="le num" data-f="pages" value="${i.pages ?? ""}" inputmode="numeric" aria-label="Pages">` : esc(amountText(i))}</td>
-    <td>${book ? `<select class="le" data-f="lang" aria-label="Language">${langOptions(i.lang)}</select>` : esc(langName(i.origLang))}</td>
+    <td>${book ? `<select class="le" data-f="lang" data-lazy="lang" aria-label="Language"><option value="">—</option>${i.lang ? `<option value="${esc(i.lang)}" selected>${esc(langName(i.lang))}</option>` : ""}</select>` : esc(langName(i.origLang))}</td>
     <td>${book ? `<select class="le" data-f="format" aria-label="Version"><option value="">—</option>${fmts}</select>` : esc((i.platforms || []).map(platformName).join(", "))}</td>
     <td class="lecats"><button type="button" class="le lecat-btn" data-lecats="${i.id}" aria-expanded="false" aria-haspopup="true" title="Categories">${esc(cats.join(", ") || "—")} ▾</button></td>
     <td><input type="date" class="le" data-f="added" value="${esc(i.added)}" max="${new Date().toISOString().slice(0, 10)}" aria-label="Added"></td></tr>`;
@@ -1265,18 +1431,24 @@ async function saveTable() {
   toggleCatPop(false);
   const work = [...document.querySelectorAll("table.list tr.editing")].map(tr => [LIB.items.find(x => x.id === tr.dataset.id), tr])
     .filter(([i]) => i).map(([i, tr]) => [i, rowChanges(i, tr)]).filter(([, c]) => c.body || c.status || c.ended);
-  if (!work.length) { st.tableEdit = false; st.rowCats = {}; renderDatabase(); toast("Nothing changed"); return; }
-  const failed = [];
-  await act(async () => {
+  if (!work.length) { if (Object.keys(st.drafts || {}).length) { toast("The changed rows are hidden by the filter: clear it to save them", true); return; }
+    st.tableEdit = false; st.rowCats = {}; renderDatabase(); toast("Nothing changed"); return; }
+  const failed = [], badIds = [];
+  const hidden = Object.keys(st.drafts || {}).filter(id => !document.getElementById("r-" + id)).length;
+  const inner = async () => {
     // one request for all the rows; each row is saved (or refused) on its own, and the answer carries the rows as saved
     const r = await api.batchEdit(work.map(([i, c]) => ({id: i.id, patch: c.body || undefined, ended: c.ended || undefined, status: c.status || undefined})));
     mergeRows(r);
-    for (const e of r.errors) failed.push(e.title + ": " + e.error);
+    for (const e of r.errors) { failed.push(e.title + ": " + e.error); badIds.push([e.id, e.error]); }
     if (st.selected) st.detail = await api.detail(st.selected).catch(() => null);
-    if (!failed.length) { st.tableEdit = false; st.rowCats = {}; }
+    if (!failed.length && !hidden) { st.tableEdit = false; st.rowCats = {}; st.drafts = {}; }
     renderDatabase();
-  });
-  toast(failed.length ? `Saved ${work.length - failed.length}; not saved: ${failed.join("; ")}` : `Saved ${work.length} ${work.length === 1 ? "row" : "rows"}`, failed.length > 0);
+    for (const [id, err] of badIds) { const tr = document.getElementById("r-" + id); if (tr) { tr.classList.add("bad"); tr.title = "Not saved: " + err; } }
+  };
+  const ok = await act(inner, null, "table-save");
+  if (!ok) { if (st.pending?.fn === inner) st.pending.intent = saveTable; return; }   // after unlocking: save what is typed then
+  toast((failed.length ? `Saved ${work.length - failed.length}; not saved: ${failed.join("; ")}` : `Saved ${work.length} ${work.length === 1 ? "row" : "rows"}`)
+    + (hidden ? `; ${hidden} changed ${hidden === 1 ? "row is" : "rows are"} hidden by the filter, not saved yet` : ""), failed.length > 0 || hidden > 0);
 }
 
 // ------------------------------------------------- grid: the Edit mode as a spreadsheet
@@ -1286,7 +1458,7 @@ const GCOLS = ["title", "authors", "status", "rating", "ended", "pages", "lang",
 const G = {a: null, f: null, drag: false, undo: [], lastGrid: false};   // anchor / focus cell [row, col]; undo: batches of [tr, col, old]
 const grows = () => [...document.querySelectorAll("table.list tr.editing")];
 const gel = (tr, c) => tr && (c === "cats" ? tr.querySelector("[data-lecats]") : tr.querySelector(`[data-f="${c}"]`));
-const gitem = tr => LIB.items.find(x => x.id === tr.dataset.id);
+const gitem = tr => G.byId?.get(tr.dataset.id) ?? LIB.items.find(x => x.id === tr.dataset.id);
 const gnorm = xs => xs.map(x => x.toLowerCase()).sort().join("|");
 // the text a cell shows (what Copy gives), and its raw value (what Undo puts back)
 function gget(tr, c) {
@@ -1298,7 +1470,7 @@ function gget(tr, c) {
 const graw = (tr, c) => !gel(tr, c) ? null : c === "cats" ? [...(st.rowCats[tr.dataset.id] || [])] : gel(tr, c).value;
 function gput(tr, c, v) {
   const el = gel(tr, c); if (!el) return;
-  if (c === "cats") { st.rowCats[tr.dataset.id] = [...v]; el.textContent = (v.join(", ") || "—") + " ▾"; } else el.value = v;
+  if (c === "cats") { st.rowCats[tr.dataset.id] = [...v]; el.textContent = (v.join(", ") || "—") + " ▾"; } else { fillLazy(el); el.value = v; }
 }
 // one pasted text -> a value for that cell, or the reason it isn't one
 function gparse(tr, c, text) {
@@ -1328,7 +1500,21 @@ function gmark(tr, c) {
   const now = c === "title" ? el.value.trim() : c === "authors" ? splitList(el.value, /[;,]/).join(", ") : graw(tr, c);
   el.closest("td").classList.toggle("dirty", c === "cats" ? gnorm(st.rowCats[i.id] || []) !== gnorm(i.genres) : now !== gorig(i, c));
 }
-function gridRefresh() { G.a = G.f = null; for (const tr of grows()) for (const c of GCOLS) gmark(tr, c); }
+function gridRefresh() { G.a = G.f = null; G.byId = new Map(LIB.items.map(i => [i.id, i])); for (const tr of grows()) for (const c of GCOLS) gmark(tr, c); }
+// what was typed in the Edit rows outlives a redraw (unlocking, a sort, a save that failed for some rows)
+// (kept in st.drafts, so rows hidden by a filter or a chip get theirs back when they show again)
+function gridDrafts() {
+  const d = st.drafts ||= {};
+  for (const tr of grows()) {
+    const x = {}; for (const c of GCOLS) if (gel(tr, c)?.closest("td").classList.contains("dirty")) x[c] = graw(tr, c);
+    if (Object.keys(x).length) d[tr.dataset.id] = x; else delete d[tr.dataset.id];
+  }
+  return d;
+}
+const hasDrafts = () => st.tableEdit && (!!document.querySelector("table.list td.dirty") || Object.keys(st.drafts || {}).length > 0);
+function gridRestore(d) {
+  for (const tr of grows()) { const x = d[tr.dataset.id]; if (x) for (const c in x) { gput(tr, c, x[c]); gmark(tr, c); } }
+}
 // selection
 const gcellAt = el => {
   const td = el?.closest?.("table.list tr.editing td"); if (!td) return null;
@@ -1369,7 +1555,7 @@ function gapply(list, what) {
     const td = el.closest("td"), p = gparse(tr, c, text);
     if (p.err) { td.classList.add("bad"); td.title = p.err; bad++; continue; }
     td.classList.remove("bad"); td.removeAttribute("title");
-    const old = graw(tr, c); gput(tr, c, p.v); gmark(tr, c); batch.push([tr, c, old]);
+    const old = graw(tr, c); gput(tr, c, p.v); gmark(tr, c); batch.push([tr.dataset.id, c, old]);
   }
   if (batch.length) { G.undo.push(batch); if (G.undo.length > 40) G.undo.shift(); G.lastGrid = true; }
   toast((batch.length ? `${what} ${batch.length} ${batch.length === 1 ? "cell" : "cells"}` : "Nothing changed") + (bad ? `; ${bad} not valid (red, hover for why)` : "")
@@ -1399,7 +1585,10 @@ function gclear() {
 }
 function gundo() {
   const batch = G.undo.pop(); if (!batch) return;
-  for (const [tr, c, old] of batch.reverse()) { gput(tr, c, old); gmark(tr, c); gel(tr, c).closest("td").classList.remove("bad"); }
+  for (const [id, c, old] of batch.reverse()) {       // rows by id: the table may have been redrawn since
+    const tr = document.getElementById("r-" + id); if (!tr?.classList.contains("editing") || !gel(tr, c)) continue;
+    gput(tr, c, old); gmark(tr, c); gel(tr, c).closest("td").classList.remove("bad");
+  }
   G.lastGrid = G.undo.length > 0; toast("Undone");
 }
 document.addEventListener("mousedown", e => {
@@ -1416,6 +1605,16 @@ document.addEventListener("mouseover", e => {
   G.f = at; getSelection()?.removeAllRanges(); if (gmulti()) document.activeElement?.blur?.(); gpaint();
 });
 document.addEventListener("mouseup", () => { G.drag = false; });
+document.addEventListener("keydown", e => {
+  const b = e.target.closest?.("#grid > .book"); if (!b || e.altKey || e.ctrlKey || e.metaKey) return;
+  const kids = b.parentElement.children, n = [...kids].indexOf(b), cols = gridRows(b.parentElement).cols;
+  const to = {ArrowLeft: n - 1, ArrowRight: n + 1, ArrowUp: n - cols, ArrowDown: n + cols, Home: 0, End: kids.length - 1}[e.key];
+  if (to == null) return;
+  e.preventDefault(); kids[Math.max(0, Math.min(kids.length - 1, to))]?.focus();
+});
+// an Edit row's language list holds only its value until it is opened (a long list has thousands of them otherwise)
+function fillLazy(el) { if (el?.dataset?.lazy === "lang") { const v = el.value; el.innerHTML = langOptions(v); el.value = v; delete el.dataset.lazy; } }
+for (const ev of ["focusin", "mousedown", "touchstart"]) document.addEventListener(ev, e => fillLazy(e.target.closest?.("select[data-lazy]")), {capture: true, passive: true});
 document.addEventListener("copy", e => {
   if (!st.tableEdit || !gmulti()) return;
   const b = gbox(), rows = grows(), out = [];
@@ -1611,25 +1810,40 @@ async function openDetail(id, quiet) {
   st.detail = d;
   if (!quiet) renderDetail();
 }
-function closeDetail() { st.selected = null; st.detail = null; st.editing = false; showSelection(); }
+function closeDetail() {
+  const was = st.selected, inPane = $("detail")?.contains(document.activeElement) || document.activeElement === document.body;
+  st.selected = null; st.detail = null; st.editing = false; showSelection();
+  if (inPane && was) (document.getElementById("b-" + was) || document.querySelector(`[data-ltitle="${CSS.escape(was)}"]`))?.focus({preventScroll: true});
+}
 // Opening or closing the panel without redrawing the shelf: the current book is marked, and when the panel takes
 // its column the covers glide to their new places (FLIP) instead of jumping.
 function showSelection() {
   const lib = $("lib"), pane = $("detail");
   if (!lib || !pane || st.selected?.startsWith?.("__")) return renderDatabase();
-  for (const el of lib.querySelectorAll("[data-id][aria-current]")) el.setAttribute("aria-current", String(el.dataset.id === st.selected));
+  for (const el of lib.querySelectorAll("[data-id][aria-current]")) { const v = String(el.dataset.id === st.selected); if (el.getAttribute("aria-current") !== v) el.setAttribute("aria-current", v); }
   const want = !!st.selected;
   if (lib.classList.contains("withdetail") === want) { pane.hidden = !want; return; }
   glide(() => { lib.classList.toggle("withdetail", want); pane.hidden = !want; });
 }
 function glide(change) {
-  const books = reduceMotion() ? [] : [...document.querySelectorAll("#grid > .book")].filter(b => { const r = b.getBoundingClientRect(); return r.bottom > -200 && r.top < innerHeight + 200; });
-  const before = books.map(b => b.getBoundingClientRect());
+  const books = [], before = [];
+  if (!reduceMotion()) for (const b of nearCards()) { const r = b.getBoundingClientRect(); if (r.bottom > -200 && r.top < innerHeight + 200) { books.push(b); before.push(r); } }
   change();
+  const after = books.map(b => b.getBoundingClientRect());       // all reads first (one layout), then the animations
   books.forEach((b, n) => {
-    const a = before[n], r = b.getBoundingClientRect(), dx = a.left - r.left, dy = a.top - r.top;
+    const a = before[n], r = after[n], dx = a.left - r.left, dy = a.top - r.top;
     if (Math.abs(dx) + Math.abs(dy) > 1) b.animate([{transform: `translate(${dx}px, ${dy}px)`}, {transform: "none"}], {duration: 460, easing: "cubic-bezier(.25, .8, .25, 1)"});
   });
+}
+// the cards in the rows on or near the screen (rows found as layoutShelves does: one read per row head)
+function nearCards() {
+  const grid = $("grid"); if (!grid || !grid.children.length) return [];
+  const kids = grid.children, {tops, heights, cols} = gridRows(grid), gtop = grid.getBoundingClientRect().top, out = [];
+  tops.forEach((t, r) => {
+    const y = gtop + t; if (y > innerHeight + 200 || y + heights[r] < -200) return;
+    for (let j = r * cols; j < Math.min(kids.length, (r + 1) * cols); j++) out.push(kids[j]);
+  });
+  return out;
 }
 // Opening a book from the shelf, as in the old iBooks: a copy of its cover lifts off, flies to the info panel and
 // swings open on its spine; the panel shows through as the page fades. The book itself stays on the shelf. Without
@@ -1640,6 +1854,7 @@ async function openBook(btn) {
   const cov = btn.querySelector(".cov"), id = btn.dataset.id;
   if (!cov || reduceMotion()) return openDetail(id);
   if (st.selected === id && st.detail) return;
+  if ($("lib")?.classList.contains("withdetail") && st.selected && !String(st.selected).startsWith("__")) return openDetail(id);
   const run = openBook.run = (openBook.run || 0) + 1, px = r => ({left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px"});
   document.querySelector(".flybook")?.remove();
   document.body.classList.add("fb-pane");
@@ -1736,7 +1951,10 @@ function readingsHtml(d, edit) {
     ${edit ? `<span class="acts"><button class="btn small" id="rd-e-${r.id}" data-redit="${r.id}">Edit</button></span>` : ""}</div>`).join("");
   return (st.readingEdit === "new" ? readingForm(null) : "") + (rows || (st.readingEdit === "new" ? "" : `<p class="muted" style="margin:0">None yet.</p>`));
 }
-function langOptions(sel) { return `<option value="">—</option>` + Object.entries(LIB.languages).sort((a, b) => a[1].localeCompare(b[1])).map(([c, n]) => `<option value="${c}" ${c === sel ? "selected" : ""}>${esc(n)}</option>`).join(""); }
+let LANGS_FOR = null, LANGS = [];
+function langOptions(sel) {
+  if (LANGS_FOR !== LIB.languages) { LANGS_FOR = LIB.languages; LANGS = Object.entries(LIB.languages).sort((a, b) => a[1].localeCompare(b[1])); }
+  return `<option value="">—</option>` + LANGS.map(([c, n]) => `<option value="${c}" ${c === sel ? "selected" : ""}>${esc(n)}</option>`).join(""); }
 function readingForm(r) {
   const d = st.detail, L = LABEL[d.kind], id = r ? r.id : "new", screen = SCREEN(d.kind);
   const seasons = (d.screen?.seasons || []).map(s => `<option value="${s.number}" ${r?.season === s.number ? "selected" : ""}>${esc(s.number ? "Season " + s.number : s.name)}${s.episodes ? " · " + s.episodes + " ep." : ""}</option>`).join("");
@@ -1867,10 +2085,36 @@ function historyHtml(h) {
 }
 
 // --------------------------------------------------------------- actions
-async function act(fn, okMsg) {
-  if (!canEdit()) { st.unlockMsg = "Unlock to edit."; st.showPw = true; renderKeybar(); $("key-input")?.focus(); return false; }
+// Every change goes through act. An action with a key runs once at a time (a double click adds one reading, one
+// book); a busy cursor shows meanwhile. An action stopped by the lock is kept, with where it was asked for, and runs
+// right after unlocking if the page is still there (not after the user moved on, cancelled, or 10 minutes).
+// act(GATE) only asks to unlock (opening a form, Edit mode).
+const ACTING = new Set(), GATE = () => 0;
+let busyN = 0;
+const pendingCtx = () => [st.sec, st.kind, st.shelf, st.section, st.view, st.selected, st.tableEdit].join("|");
+function askUnlock(p, msg) {
+  st.pending = p ? Object.assign(p, {ctx: pendingCtx(), at: Date.now()}) : null;
+  st.unlockMsg = msg; st.showPw = true; renderKeybar(); $("key-input")?.focus({preventScroll: true});
+}
+async function act(fn, okMsg, key) {
+  if (!canEdit()) { askUnlock(fn === GATE ? null : {fn, okMsg, key}, fn === GATE ? "Unlock to edit." : "Unlock to edit: it is done right after."); return false; }
+  if (key && ACTING.has(key)) return false;
+  if (key) ACTING.add(key);
+  busyN++; document.body.classList.add("busy");
   try { await fn(); if (okMsg) toast(okMsg); st.err = ""; return true; }
-  catch (e) { st.err = e.message; toast(e.message, true); renderDetail(); return false; }
+  catch (e) {
+    if (!canEdit()) { askUnlock({fn, okMsg, key}, "The console locked: unlock and it is done."); return false; }   // a 401 in flight
+    st.err = e.message; toast(e.message, true);
+    if (!String(st.selected || "").startsWith("__")) renderDetail();    // an add / rename form keeps what was typed
+    return false;
+  }
+  finally { if (key) ACTING.delete(key); if (!--busyN) document.body.classList.remove("busy"); }
+}
+// after unlocking: the action the lock stopped, if the page is where it was
+function runPending() {
+  const p = st.pending; st.pending = null; if (!p) return;
+  if (p.ctx !== pendingCtx() || Date.now() - p.at > 10 * 60e3) { toast("Unlocked. What was asked before is not done: the page has moved on since.", true); return; }
+  if (p.intent) p.intent(); else act(p.fn, p.okMsg, p.key);
 }
 // rows saved or refreshed by the server go into the page's copy of the library (no full reload)
 function mergeRows(r) {
@@ -1881,7 +2125,11 @@ function mergeRows(r) {
 // after an edit of one item: its detail, and just its row (collections change the shelves too: full = true)
 async function afterItemChange(detail, full) {
   if (detail && detail.id) st.detail = detail; else st.detail = await api.detail(st.selected);
-  if (full) LIB = await api.library(); else mergeRows(await api.rows([st.detail?.id || st.selected]));
+  const d = st.detail, old = d && LIB.items.find(i => i.id === d.id);
+  if (full) LIB = await api.library();
+  else if (old && (d.genreIds || []).every(g => (LIB.categories || []).some(c => c.id === g)))
+    mergeRows({items: [Object.fromEntries(Object.keys(old).map(k => [k, d[k] === undefined ? old[k] : d[k]]))]});   // a detail holds its row
+  else mergeRows(await api.rows([d?.id || st.selected]));
   renderDatabase();
 }
 const splitList = (s, sep) => s.split(sep).map(x => x.trim()).filter(Boolean);
@@ -1890,7 +2138,7 @@ document.addEventListener("click", async e => {
   const del = e.target.closest?.("[data-del]");
   if (del) {
     e.preventDefault(); e.stopPropagation();
-    if (!canEdit()) return act(() => 0);
+    if (!canEdit()) return act(GATE);
     const key = del.dataset.delkey, ids = del.dataset.del.split(","), row = st.tableEdit && del.closest("tr.editing");
     const asking = on => { if (!del.isConnected) return; del.classList.toggle("danger", on); del.textContent = on ? "Delete?" : "🗑"; };
     if (st.delAsk !== key) { st.delAsk = key; row ? asking(true) : renderDatabase();
@@ -1904,19 +2152,21 @@ document.addEventListener("click", async e => {
     return;
   }
   const t = e.target.closest("button, [data-id], input[type=checkbox]"); if (!t) return;
-  if (t.id === "sel-toggle") { st.selecting = !st.selecting; st.sel.clear(); st.delAsk = null; renderDatabase(); return; }
-  if (t.id === "sel-all") { toggleSel(shownIds(), true); renderDatabase(); return; }
-  if (t.id === "sel-none") { st.sel.clear(); renderDatabase(); return; }
-  if (t.dataset.lsel) { toggleSel([t.dataset.lsel], t.checked); renderDatabase(); return; }
-  if (t.dataset.lselall) { toggleSel(shownIds(), t.checked); renderDatabase(); return; }
-  if (t.dataset.rowids) { toggleSel(t.dataset.rowids.split(",")); renderDatabase(); return; }
-  if (t.dataset.section) { st.section = t.dataset.section; st.shelf = allShelf(st.kind)?.id; st.view = "shelf"; st.selected = null; st.sel.clear();
+  if (st.pending && (/-cancel$|^d-trash-no$|^key-lock$/.test(t.id) || t.dataset.purgecancel)) { st.pending = null; st.unlockMsg = ""; }
+  if (t.dataset.retry) { $("v-database").innerHTML = `<p class="empty">Opening the library…</p>`; refresh(true); return; }
+  if (t.id === "sel-toggle") { if (hasDrafts() && !confirm("Throw away the changes typed in the rows?")) return; st.selecting = !st.selecting; st.sel.clear(); st.delAsk = null; renderDatabase(); return; }
+  if (t.id === "sel-all") { toggleSel(shownIds(), true); selChanged(); return; }
+  if (t.id === "sel-none") { st.sel.clear(); selChanged(); return; }
+  if (t.dataset.lsel) { toggleSel([t.dataset.lsel], t.checked); selChanged(); return; }
+  if (t.dataset.lselall) { toggleSel(shownIds(), t.checked); selChanged(); return; }
+  if (t.dataset.row != null && t.classList.contains("rowsel")) { toggleSel(rowIds(+t.dataset.row)); selChanged(); return; }
+  if (t.dataset.section) { st.q = ""; st.section = t.dataset.section; st.shelf = allShelf(st.kind)?.id; st.view = "shelf"; st.selected = null; st.sel.clear();
     st.filter = "all"; st.listSort = null; render(); return; }
   if (t.id === "section-menu") return sectionMenu();
   if (t.id === "sc-delete") { const sid = st.section; await act(async () => { await api.deleteSection(sid); LIB = await api.library(); st.section = null; st.selected = null; render(); }, "Section deleted: its items are back in the library"); return; }
   if (t.dataset.bulk) {
     const b = t.dataset.bulk, done = LABEL[st.kind].completed.toLowerCase();
-    if (b === "clear") { st.sel.clear(); renderDatabase(); return; }
+    if (b === "clear") { st.sel.clear(); selChanged(); return; }
     if (b === "status") return bulkRun({action: "status", status: "completed"}, "Marked as " + done, true);
     if (b === "archive") return bulkRun({action: "archive"}, "Archived");
     if (b === "unarchive") return bulkRun({action: "unarchive"}, "Back in the library");
@@ -1945,7 +2195,7 @@ document.addEventListener("click", async e => {
   if (t.dataset.fflag) { const C = FC(), [k, v] = t.dataset.fflag.split(":"), want = k === "review" ? true : v === "1";
     C.f[k] = C.f[k] === want ? null : want; C.save(); C.redraw(); return; }
   if (t.dataset.fclear) { clearFilter(t.dataset.fclear); FC().redraw(); return; }
-  if (t.matches(".seg button")) { st.sec = t.dataset.sec; save("sec", st.sec); if (st.sec === "visuals") { try { STATS = await api.stats(); } catch (er) { STATS = null; } }
+  if (t.matches(".seg button")) { st.sec = t.dataset.sec; save("sec", st.sec); 
     if (st.sec === "sync") { READING = null; render(); await loadReading(); } render(); return; }
   if (t.dataset.vtab) { st.vtab = t.dataset.vtab; save("vtab", st.vtab); renderVisuals(); return; }
   if (t.dataset.vscope) { st.vscope = t.dataset.vscope; renderVisuals(); return; }
@@ -1955,48 +2205,48 @@ document.addEventListener("click", async e => {
   if (t.dataset.linkdoc) { const item = $("ld-" + t.dataset.linkdoc)?.value; if (!item) { toast("Pick a book first", true); return; }
     await act(async () => { await api.linkDocument(t.dataset.linkdoc, item); await loadReading(); render(); }, "Linked: the next sync updates that book"); return; }
   if (t.dataset.gobook) { const k = LIB.items.find(i => i.id === t.dataset.gobook)?.kind || "book"; st.sec = "database"; st.kind = k; st.shelf = allShelf(k)?.id; save("sec", st.sec); render(); return openDetail(t.dataset.gobook); }
-  if (t.dataset.kind) { st.section = null; st.sel.clear(); st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; st.f = NOF(); saveF(); st.view = "shelf"; st.pick = null; save("kind", st.kind);
+  if (t.dataset.kind) { st.section = null; st.sel.clear(); st.q = ""; st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; st.f = NOF(); saveF(); st.view = "shelf"; st.pick = null; save("kind", st.kind);
     if (st.sec === "visuals" && st.vtab === "library") st.LSTATS = null; render(); return; }
-  if (t.dataset.shelf) { st.section = null; st.sel.clear(); st.shelf = t.dataset.shelf; st.filter = "all"; st.selected = null; st.listSort = null; st.view = "shelf"; save("shelf", st.shelf); render(); return; }
+  if (t.dataset.shelf) { st.section = null; st.sel.clear(); st.q = ""; st.shelf = t.dataset.shelf; st.filter = "all"; st.selected = null; st.listSort = null; st.view = "shelf"; save("shelf", st.shelf); render(); return; }
   if (t.dataset.cat) { const id = +t.dataset.cat; st.f.cats = st.f.cats.length === 1 && st.f.cats[0] === id && st.view !== "trash" ? [] : [id]; saveF(); st.view = "shelf"; st.selected = null; render(); return; }
   if (t.dataset.trashview) { st.section = null; st.sel.clear(); st.view = "trash"; st.trash = null; st.selected = null; st.confirmPurge = null; render(); return; }
-  if (t.dataset.restore) { await act(async () => { await api.restoreItem(t.dataset.restore); st.trash = null; LIB = await api.library(); render(); }, "Restored"); return; }
-  if (t.dataset.purgeask) { if (!canEdit()) return act(() => 0); st.confirmPurge = t.dataset.purgeask; renderTrash(); return; }
+  if (t.dataset.restore) { await act(async () => { await api.restoreItem(t.dataset.restore); st.trash = null; LIB = await api.library(); render(); }, "Restored", "restore:" + t.dataset.restore); return; }
+  if (t.dataset.purgeask) { if (!canEdit()) return act(GATE); st.confirmPurge = t.dataset.purgeask; renderTrash(); return; }
   if (t.dataset.purgecancel) { st.confirmPurge = null; renderTrash(); return; }
-  if (t.dataset.purge) { await act(async () => { await api.purgeItem(t.dataset.purge); st.trash = null; st.confirmPurge = null; LIB = await api.library(); render(); }, "Deleted for good"); return; }
-  if (t.id === "d-trash") { if (!canEdit()) return act(() => 0); st.confirmTrash = true; renderDetail(); return; }
+  if (t.dataset.purge) { await act(async () => { await api.purgeItem(t.dataset.purge); st.trash = null; st.confirmPurge = null; LIB = await api.library(); render(); }, "Deleted for good", "purge:" + t.dataset.purge); return; }
+  if (t.id === "d-trash") { if (!canEdit()) return act(GATE); st.confirmTrash = true; renderDetail(); return; }
   if (t.id === "d-trash-no") { st.confirmTrash = false; renderDetail(); return; }
-  if (t.id === "fl-findset") { if (!canEdit()) return act(() => 0); st.findEdit = !st.findEdit; renderDetail(); if (st.findEdit) $("fd-url")?.focus(); return; }
+  if (t.id === "fl-findset") { if (!canEdit()) return act(GATE); st.findEdit = !st.findEdit; renderDetail(); if (st.findEdit) $("fd-url")?.focus(); return; }
   if (t.id === "fd-cancel") { st.findEdit = false; renderDetail(); return; }
   if (t.id === "fd-save" || t.id === "fd-reset") { const body = t.id === "fd-reset" ? {reset: true} : {url: $("fd-url").value, label: $("fd-label").value};
     await act(async () => { Object.assign(LIB, await api.setFind(body)); st.findEdit = false; renderDetail(); }, t.id === "fd-reset" ? "Back to the server's search link" : "Search link saved"); return; }
-  if (t.id === "d-trash-yes") { await act(async () => { await api.trashItem(st.selected); st.selected = null; st.detail = null; st.confirmTrash = false; LIB = await api.library(); render(); }, "Moved to the trash"); return; }
+  if (t.id === "d-trash-yes") { const tid = st.selected; await act(async () => { await api.trashItem(tid); st.selected = null; st.detail = null; st.confirmTrash = false; LIB = await api.library(); render(); }, "Moved to the trash"); return; }
   if (t.dataset.filter) { st.filter = t.dataset.filter; renderDatabase(); return; }
   if (t.dataset.size) return setPref("size", t.dataset.size);
-  if (t.dataset.layout) { st.listSort = null; return setPref("layout", t.dataset.layout); }
+  if (t.dataset.layout) { if (t.dataset.layout === "grid" && hasDrafts() && !confirm("Throw away the changes typed in the rows?")) return; st.listSort = null; return setPref("layout", t.dataset.layout); }
   if (t.id === "sortdir") { const shelf = LIB.shelves.find(s => s.id === st.shelf), p = shelfPrefs(shelf); if (st.listSort) { st.listSort.desc = !st.listSort.desc; renderDatabase(); } else setPref("desc", !p.desc); return; }
   if (t.dataset.col) { const shelf = LIB.shelves.find(s => s.id === st.shelf), p = shelfPrefs(shelf), cur = st.listSort?.key || p.sort;
     st.listSort = {key: t.dataset.col, desc: cur === t.dataset.col ? !(st.listSort ? st.listSort.desc : p.desc) : DESC_FIRST.includes(t.dataset.col)}; renderDatabase(); return; }
   if (t.id === "shelf-menu") return shelfMenu();
   if (t.dataset.addtab) return addTab(t.dataset.addtab);
-  if (t.id === "add-book") { if (!canEdit()) return act(() => 0); return addPanel(); }
-  if (t.id === "add-screen") { if (!canEdit()) return act(() => 0); return addScreenPanel(); }
+  if (t.id === "add-book") { if (!canEdit()) return act(GATE); return addPanel(); }
+  if (t.id === "add-screen") { if (!canEdit()) return act(GATE); return addScreenPanel(); }
   if (t.dataset.tmadd) { const kind = st.kind, status = $("tm-status").value;
     await act(async () => { const r = await api.tmdbAdd(kind, +t.dataset.tmadd, status); LIB = await api.library();
-      toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }); return; }
+      toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }, null, "add"); return; }
   if (t.dataset.addidx !== undefined) { const status = $("ad-status").value, format = $("ad-version").value || null;
     await act(async () => { const r = await api.add(addState.token, +t.dataset.addidx, status, format); LIB = await api.library();
-      toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }); return; }
-  if (t.id === "ed-fill") { await act(async () => { const r = await api.fill(st.selected);
+      toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }, null, "add"); return; }
+  if (t.id === "ed-fill") { const fid = st.selected; await act(async () => { const r = await api.fill(fid);
     toast(r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know")); await afterItemChange(r.item); }); return; }
   if (t.matches(".book")) { if (drag.suppressClick) { drag.suppressClick = false; return; }
-    if (st.selecting) { toggleSel(idsOf(t)); renderDatabase(); return; }
+    if (st.selecting) { toggleSel(idsOf(t)); selChanged(); return; }
     return openBook(t); }
   if (t.dataset.open) return openDetail(t.dataset.open);
   if (t.dataset.ltitle) return st.selected === t.dataset.ltitle ? closeDetail() : openDetail(t.dataset.ltitle);
   if (t.matches("table.list tr[data-id]")) { if (st.selected && !st.tableEdit) closeDetail(); return; }
-  if (t.id === "tbl-edit") { if (!canEdit()) return act(() => 0); st.tableEdit = true; st.rowCats = {}; st.sel.clear(); renderDatabase(); document.querySelector("table.list [data-f=title]")?.focus(); return; }
-  if (t.id === "tbl-cancel") { st.tableEdit = false; st.rowCats = {}; toggleCatPop(false); renderDatabase(); return; }
+  if (t.id === "tbl-edit") { if (!canEdit()) return act(GATE); st.tableEdit = true; st.rowCats = {}; st.drafts = {}; st.sel.clear(); renderDatabase(); document.querySelector("table.list [data-f=title]")?.focus(); return; }
+  if (t.id === "tbl-cancel") { if (hasDrafts() && !confirm("Throw away the changes typed in the rows?")) return; st.drafts = {}; st.tableEdit = false; st.rowCats = {}; toggleCatPop(false); renderDatabase(); return; }
   if (t.id === "tbl-save") return saveTable();
   if (t.id === "tbl-paste") { try { gpaste(await navigator.clipboard.readText()); } catch (er) { toast("The browser didn't allow reading the clipboard: click a cell and press Ctrl/Cmd+V", true); } return; }
   if (t.dataset.lecats) { const open = !($("le-catpop") && st.catRow === t.dataset.lecats); toggleCatPop(open, t.dataset.lecats); return; }
@@ -2012,20 +2262,20 @@ document.addEventListener("click", async e => {
   if (t.dataset.rating !== undefined && t.closest(".rating")) { const v = t.dataset.rating === "" ? null : +t.dataset.rating; await act(async () => afterItemChange(await api.patch(id, {entry: {rating: v}})), "Rating saved"); return; }
   if (t.id === "cv-upload") { $("cv-file").click(); return; }
   if (t.id === "fl-upload") { $("fl-file").click(); return; }
-  if (t.id === "ep-choose") { if (!canEdit()) return act(() => 0); $("ep-file").click(); return; }
+  if (t.id === "ep-choose") { if (!canEdit()) return act(GATE); $("ep-file").click(); return; }
   if (t.dataset.epubidx !== undefined || t.dataset.epubown) {
     const body = {upload: st.epub.upload, token: st.epub.token, index: t.dataset.epubidx !== undefined ? +t.dataset.epubidx : null, status: $("ep-status").value, format: $("ep-version").value || null};
-    await act(async () => { const r = await api.epubAdd(body); LIB = await api.library(); toast(r.existing ? "Already in your library: the file was added to it" : "Added with its file"); await openDetail(r.id); });
+    await act(async () => { const r = await api.epubAdd(body); LIB = await api.library(); toast(r.existing ? "Already in your library: the file was added to it" : "Added with its file"); await openDetail(r.id); }, null, "add");
     return; }
   if (t.dataset.goitem) { return openDetail(t.dataset.goitem); }
   if (t.id === "rv-edit") { st.editReview = true; renderDetail(); $("rv-text")?.focus(); return; }
   if (t.id === "rv-cancel") { st.editReview = false; renderDetail(); return; }
   if (t.id === "rv-save") { const v = $("rv-text").value; if (await act(async () => afterItemChange(await api.patch(id, {entry: {review: v}})), "Review saved")) st.editReview = false; renderDetail(); return; }
-  if (t.id === "rd-add") { if (!canEdit()) return act(() => 0); st.readingEdit = "new"; renderDetail(); return; }
+  if (t.id === "rd-add") { if (!canEdit()) return act(GATE); st.readingEdit = "new"; renderDetail(); return; }
   if (t.dataset.redit) { st.readingEdit = t.dataset.redit; renderDetail(); return; }
   if (t.id === "rf-cancel") { st.readingEdit = null; renderDetail(); return; }
   if (t.id === "rf-delete") { const rid = st.readingEdit; if (await act(async () => { await api.deleteReading(rid); await afterItemChange(); }, "Reading deleted")) st.readingEdit = null; renderDetail(); return; }
-  if (t.id === "ed-edit") { if (!canEdit()) return act(() => 0); st.editing = true; renderDetail(); return; }
+  if (t.id === "ed-edit") { if (!canEdit()) return act(GATE); st.editing = true; renderDetail(); return; }
   if (t.id === "ef-cancel") { st.editing = false; renderDetail(); return; }
   if (t.dataset.cover) { if (t.getAttribute("aria-pressed") === "true") return; await act(async () => afterItemChange(await api.cover(id, +t.dataset.cover)), "Cover changed"); return; }
   if (t.dataset.shelfcheck) { const sid = t.dataset.shelfcheck, on = t.checked;
@@ -2057,16 +2307,16 @@ document.addEventListener("submit", async e => {
   if (f.id === "handform") {
     const body = {title: $("mh-title").value, authors: $("mh-authors").value, language: $("mh-lang").value, published: $("mh-pub").value.trim(),
       pages: $("mh-pages").value.trim(), publisher: $("mh-publisher").value, isbn: $("mh-isbn").value.trim(), status: $("mh-status").value, format: $("mh-version").value || null};
-    await act(async () => { const r = await api.addManual(body); LIB = await api.library(); toast(r.existing ? "Already in your library (same ISBN)" : "Added"); await openDetail(r.id); });
+    await act(async () => { const r = await api.addManual(body); LIB = await api.library(); toast(r.existing ? "Already in your library (same ISBN)" : "Added"); await openDetail(r.id); }, null, "add");
     return;
   }
   if (f.id === "newsection") { const name = $("newsection-name").value.trim(); if (!name) return;
-    await act(async () => { const r = await api.newSection(name); LIB = await api.library(); st.section = r.id; st.shelf = allShelf(st.kind)?.id; st.view = "shelf"; st.selected = null; render(); }, "Section created"); return; }
+    await act(async () => { const r = await api.newSection(name); LIB = await api.library(); st.section = r.id; st.shelf = allShelf(st.kind)?.id; st.view = "shelf"; st.selected = null; render(); }, "Section created", "new-section"); return; }
   if (f.id === "sectionform") { await act(async () => { await api.editSection(st.section, {name: $("sc-name").value}); LIB = await api.library(); st.selected = null; render(); }, "Renamed"); return; }
   if (f.id === "editall-form") { const fields = editAllFields(); if (!Object.keys(fields).length) { toast("Nothing filled in: nothing to change", true); return; }
     $("editall")?.remove(); return bulkRun({action: "edit", fields}, "Updated", true); }
   if (f.id === "newshelf") { const name = $("newshelf-name").value.trim(); if (!name) return;
-    await act(async () => { const r = await api.newShelf(name, st.kind); LIB = await api.library(); st.shelf = r.id; render(); }, "Collection created"); return; }
+    await act(async () => { const r = await api.newShelf(name, st.kind); LIB = await api.library(); st.shelf = r.id; render(); }, "Collection created", "new-shelf"); return; }
   if (f.id === "rform") {
     const body = {state: $("rf-state").value, started: $("rf-started").value.trim(), ended: $("rf-ended").value.trim(), note: $("rf-note").value.trim()};
     if ($("rf-lang")) Object.assign(body, {lang: $("rf-lang").value, medium: $("rf-medium").value});
@@ -2079,7 +2329,7 @@ document.addEventListener("submit", async e => {
     }
     if ($("rf-season")) Object.assign(body, {season: $("rf-season").value, episodes: $("rf-season").value ? $("rf-episodes").value.trim() : ""});
     const rid = f.dataset.rid;
-    if (await act(async () => { if (rid === "new") await api.addReading(id, body); else await api.editReading(rid, body); await afterItemChange(); }, SCREEN(st.detail?.kind) ? "Watch saved" : "Reading saved")) st.readingEdit = null;
+    if (await act(async () => { if (rid === "new") await api.addReading(id, body); else await api.editReading(rid, body); await afterItemChange(); }, SCREEN(st.detail?.kind) ? "Watch saved" : "Reading saved", "reading:" + id + ":" + rid)) st.readingEdit = null;
     renderDetail(); return;
   }
   if (f.id === "edform") {
@@ -2092,7 +2342,8 @@ document.addEventListener("submit", async e => {
   }
 });
 document.addEventListener("input", e => {
-  if (e.target.id === "filter-q") { st.q = e.target.value; const pos = e.target.selectionStart; renderDatabase(); const n = $("filter-q"); n.focus(); n.setSelectionRange(pos, pos); }
+  // the shelf follows the typing once it pauses (a big library); renderDatabase keeps the box's focus and caret
+  if (e.target.id === "filter-q") { st.q = e.target.value; clearTimeout(qTimer); qTimer = setTimeout(renderDatabase, LIB.items.length > 300 ? 140 : 0); }
   if (e.target.id === "search") runSearch(e.target.value);
 });
 document.addEventListener("change", e => {
@@ -2121,7 +2372,7 @@ document.addEventListener("change", async e => {
     await act(async () => afterItemChange(await api.uploadFile(id, file, f => { const el = $("fl-progress"); if (el) el.textContent = "Uploading " + file.name + ": " + Math.round(f * 100) + "%"; })), "EPUB stored");
     return;
   }
-  if (e.target.id === "sort") { st.listSort = null; const v = e.target.value; setPref("sort", v); setPref("desc", DESC_FIRST.includes(v)); }
+  if (e.target.id === "sort") { st.listSort = null; const v = e.target.value; setPrefs({sort: v, desc: DESC_FIRST.includes(v)}); }
 });
 async function shelfMenu() {
   const shelf = LIB.shelves.find(s => s.id === st.shelf);
@@ -2234,9 +2485,11 @@ function candidatesHtml(cands) {
 
 // ----------------------------------------------------------- drag reorder
 const drag = {active: false, suppressClick: false};
-function enableDrag(shelf) {
-  const grid = $("grid"); if (!grid) return;
+// attached once to the shelf's grid; whether covers can be dragged is read when a drag starts (renderDatabase sets it)
+function enableDrag(grid) {
   grid.addEventListener("pointerdown", e => {
+    if (grid.dataset.drag !== "1" || st.selecting) return;
+    const shelf = LIB.shelves.find(s => s.id === st.shelf); if (!shelf) return;
     const book = e.target.closest(".book"); if (!book || e.button > 0) return;
     const start = {x: e.clientX, y: e.clientY, t: Date.now(), id: book.dataset.rep || book.dataset.id, pointer: e.pointerId, touch: e.pointerType === "touch",
       members: book.dataset.members ? book.dataset.members.split(",") : null};
@@ -2289,9 +2542,9 @@ function enableDrag(shelf) {
     if (start.touch) timer = setTimeout(begin, 380);
     document.addEventListener("pointermove", onMove, {passive: false}); document.addEventListener("pointerup", onUp); document.addEventListener("pointercancel", cleanup);
   });
-  grid.addEventListener("contextmenu", e => { if (drag.active || e.pointerType === "touch") e.preventDefault(); });
+  grid.addEventListener("contextmenu", e => { if (grid.dataset.drag === "1" && (drag.active || e.pointerType === "touch")) e.preventDefault(); });
   // iOS: a touch drag would scroll the page; stop that while a cover is being dragged
-  grid.addEventListener("touchmove", e => { if (drag.active) e.preventDefault(); }, {passive: false});
+  grid._touchmove = e => { if (drag.active) e.preventDefault(); };     // added by syncGrid only while dragging is possible
 }
 
 // ---------------------------------------------------------------- search
@@ -2324,22 +2577,38 @@ function runSearch(q) {
 function goHit(h) {
   if (!h) return;
   $("search-pop").hidden = true; $("search").value = ""; $("search").blur();
-  st.sec = "database"; st.kind = h.kind; st.shelf = allShelf(h.kind).id; st.filter = "all"; st.q = "";
+  st.sec = "database"; st.kind = h.kind; st.shelf = allShelf(h.kind).id; st.filter = "all"; st.q = ""; st.view = "shelf"; st.section = h.section || null;
   render(); openDetail(h.id);
-  setTimeout(() => document.getElementById("b-" + h.id)?.scrollIntoView({block: "center", behavior: "smooth"}), 50);
+  setTimeout(() => {
+    const el = document.getElementById("b-" + h.id) || document.getElementById("r-" + h.id), k = LWIN ? LWIN.list.findIndex(i => i.id === h.id) : -1;
+    const tb = document.querySelector("#content table.list tbody");
+    if (el) el.scrollIntoView({block: "center"});         // no smooth scroll: cards on the way have estimated heights
+    else if (k >= 0 && tb) scrollTo({top: scrollY + tb.getBoundingClientRect().top + k * LWIN.rowH - innerHeight / 2});
+  }, 50);
 }
 document.addEventListener("keydown", e => {
   if ((e.key === "Enter" || e.key === " ") && e.target.dataset?.del) { e.preventDefault(); e.target.click(); return; }
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName || "");
   if (e.key === "/" && !typing) { e.preventDefault(); $("search").focus(); return; }
-  if (e.key === "Escape" && $("editall")) { $("editall").remove(); return; }
-  if (e.key === "Escape" && $("bulkpop")) { closeBulkPop(); return; }
-  if (e.key === "Escape" && st.selecting && !st.selected) { st.selecting = false; st.sel.clear(); renderDatabase(); return; }
-  if (e.key === "Escape" && st.fpane) { closeFilterPane(); filterBtn()?.focus(); return; }
-  if (e.key === "Escape" && !typing && st.selected) { closeDetail(); return; }
-  if (e.key === "Escape" && $("le-catpop")) { e.preventDefault(); const b = catBtn(); toggleCatPop(false); b?.focus(); return; }
-  if (e.target.classList?.contains("le") && !e.target.dataset.lecats && st.tableEdit && (e.key === "Enter" || e.key === "Escape")) {
-    e.preventDefault(); toggleCatPop(false); if (e.key === "Enter") saveTable(); else { st.tableEdit = false; st.rowCats = {}; renderDatabase(); } return; }
+  // Escape closes what is on top, one layer at a time, and never throws away what was typed or selected
+  const entry = e.target.matches?.("input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=range]), textarea");
+  if (e.key === "Escape" && e.target.id !== "search") {
+    if ($("bulkpop")) { closeBulkPop(); return; }
+    if ($("le-catpop")) { e.preventDefault(); const b = catBtn(); toggleCatPop(false); b?.focus(); return; }
+    if ($("editall")) { $("editall").remove(); return; }
+    if (st.fpane) { closeFilterPane(); filterBtn()?.focus(); return; }
+    if (entry || (typing && st.tableEdit && e.target.classList?.contains("le"))) { if (st.tableEdit && e.target.classList?.contains("le")) { e.preventDefault(); e.target.blur(); } return; }
+    if (st.selected) { closeDetail(); return; }
+    if (st.selecting) { st.selecting = false; st.sel.clear(); renderDatabase(); return; }
+    return;
+  }
+  if (e.key === "Enter" && st.tableEdit && e.target.classList?.contains("le") && !e.target.dataset.lecats) {
+    e.preventDefault(); toggleCatPop(false);
+    if (e.ctrlKey || e.metaKey) { saveTable(); return; }
+    const at = gcellAt(e.target), next = at && gel(grows()[at[0] + (e.shiftKey ? -1 : 1)], GCOLS[at[1]]);
+    if (next) { next.focus(); next.select?.(); }
+    return;
+  }
   if (e.target.id === "key-input" && e.key === "Enter") { unlock(); return; }
   if (e.target.id !== "search") return;
   if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (!hits.length) return; active = (active + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;
@@ -2371,7 +2640,7 @@ function renderKeybar() {
 }
 async function unlock() {
   const pw = $("key-input")?.value || ""; if (!pw) return;
-  try { const r = await api.unlock(pw); SESSION.unlockedUntil = r.expiresAt; st.unlockMsg = ""; st.showPw = false; render(); }
+  try { const r = await api.unlock(pw); SESSION.unlockedUntil = r.expiresAt; st.unlockMsg = ""; st.showPw = false; render(); runPending(); }
   catch (e) { st.unlockMsg = e.message; renderKeybar(); }
 }
 const toBuf = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0)).buffer;
@@ -2383,10 +2652,17 @@ async function passkeyUnlock() {
     const cred = await navigator.credentials.get({publicKey: pk});
     const res = cred.response;
     const r = await api.passkeyLogin({id: cred.id, clientDataJSON: toB64u(res.clientDataJSON), authenticatorData: toB64u(res.authenticatorData), signature: toB64u(res.signature)});
-    SESSION.unlockedUntil = r.expiresAt; st.unlockMsg = ""; render();
+    SESSION.unlockedUntil = r.expiresAt; st.unlockMsg = ""; render(); runPending();
   } catch (e) { st.unlockMsg = e && e.name === "NotAllowedError" ? "Touch ID / Face ID was cancelled or timed out." : (e.message || String(e)); renderKeybar(); }
 }
-setInterval(() => { if (!PREVIEW && SESSION.unlockedUntil) { if (SESSION.unlockedUntil * 1000 < Date.now()) { SESSION.unlockedUntil = null; render(); } else renderKeybar(); } }, 30000);
+setInterval(() => {
+  if (PREVIEW || !SESSION.unlockedUntil) return;
+  if (SESSION.unlockedUntil * 1000 >= Date.now()) return renderKeybar();
+  SESSION.unlockedUntil = null;
+  // typing in the Edit rows when the console locks: the rows stay as they are; unlocking keeps them, Save asks for it
+  if (hasDrafts()) { renderKeybar(); toast("The console locked. Your changes are still here: unlock to save them.", true); }
+  else render();
+}, 30000);
 
 // --------------------------------------------------------------- visuals
 const tip = $("tip");
@@ -2834,7 +3110,7 @@ function makePreviewApi(P) {
       reads: d.readings.filter(r => r.state === "completed" && r.ended).map(r => [r.ended, r.endedPrecision, r.lang, d.edition?.pages ?? null, r.medium || null]), authors: d.authorsList.map(a => a.name).join(", "), authorSort: d.authorsList[0]?.sort || d.authorsList[0]?.name || "",
       genres: d.genreList, pages: d.edition?.pages ?? null, lang: d.edition?.lang ?? null, year: done.length ? Math.max(...done) : null, hasReview: !!d.review,
       cover: (d.covers.find(c => c.chosen) || {}).thumb || null});
-    d.title = d.item.title; d.authors = s.authors; d.year = s.year; d.cover = s.cover;
+    Object.assign(d, s);                               // a detail holds its row (afterItemChange takes the row from it)
   };
   const syncStatus = d => {
     const open = d.readings.find(r => ["in_progress", "paused"].includes(r.state));

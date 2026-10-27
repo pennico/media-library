@@ -134,20 +134,24 @@ class App:
         self.audit_verified = None
         self.health_lock = threading.Lock()
 
-    def warm_thumbs(self, width=320):
-        """Make the shelf thumbnails nobody has asked for yet, one at a time, so the first
-        opening of a big shelf doesn't wait on image resizing. Runs in the background."""
+    def warm_thumbs(self, widths=(320, 160)):
+        """Make the thumbnails nobody has asked for yet (320 px for the shelf, 160 px for the list), one at
+        a time, so the first opening of a big shelf or list doesn't wait on image resizing. Runs in the background."""
         try:
             with self.pool.connection() as conn:
                 rows = conn.execute("SELECT DISTINCT sha256, local_path FROM catalog.cover"
                                     " WHERE local_path IS NOT NULL AND deleted_at IS NULL").fetchall()
-            for r in rows:
-                dest = os.path.join(self.cfg.media_dir, "thumbs", "{}-{}.jpg".format(r["sha256"], width))
-                if os.path.exists(dest):
-                    continue
-                with self.thumb_lock:
-                    if not os.path.exists(dest):
-                        make_thumb(os.path.join(self.cfg.media_dir, r["local_path"]), dest, width)
+            for width in widths:
+                for r in rows:
+                    dest = os.path.join(self.cfg.media_dir, "thumbs", "{}-{}.jpg".format(r["sha256"], width))
+                    if os.path.exists(dest):
+                        continue
+                    try:
+                        with self.thumb_lock:
+                            if not os.path.exists(dest):
+                                make_thumb(os.path.join(self.cfg.media_dir, r["local_path"]), dest, width)
+                    except (OSError, ValueError) as e:          # one unreadable cover: skip it, warm the rest
+                        print("warm thumbs: {} ({}): {}".format(r["sha256"][:12], width, e))
         except Exception:     # noqa: BLE001 - a bad image or a closing pool must not matter
             traceback.print_exc()
 
@@ -237,7 +241,7 @@ def make_handler(app):
                 self.close_connection = True
 
         def send(self, code, body, ctype="application/json", cache=None, cookie=None, csp=CSP, etag=None):
-            data = body if isinstance(body, bytes) else json.dumps(body, default=str).encode()
+            data = body if isinstance(body, bytes) else json.dumps(body, default=str, separators=(",", ":")).encode()
             if etag is None and ctype == "application/json" and code == 200 and self.command in ("GET", "HEAD") \
                     and self.path.split("?", 1)[0] == "/api/library":
                 etag = '"{}"'.format(hashlib.sha1(data).hexdigest())

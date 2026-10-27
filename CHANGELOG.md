@@ -2,6 +2,53 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-10-27
+
+- **A big library stays quick**: measured at 1,680 items on a slow CPU (4x
+  throttle), every click took 1.5 to 2 s because each one rebuilt the whole
+  shelf and laid it out again. Now:
+  - selecting a cover costs about 0.1 s (was 1.8 s); Select on/off, All,
+    None, a row toggle or a list check change only what changed;
+  - cover size, a status chip, the filter box, opening and closing a book
+    0.25 to 0.35 s (were 0.9 to 1.6 s): the shelf keeps its covers, rebuilds a
+    card only when its item changed, and cards out of view cost nothing
+    (`content-visibility`), while the hover lift, the shadows and the
+    selection ring look as before;
+  - grid to list 0.25 s (was 2 to 3 s): a long list draws only the rows on
+    and near the screen, in a fixed table layout, with small thumbnails;
+  - the shelf boards are placed from the grid's row sizes in one read, and
+    only rewritten when they move;
+  - pointing at covers no longer tests thousands of nested positioned boxes.
+- **Spreadsheet mode**: Escape leaves a cell without throwing the table away;
+  Enter goes down a row and Ctrl/Cmd+Enter saves; Cancel asks before
+  discarding typed changes (and so do Select and Grid); what was typed
+  survives a sort, a filter that hides the row for a while, a redraw, a save
+  that failed for some rows (those rows are marked) and the console locking;
+  undo works after a redraw;
+  "Saved" is only said when it saved; language lists are filled when opened.
+- **Locks and double clicks**: an action stopped by the lock runs right after
+  unlocking, if the page is still where it was (not after moving to another
+  book, cancelling, or 10 minutes); saving a reading, adding a book, a bulk
+  action or the table save can't run twice at once (a double click adds one
+  reading); a busy cursor shows while something is being saved.
+- **Keyboard and focus**: Escape closes the top layer first and never clears
+  a selection or a draft from a text field; arrow keys move between covers;
+  closing the panel puts focus back on its book; the filter box keeps its
+  focus and caret while the shelf follows the typing; Tab reaches every row
+  of a long list, which tells screen readers how many rows it has.
+- **Smaller things**: a live "12 of 154" count when the shelf is narrowed;
+  "Clear the filters" also clears the typed filter and the status chip; the
+  typed filter belongs to one shelf; covers that fail to load show their
+  title; going from book to book with the panel open no longer replays the
+  flight; Visuals opens without waiting for an unused request; "Can't reach
+  the library server. Is Tailscale on?" instead of "Load failed", with a
+  Try again button; an "Opening the library…" placeholder; toasts are
+  announced to screen readers and readable in dark mode; on a phone, form
+  fields are 16 px so Safari doesn't zoom into them; the Sort menu saves once.
+- **Server**: 160 px thumbnails are made in the background too (list rows);
+  thumbnails are decoded at a reduced scale and written as baseline JPEG;
+  JSON without spaces.
+
 ## [0.9.0] - 2026-10-27
 
 - **Spreadsheet mode in the list's Edit**: select cells by clicking, shift-clicking
