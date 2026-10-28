@@ -10,12 +10,12 @@ let fails = 0; const ok = (c, m) => { if (!c) fails++; console.log(c ? 'PASS' : 
   await p.click('#kind-book'); if (await p.locator('#lay-grid[aria-pressed=false]').count()) await p.click('#lay-grid');
   await p.waitForSelector('#grid .book');
   // row toggle after reversing the order selects what is on that row now
-  await p.selectOption('#sort', 'title'); await p.click('#sel-toggle'); await p.click('#sortdir'); await p.waitForTimeout(200);
+  await p.selectOption('#sort', 'title'); await p.click('#sortdir'); await p.waitForTimeout(200);
   await p.locator('#boards .rowsel').first().click();
   const r = await p.evaluate(() => { const cols = gridRows(document.getElementById('grid')).cols, kids = [...document.querySelectorAll('#grid > .book')];
     return [kids.slice(0, cols).every(b => b.classList.contains('sel')), document.querySelectorAll('#grid .book.sel').length, cols]; });
   ok(r[0] && r[1] === r[2], 'after flipping the sort, the first row toggle selects the first row as shown: ' + JSON.stringify(r));
-  await p.click('#sel-toggle'); await p.selectOption('#sort', 'manual');
+  await p.click('#sel-none'); await p.selectOption('#sort', 'manual');
   // a full reload keeps the cards that did not change
   await p.evaluate(() => { document.querySelectorAll('#grid > .book').forEach(b => b.__k = 1); });
   await p.evaluate(async () => { LIB = await api.library(); renderDatabase(); });

@@ -37,23 +37,22 @@ const books = async p => { await p.evaluate(() => { document.getElementById('kin
     'after a chip and a size change, every cover has the drawn width');
   await p.click('#size-m');
   // Undo: only what the action did, and two at once
-  await p.click('#sel-toggle');
   const [x, y] = await p.evaluate(() => [...document.querySelectorAll('#grid > .book')].slice(5, 7).map(e => e.dataset.id));
-  await p.click('#b-' + x); await p.click('#b-' + y);
+  await p.hover('#b-' + x); await p.click(`#b-${x} .selbox`); await p.click('#b-' + y);
   await p.evaluate(async i => { await api.trashItem(i); }, x);              // trashed meanwhile from somewhere else
   await p.click('#bulkbar [data-bulk=trash]'); await p.waitForTimeout(700);
   ok(await p.evaluate(() => document.activeElement?.classList.contains('tact')), 'after a bulk trash, focus is on Undo (the bar it came from is gone)');
   await p.locator('#toasts .tact').last().click(); await p.waitForTimeout(900);
   ok(await p.evaluate(([x, y]) => !LIB.items.some(i => i.id === x) && LIB.items.some(i => i.id === y), [x, y]), 'Undo brings back only what its action trashed');
   await p.evaluate(async i => { await api.restoreItem(i); LIB = await api.library(); render(); }, x);
-  await p.evaluate(() => { st.selecting = false; st.sel.clear(); renderDatabase(); });
+  await p.evaluate(() => { st.sel.clear(); renderDatabase(); });
   const [a1, a2] = await p.evaluate(() => [...document.querySelectorAll('#grid > .book')].slice(8, 10).map(e => e.dataset.id));
-  for (const i of [a1, a2]) { await p.evaluate(i => { st.selecting = true; st.sel = new Set([i]); renderDatabase(); }, i); await p.click('#bulkbar [data-bulk=trash]'); await p.waitForTimeout(500); }
+  for (const i of [a1, a2]) { await p.evaluate(i => { st.sel = new Set([i]); renderDatabase(); }, i); await p.click('#bulkbar [data-bulk=trash]'); await p.waitForTimeout(500); }
   await p.evaluate(() => { const u = [...document.querySelectorAll('#toasts .tact')]; u.forEach(b => b.click()); });
   await p.waitForTimeout(1500);
   ok(await p.evaluate(([a, b]) => LIB.items.some(i => i.id === a) && LIB.items.some(i => i.id === b), [a1, a2]), 'two Undos clicked together both put their items back');
   ok(await p.evaluate(() => !document.getElementById('toasts').closest('[aria-hidden=true]')), 'the toasts (and their Undo) are not hidden from screen readers');
-  await p.evaluate(() => { st.selecting = false; st.sel.clear(); renderDatabase(); });
+  await p.evaluate(() => { st.sel.clear(); renderDatabase(); });
   // the key bar keeps a password being typed when it is redrawn
   await p.evaluate(() => { SESSION.unlockedUntil = Date.now() / 1000 + 120; renderKeybar(); });
   await p.click('#key-extend'); await p.keyboard.type('half-typ');
@@ -73,7 +72,7 @@ const books = async p => { await p.evaluate(() => { document.getElementById('kin
   ok(asked && await m.evaluate(() => !!st.selected), 'phone: a tap on the backdrop asks before closing over an open form (and stays when told no)');
   await m.evaluate(() => { st.editReview = false; closeDetail(); });
   await m.waitForTimeout(400);
-  await m.evaluate(() => { st.selecting = true; st.sel = new Set([...document.querySelectorAll('#grid > .book')].slice(0, 3).map(e => e.dataset.id)); renderDatabase(); });
+  await m.evaluate(() => { st.sel = new Set([...document.querySelectorAll('#grid > .book')].slice(0, 3).map(e => e.dataset.id)); renderDatabase(); });
   await m.evaluate(() => toast('A message while the bar is up'));
   await m.waitForTimeout(300);
   const geo = await m.evaluate(() => { const t = document.querySelector('#toasts .toast').getBoundingClientRect(), bar = document.getElementById('bulkbar').getBoundingClientRect(); return [Math.round(t.bottom), Math.round(bar.top), Math.round(bar.height)]; });

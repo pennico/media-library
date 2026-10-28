@@ -51,6 +51,25 @@ let fails = 0; const ok = (c, m) => { if (!c) fails++; console.log(c ? 'PASS' : 
   const srv = await p.evaluate(async () => { const r = await (await fetch('api/library')).json(); const rows = [...document.querySelectorAll('table.list tbody tr[data-id]')].slice(0,5).map(tr => r.items.find(i => i.id === tr.dataset.id)); return rows.map(i => [i.title, i.status, i.rating, (i.reads.at(-1)||[])[0]]); });
   ok(srv.every(r => r[2] === 3), 'saved on the server: the five ratings are 3');
   ok(srv[0][1] === 'completed' && srv[0][3] === '2024-03-05' && srv[1][1] === 'planned' && srv[2][1] === 'dropped', 'saved on the server: the pasted statuses and date');
+  // 9. (1.0.1) Edit from the grid goes to the spreadsheet; a movie's runtime, original language and Where are cells that save
+  await p.click('#kind-movie'); if (await p.locator('#lay-grid[aria-pressed=false]').count()) await p.click('#lay-grid');
+  await p.waitForTimeout(300);
+  if (!(await p.locator('#grid > .book').count())) console.log('SKIP no movie on the dev shelf');
+  else {
+    ok(await p.locator('#tbl-edit svg.tblico').count() === 1, 'Edit shows its spreadsheet picture on the grid too');
+    await p.click('#tbl-edit'); await p.waitForSelector('tr.editing');
+    ok(await p.evaluate(() => st.listMode && !!document.querySelector('table.list')), 'Edit from the grid switches to the list');
+    const id = await p.evaluate(() => [...document.querySelectorAll('tr.editing')].map(tr => LIB.items.find(i => i.id === tr.dataset.id)).find(i => i?.kind === 'movie')?.id);
+    const row = p.locator(`#r-${id}`);
+    ok(await row.locator('input[data-f=pages]').count() === 1 && await row.locator('select[data-f=format] option[value=disc]').count() === 1, 'a movie row has a runtime box and a Where list');
+    await row.locator('[data-f=pages]').fill('101');
+    await row.locator('[data-f=lang]').focus(); await row.locator('[data-f=lang]').selectOption('ita');
+    await row.locator('[data-f=format]').selectOption('disc');
+    await row.locator('[data-f=ended]').fill('2020-05-01');                // a date and a place in one save: the date makes the watch
+    await p.click('#tbl-save'); await p.waitForFunction(() => !document.querySelector('tr.editing'), null, {timeout: 20000});
+    const m = await p.evaluate(async id => (await (await fetch('api/library')).json()).items.find(i => i.id === id), id);
+    ok(m.runtime === 101 && m.origLang === 'ita' && m.reads.at(-1)[4] === 'disc', 'saved on the server: runtime, original language and where: ' + JSON.stringify([m.runtime, m.origLang, m.reads.at(-1)[4]]));
+  }
   console.log(fails ? fails + ' FAILED' : 'ALL PASS');
   await b.close();
 })();

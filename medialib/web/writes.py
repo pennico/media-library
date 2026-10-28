@@ -144,7 +144,7 @@ def edit_item(conn, login, pid, body):
     with tx(conn, login):
         ids = ids_for(conn, pid)
         it = body.get("item") or {}
-        cols = {}
+        cols, movie = {}, {}
         for k, v in it.items():
             if k == "title":
                 cols["title"] = text(v, "title", required=True)
@@ -160,9 +160,14 @@ def edit_item(conn, login, pid, body):
                 cols["first_published"], cols["first_published_precision"] = partial_date(v, "first published")
             elif k == "description":
                 cols["description"] = text(v, "description", max_len=100000)
+            elif k == "runtime":                        # a movie's own row (catalog.movie); the guard stamps it 'owner'
+                if ids["kind"] != "movie":
+                    raise BadRequest("only a movie has a runtime")
+                movie["runtime_min"] = whole(v, "runtime (minutes)", 1, 1999)
             else:
                 raise BadRequest("unknown item field " + k)
         update(conn, "catalog.media_item", "id", ids["id"], cols)
+        update(conn, "catalog.movie", "item_id", ids["id"], movie)
         ed = body.get("edition") or {}
         if ed and ids["edition_id"] is None:
             raise BadRequest("this item has no edition")
@@ -1086,8 +1091,19 @@ def set_ended(conn, login, pid, value):
         add_reading(conn, login, pid, {"state": "completed", "ended": value})
 
 
+def set_platform(conn, login, pid, value):
+    """Where it was watched: the place of the last watch (the one the Watched column shows: the last finished,
+    else the latest of any state). With no watch there is nothing to put it on."""
+    last = conn.execute("SELECT public_id::text AS rid FROM library.consumption WHERE item_id = %s AND deleted_at IS NULL"
+                        " ORDER BY state = 'completed' DESC, ended_on DESC NULLS LAST, id DESC LIMIT 1",
+                        (ids_for(conn, pid)["id"],)).fetchone()
+    if not last:
+        raise BadRequest("no watch to say where: give it a watched date first")
+    edit_reading(conn, login, last["rid"], {"platform": value})
+
+
 def batch_edit(conn, login, rows):
-    """Many rows of the list's Edit mode in one request: [{id, patch?, ended?, status?}], where patch is
+    """Many rows of the list's Edit mode in one request: [{id, patch?, ended?, platform?, status?}], where patch is
     an edit_item body. Each row is applied like the single edits (provenance, audit, database rules), in
     that order, and fails alone: -> {done, errors: [{id, title, error}], items, categories} with the
     saved rows as the list shows them, so the page needs no full reload."""
@@ -1098,7 +1114,7 @@ def batch_edit(conn, login, rows):
         if not isinstance(row, dict) or not isinstance(row.get("id"), str) or row["id"] in seen:
             raise BadRequest("every row needs its own item id")
         seen.add(row["id"])
-        if not (row.get("patch") or row.get("ended") or row.get("status")):
+        if not (row.get("patch") or row.get("ended") or row.get("status") or "platform" in row):
             raise BadRequest("row without a change")
         if row.get("patch") is not None and not isinstance(row["patch"], dict):
             raise BadRequest("patch must be an object")
@@ -1110,6 +1126,8 @@ def batch_edit(conn, login, rows):
                     edit_item(conn, login, pid, row["patch"])
                 if row.get("ended"):
                     set_ended(conn, login, pid, row["ended"])
+                if "platform" in row:                  # after the date: a new date may have made the watch it goes on
+                    set_platform(conn, login, pid, row["platform"])
                 if row.get("status"):
                     set_status(conn, login, pid, {"status": row["status"]})
             done.append(pid)

@@ -404,7 +404,14 @@ body.fb-pane .detail { visibility: hidden; }
 .book { position: relative; }
 .selbox { position: absolute; left: 6px; top: 6px; z-index: 3; width: 26px; height: 26px; border-radius: 6px; display: none; place-items: center;
   background: rgb(255 252 245 / 0.92); border: 2px solid rgb(59 44 29 / 0.55); color: transparent; font-size: 14px; font-weight: 800; pointer-events: none; }
-.grid.selecting .selbox { display: grid; }
+/* 1.0.1: no Select mode. Unlocked, every cover has its check (shown on hover with a mouse, always on touch screens,
+   and on all covers once one is picked); a click on the check picks, and while any is picked a click on a cover does too */
+.grid.selecting .selbox { display: grid; pointer-events: auto; cursor: pointer; }
+@media (hover: hover) {
+  .grid.selecting:not(.picking) .book:not(:hover) .selbox { display: none; }
+  .shelfwrap:not(.picking) .rowsel:not(:hover):not(:focus-visible) { opacity: 0; }
+}
+.tblico { vertical-align: -2px; margin-right: 5px; }
 .book.sel .selbox { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .book.sel .cov { outline: 3px solid var(--accent); outline-offset: 2px; }
 .grid.selecting .gmark { left: auto; right: 5px; }
@@ -616,7 +623,7 @@ const VICON = {
   paper: `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 3.5C6.5 2.4 4.4 2 2 2.2v10c2.4-.2 4.5.2 6 1.3 1.5-1.1 3.6-1.5 6-1.3v-10c-2.4-.2-4.5.2-6 1.3zM8 3.5v10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`,
 };
 let LIB = {items: [], shelves: [], languages: {}}, SESSION = {connecting: true}, READING = null;
-const st = {sec: "database", kind: "book", shelf: null, section: null, selecting: false, sel: new Set(), delAsk: null,
+const st = {sec: "database", kind: "book", shelf: null, section: null, sel: new Set(), delAsk: null,
   filter: "all", q: "", selected: null, detail: null, editing: false, readingEdit: null,
   listSort: null, err: "", unlockMsg: "", rowCats: {}, tableEdit: false, catRow: null, syncTab: "readest", readerPw: null, view: "shelf", trash: null,
   confirmTrash: false, vtab: "me", vscope: "all", LSTATS: null, side: true, f: null, fpane: false, pick: null,
@@ -1014,12 +1021,12 @@ function renderDatabase() {
   const prefs = shelfPrefs(shelf), base = visibleItems(), list = sorted(filtered(base), prefs);
   st.listMode = prefs.layout === "list";
   // Edit mode ends with the list, or with Select; a lock only ends it when nothing typed would be lost
-  if (!st.listMode || st.selecting || (!canEdit() && !hasDrafts())) { st.tableEdit = false; st.drafts = {}; }
+  if (!st.listMode || (!canEdit() && !hasDrafts())) { st.tableEdit = false; st.drafts = {}; }
   const kind = st.kind, labels = LABEL[kind], active = activeFilters();
   const present = STATUS_ORDER.filter(s => ["planned", "in_progress", "completed"].includes(s) || base.some(i => i.status === s));
   const chips = [["all", "All", base.length], ...present.map(s => [s, labels[s], base.filter(i => i.status === s).length])];
   const manual = (st.listSort?.key || prefs.sort) === "manual";
-  const canDrag = manual && prefs.layout === "grid" && st.filter === "all" && !st.q && !active.length && canEdit() && !st.selecting && !st.section;
+  const canDrag = manual && prefs.layout === "grid" && st.filter === "all" && !st.q && !active.length && canEdit() && !st.sel.size && !st.section;
   const sec = st.section && sectionOf(st.section);
   const title = (sec ? sec.name : shelf.kind === "all" ? "All " + KINDS.find(k => k[0] === kind)[1].toLowerCase() : shelf.name) + (st.f.cats.length === 1 ? " · " + catName(st.f.cats[0]) : "");
   const v = $("v-database");
@@ -1041,10 +1048,9 @@ function renderDatabase() {
         <span class="segsmall" role="group" aria-label="Layout"><button id="lay-grid" data-layout="grid" aria-pressed="${prefs.layout === "grid"}">Grid</button><button id="lay-list" data-layout="list" aria-pressed="${prefs.layout === "list"}">List</button></span>
         ${shelf.kind === "manual" && !sec && canEdit() ? `<button class="btn small" id="shelf-menu">Collection…</button>` : ""}
         ${sec && sec.kind === "manual" && canEdit() ? `<button class="btn small" id="section-menu">Section…</button>` : ""}
-        ${canEdit() ? `<button class="btn small" id="sel-toggle" aria-pressed="${st.selecting}" title="Select ${noun(kind)} to act on several at once">${st.selecting ? "Done" : "Select"}</button>` : ""}
-        ${(canEdit() || st.tableEdit) && st.listMode && !st.selecting ? (st.tableEdit ? `<button class="btn small primary" id="tbl-save" title="Save the rows you changed">Save</button><button class="btn small" id="tbl-paste" title="Paste cells copied from Excel or Sheets at the selected cell">Paste</button><button class="btn small" id="tbl-cancel">Cancel</button>`
-          : `<button class="btn small" id="tbl-edit" title="Edit the rows of this list in place">Edit</button>`) : ""}
-        ${st.selecting ? `<button class="btn small" id="sel-all" title="Select everything shown">All</button><button class="btn small" id="sel-none" ${st.sel.size ? "" : "disabled"}>None</button>` : ""}
+        ${canEdit() || st.tableEdit ? (st.tableEdit ? `<button class="btn small primary" id="tbl-save" title="Save the rows you changed">Save</button><button class="btn small" id="tbl-paste" title="Paste cells copied from Excel or Sheets at the selected cell">Paste</button><button class="btn small" id="tbl-cancel">Cancel</button>`
+          : `<button class="btn small" id="tbl-edit" title="Edit the ${noun(kind)} like a spreadsheet: every row, in place">${TBLICO}Edit</button>`) : ""}
+        ${canEdit() && !st.listMode && st.sel.size ? `<button class="btn small" id="sel-all" title="Select everything shown">All</button><button class="btn small" id="sel-none" ${st.sel.size ? "" : "disabled"}>None</button>` : ""}
         ${kind === "book" ? `<button class="btn small primary" id="add-book" title="Find a book at Apple Books and Open Library and add it">+ Add book</button>`
           : LIB.tmdb ? `<button class="btn small primary" id="add-screen" title="Find it at TMDB and add it">+ Add ${noun(kind, 1)}</button>` : ""}
       </div>
@@ -1100,12 +1106,12 @@ function layoutShelves() {
   const pitch = rows.length > 1 ? rows[rows.length - 1] - rows[rows.length - 2] : heights[0] + (parseFloat(getComputedStyle(grid).rowGap) || 0);
   const all = rows.slice();
   if (pitch > 60) for (let y = rows[rows.length - 1] + pitch; y < wrap.clientHeight - 4; y += pitch) all.push(y);
-  const sig = all.join() + "|" + cols + "|" + n + "|" + st.selecting;
+  const sig = all.join() + "|" + cols + "|" + n + "|" + canEdit();
   if (boards.dataset.sig !== sig) {
     boards.dataset.sig = sig;
-    boards.innerHTML = all.map(y => `<div class="board" style="top:${y - BOARD}px"></div>`).join("") + (st.selecting ? rowToggles(kids, rows, cols) : "");
+    boards.innerHTML = all.map(y => `<div class="board" style="top:${y - BOARD}px"></div>`).join("") + (canEdit() ? rowToggles(kids, rows, cols) : "");
   }
-  if (st.selecting) paintRowToggles();
+  if (canEdit()) paintRowToggles();
 }
 // Films of one collection fold into one card on the Movies grid (D49), where the first of them stands, with
 // those the list shows (filters still count each film); a collection with one film here stays a plain card.
@@ -1161,7 +1167,8 @@ function syncGrid(content, list, prefs, canDrag) {
     content.innerHTML = `<div class="shelfwrap" id="shelfwrap"><div class="boards" id="boards"></div><div class="grid" id="grid"></div></div>`;
     grid = $("grid"); enableDrag(grid);
   }
-  const cls = `grid ${prefs.size}${st.selecting ? " selecting" : ""}${canEdit() ? " canedit" : ""}`;
+  const cls = `grid ${prefs.size}${canEdit() ? " selecting canedit" : ""}${st.sel.size ? " picking" : ""}`;
+  $("shelfwrap").classList.toggle("picking", st.sel.size > 0);
   if (grid.className !== cls) grid.className = cls;
   grid.dataset.drag = canDrag ? "1" : "";
   if (canDrag !== !!grid._tmOn) { grid[canDrag ? "addEventListener" : "removeEventListener"]("touchmove", grid._touchmove, {passive: false}); grid._tmOn = canDrag; }
@@ -1191,13 +1198,13 @@ function syncGrid(content, list, prefs, canDrag) {
   const sz = grid.dataset.sizes;
   if (sz && els.some(el => el._sz !== sz)) resizeCovers(grid, sz);
 }
-// the state of a card that is not the item's: selected (in Select mode) and the book open in the panel
+// the state of a card that is not the item's: picked (unlocked) and the book open in the panel
 function paintCard(el) {
   const cur = String(el.dataset.id === st.selected);
   if (el.getAttribute("aria-current") !== cur) el.setAttribute("aria-current", cur);
-  const on = st.selecting && idsOf(el).every(i => st.sel.has(i));
+  const on = canEdit() && idsOf(el).every(i => st.sel.has(i));
   if (el.classList.contains("sel") !== on) el.classList.toggle("sel", on);
-  if (st.selecting) { if (el.getAttribute("aria-pressed") !== String(on)) el.setAttribute("aria-pressed", String(on)); }
+  if (canEdit() && st.sel.size) { if (el.getAttribute("aria-pressed") !== String(on)) el.setAttribute("aria-pressed", String(on)); }
   else if (el.hasAttribute("aria-pressed")) el.removeAttribute("aria-pressed");
 }
 function vmark(i) {
@@ -1217,7 +1224,9 @@ function sectionsNav() {
     + (canEdit() ? `<form class="newshelf" id="newsection"><input id="newsection-name" placeholder="New section" aria-label="New section name" maxlength="100"><button class="btn small" type="submit">Add</button></form>` : "");
 }
 // on a cover: the selection check (deleting is in the list and the details)
-const SELBOX = `<span class="selbox" aria-hidden="true">✓</span>`;      // shown only in Select mode (CSS)
+const SELBOX = `<span class="selbox" aria-hidden="true" title="Select">✓</span>`;      // shown only when unlocked (CSS)
+// the Edit button's picture: a small spreadsheet grid
+const TBLICO = `<svg class="tblico" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 6.2h13M1.5 9.9h13M6 2.5v11M10.3 2.5v11" stroke="currentColor" stroke-width="1.1"/></svg>`;
 const idsOf = el => el.dataset.members ? el.dataset.members.split(",") : [el.dataset.id];
 // a toggle at the start of each shelf row: selects (or clears) the covers standing on that board
 // (a toggle knows only its row: the covers on it are read from the shelf as it is, after any sort or filter)
@@ -1241,6 +1250,9 @@ function paintRowToggles() {
 }
 // after the selection changed: the cards, the row toggles, the list's checks and the bar, without redrawing the shelf
 function selChanged() {
+  for (const w of [$("grid"), $("shelfwrap")]) w?.classList.toggle("picking", st.sel.size > 0);
+  const tools = document.querySelector("#dbhead .tools");      // the grid's All / None come with the first pick
+  if (tools && !st.listMode && !!$("sel-all") !== (canEdit() && st.sel.size > 0)) renderDatabase();
   for (const el of document.querySelectorAll("#grid > .book")) paintCard(el);
   paintRowToggles();
   for (const c of document.querySelectorAll("table.list input[data-lsel]")) { const on = st.sel.has(c.dataset.lsel); if (c.checked !== on) c.checked = on; c.closest("tr")?.classList.toggle("picked", on); }
@@ -1259,7 +1271,7 @@ const bulkWatch = window.ResizeObserver ? new ResizeObserver(es => { for (const 
 function renderBulk() {
   let bar = $("bulkbar");
   const n = st.sel.size;
-  if (!(st.sec === "database" && (st.selecting || st.listMode && canEdit() && !st.tableEdit) && n && st.view !== "trash")) { bar?.remove(); closeBulkPop(); $("toasts").classList.remove("above"); return; }
+  if (!(st.sec === "database" && canEdit() && !st.tableEdit && n && st.view !== "trash")) { bar?.remove(); closeBulkPop(); $("toasts").classList.remove("above"); return; }
   $("toasts").classList.add("above");
   if (!bar) { bar = document.createElement("div"); bar.id = "bulkbar"; bulkWatch?.observe(bar); bar.classList.toggle("behind", sheetOn()); bar.className = "bulkbar"; bar.setAttribute("role", "toolbar"); bar.setAttribute("aria-label", "Actions on the selection"); document.body.append(bar); }
   const archived = st.section && sectionOf(st.section)?.kind === "archive", done = LABEL[st.kind].completed;
@@ -1388,7 +1400,7 @@ const listCols = kind => !SCREEN(kind) ? LIST_COLS : LIST_COLS.map(([c, l, k]) =
 const amountText = i => amount(i) == null ? "" : i.kind === "movie" ? fmtRuntime(i.runtime) : String(amount(i));
 function listHtml(list, prefs) {
   const key = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc, edit = canEdit(), screen = SCREEN(st.kind);
-  const pick = (edit || st.selecting) && !st.tableEdit;   // unlocked, the list always has its checks (no Select first)
+  const pick = edit && !st.tableEdit;   // unlocked, the list always has its checks (no Select first)
   const shown = list.map(i => i.id), all = shown.length && shown.every(x => st.sel.has(x));
   const grip = `<span class="colgrip" title="Drag to change the width; double-click to fit" aria-hidden="true"></span>`;
   // fixed layout from the first paint (widths in the header), except in Edit mode before any width was set
@@ -1512,6 +1524,8 @@ const smallCover = url => url && !url.startsWith("data:") ? url.replace(/-320\.j
 const listCover = i => `<button class="lcov" data-open="${i.id}" aria-label="Open ${esc(i.title)}" title="Open the details">${coverSrc(i.cover) ? `<img src="${BADCOV.has(smallCover(coverSrc(i.cover))) ? coverSrc(i.cover) : smallCover(coverSrc(i.cover))}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}</button>`;
 // the date of the last finished reading / watch, as precise as it was recorded
 const lastRead = i => { const r = (i.reads || []).at(-1); return r ? String(r[0]).slice(0, r[1] === "year" ? 4 : r[1] === "month" ? 7 : 10) : ""; };
+// where the last watch was (what the Where cell edits): the last dated watch's place, else the only place recorded
+const lastWhere = i => (i.reads || []).at(-1)?.[4] || ((i.platforms || []).length === 1 ? i.platforms[0] : "");
 // in edit mode every row is a small form: title, makers, status, rating, read/watched date, pages, language, version, categories, added
 function rowEditHtml(i) {
   const book = i.kind === "book", L = LABEL[i.kind] || LABEL.book, cats = (st.rowCats[i.id] ??= [...i.genres]);
@@ -1523,12 +1537,16 @@ function rowEditHtml(i) {
     <td><select class="le" data-f="status" aria-label="Status">${STATUS_ORDER.map(x => `<option value="${x}" ${i.status === x ? "selected" : ""}>${L[x]}</option>`).join("")}</select></td>
     <td><select class="le num" data-f="rating" aria-label="Rating"><option value="">—</option>${Array.from({length: 11}, (_, n) => `<option ${i.rating != null && Math.round(i.rating) === n ? "selected" : ""}>${n}</option>`).join("")}</select></td>
     <td><input class="le date" data-f="ended" value="${esc(lastRead(i))}" placeholder="yyyy-mm-dd" aria-label="${SCREEN(i.kind) ? "Watched" : "Read"} on (the last time)" title="The last ${SCREEN(i.kind) ? "watch" : "reading"}: year, year-month or a day"></td>
-    <td>${book ? `<input class="le num" data-f="pages" value="${i.pages ?? ""}" inputmode="numeric" aria-label="Pages">` : esc(amountText(i))}</td>
-    <td>${book ? `<select class="le" data-f="lang" data-lazy="lang" aria-label="Language"><option value="">—</option>${i.lang ? `<option value="${esc(i.lang)}" selected>${esc(langName(i.lang))}</option>` : ""}</select>` : esc(langName(i.origLang))}</td>
-    <td>${book ? `<select class="le" data-f="format" aria-label="Version"><option value="">—</option>${fmts}</select>` : esc((i.platforms || []).map(platformName).join(", "))}</td>
+    <td>${book ? `<input class="le num" data-f="pages" value="${i.pages ?? ""}" inputmode="numeric" aria-label="Pages">`
+      : i.kind === "movie" ? `<input class="le num" data-f="pages" value="${i.runtime ?? ""}" inputmode="numeric" aria-label="Runtime in minutes" title="Minutes">` : esc(amountText(i))}</td>
+    <td>${langCell(book ? i.lang : i.origLang, book ? "Language" : "Original language")}</td>
+    <td>${book ? `<select class="le" data-f="format" aria-label="Version"><option value="">—</option>${fmts}</select>`
+      : `<select class="le" data-f="format" aria-label="Where it was watched (the last watch)" title="Where: the last watch"><option value="">—</option>${(LIB.platforms || []).map(([c, l]) => `<option value="${c}" ${lastWhere(i) === c ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`}</td>
     <td class="lecats"><button type="button" class="le lecat-btn" data-lecats="${i.id}" aria-expanded="false" aria-haspopup="true" title="Categories">${esc(cats.join(", ") || "—")} ▾</button></td>
     <td><input type="date" class="le" data-f="added" value="${esc(i.added)}" max="${new Date().toISOString().slice(0, 10)}" aria-label="Added"></td></tr>`;
 }
+// (a movie's or series' row uses the same three cells for runtime, original language and where: data-f pages / lang / format)
+const langCell = (v, label) => `<select class="le" data-f="lang" data-lazy="lang" aria-label="${label}"><option value="">—</option>${v ? `<option value="${esc(v)}" selected>${esc(langName(v))}</option>` : ""}</select>`;
 // the categories of the row being edited: a small list of checkboxes under the button, by group
 function catPopHtml() {
   const cats = LIB.categories || [], on = new Set((st.rowCats[st.catRow] || []).map(n => n.toLowerCase()));
@@ -1562,15 +1580,20 @@ function rowChanges(i, tr) {
   if (v("added") && v("added") !== i.added) entry.added = v("added");
   const norm = xs => xs.map(x => x.toLowerCase()).sort().join("|"), cats = st.rowCats[i.id] || i.genres;
   if (norm(cats) !== norm(i.genres)) body.genres = cats;
+  let platform;
   if (i.kind === "book") {
     if (v("pages").trim() !== String(i.pages ?? "")) edition.pages = v("pages").trim();
     if (v("lang") !== (i.lang || "")) edition.lang = v("lang");
     if (v("format") !== (i.format || "")) edition.format = v("format") || null;
+  } else {
+    if (i.kind === "movie" && v("pages").trim() !== String(i.runtime ?? "")) item.runtime = v("pages").trim() || null;
+    if (v("lang") !== (i.origLang || "")) item.originalLang = v("lang") || null;
+    if (v("format") !== lastWhere(i)) platform = v("format");
   }
   for (const [k, o] of [["item", item], ["edition", edition], ["entry", entry]]) if (Object.keys(o).length) body[k] = o;
   const ended = v("ended").trim();
   return {body: Object.keys(body).length ? body : null, status: v("status") !== i.status ? v("status") : null,
-    ended: ended && ended !== lastRead(i) ? ended : null};
+    ended: ended && ended !== lastRead(i) ? ended : null, platform};
 }
 // the read/watched date moves the last finished reading / watch (and its start, when that was later); with none, adds one
 async function saveEnded(i, ended) {
@@ -1580,14 +1603,14 @@ async function saveEnded(i, ended) {
 async function saveTable() {
   toggleCatPop(false);
   const work = [...document.querySelectorAll("table.list tr.editing")].map(tr => [LIB.items.find(x => x.id === tr.dataset.id), tr])
-    .filter(([i]) => i).map(([i, tr]) => [i, rowChanges(i, tr)]).filter(([, c]) => c.body || c.status || c.ended);
+    .filter(([i]) => i).map(([i, tr]) => [i, rowChanges(i, tr)]).filter(([, c]) => c.body || c.status || c.ended || c.platform !== undefined);
   if (!work.length) { if (Object.keys(st.drafts || {}).length) { toast("The changed rows are hidden by the filter: clear it to save them", true); return; }
     st.tableEdit = false; st.rowCats = {}; renderDatabase(); toast("Nothing changed"); return; }
   const failed = [], badIds = [];
   const hidden = Object.keys(st.drafts || {}).filter(id => !document.getElementById("r-" + id)).length;
   const inner = async () => {
     // one request for all the rows; each row is saved (or refused) on its own, and the answer carries the rows as saved
-    const r = await api.batchEdit(work.map(([i, c]) => ({id: i.id, patch: c.body || undefined, ended: c.ended || undefined, status: c.status || undefined})));
+    const r = await api.batchEdit(work.map(([i, c]) => ({id: i.id, patch: c.body || undefined, ended: c.ended || undefined, platform: c.platform, status: c.status || undefined})));
     mergeRows(r);
     for (const e of r.errors) { failed.push(e.title + ": " + e.error); badIds.push([e.id, e.error]); }
     if (st.selected) st.detail = await api.detail(st.selected).catch(() => null);
@@ -1633,17 +1656,21 @@ function gparse(tr, c, text) {
     case "status": { const v = pick(STATUS_ORDER.map(x => [x, L[x]])); return v ? {v} : {err: `"${t}" is not a status.`}; }
     case "rating": { if (none) return {v: ""}; const n = Number(t.replace(",", ".")); return Number.isFinite(n) && n >= 0 && n <= 10 ? {v: String(Math.round(n))} : {err: "Rating: a number from 0 to 10."}; }
     case "ended": return t === "" || /^\d{4}(-\d{2}(-\d{2})?)?$/.test(t) ? {v: t} : {err: "Date: yyyy, yyyy-mm or yyyy-mm-dd."};
-    case "pages": return t === "" || (/^\d{1,5}$/.test(t) && +t >= 1 && +t <= 20000) ? {v: t} : {err: "Pages: a whole number from 1 to 20000."};
+    case "pages": if (i.kind === "movie") return t === "" || (/^\d{1,4}$/.test(t) && +t >= 1 && +t <= 1999) ? {v: t} : {err: "Runtime: minutes, from 1 to 1999."};
+      return t === "" || (/^\d{1,5}$/.test(t) && +t >= 1 && +t <= 20000) ? {v: t} : {err: "Pages: a whole number from 1 to 20000."};
     case "lang": { if (none) return {v: ""}; const v = pick(Object.entries(LIB.languages)); return v ? {v} : {err: `Unknown language "${t}".`}; }
-    case "format": { if (none) return {v: ""}; const v = pick(FORMATS); return v ? {v} : {err: `"${t}" is not a version (${FORMATS.map(f => f[1]).join(", ")}).`}; }
+    case "format": { if (none) return {v: ""};
+      if (SCREEN(i.kind)) { const w = pick(LIB.platforms || []); return w ? {v: w} : {err: `"${t}" is not a place to watch (add it from a watch's Where first).`}; }
+      const v = pick(FORMATS); return v ? {v} : {err: `"${t}" is not a version (${FORMATS.map(f => f[1]).join(", ")}).`}; }
     case "added": return /^\d{4}-\d{2}-\d{2}$/.test(t) && t <= new Date().toISOString().slice(0, 10) ? {v: t} : {err: "Added: yyyy-mm-dd, not in the future."};
     case "cats": { const out = []; for (const n of splitList(t, /[;,]/)) { const m = (LIB.categories || []).find(x => x.name.toLowerCase() === n.toLowerCase()); if (!m) return {err: `Unknown category "${n}".`}; out.push(m.name); } return {v: out}; }
   }
 }
 // what the item has now, to tint the cells that differ
 function gorig(i, c) {
+  const book = !SCREEN(i.kind);
   return {title: i.title, authors: i.authors || "", status: i.status, rating: i.rating == null ? "" : String(Math.round(i.rating)), ended: lastRead(i),
-    pages: String(i.pages ?? ""), lang: i.lang || "", format: i.format || "", added: i.added}[c];
+    pages: String((book ? i.pages : i.runtime) ?? ""), lang: (book ? i.lang : i.origLang) || "", format: (book ? i.format : lastWhere(i)) || "", added: i.added}[c];
 }
 function gmark(tr, c) {
   const el = gel(tr, c), i = tr && gitem(tr); if (!el || !i) return;
@@ -2363,7 +2390,6 @@ document.addEventListener("click", async e => {
   if (st.pending && (/-cancel$|^d-trash-no$|^key-lock$/.test(t.id) || t.dataset.purgecancel)) { st.pending = null; st.unlockMsg = ""; }
   if (t.dataset.scrim) { if (editingNow() && !confirm("Close it and lose what you typed?")) return; closeDetail(); return; }
   if (t.dataset.retry) { if (!LIB.items.length) $("v-database").innerHTML = `<p class="empty">Opening the library…</p>`; refresh(true); return; }
-  if (t.id === "sel-toggle") { if (hasDrafts() && !confirm("Throw away the changes typed in the rows?")) return; st.selecting = !st.selecting; st.sel.clear(); st.delAsk = null; renderDatabase(); return; }
   if (t.id === "sel-all") { toggleSel(shownIds(), true); selChanged(); return; }
   if (t.id === "sel-none") { st.sel.clear(); selChanged(); return; }
   if (t.dataset.lsel) { toggleSel([t.dataset.lsel], t.checked); selChanged(); return; }
@@ -2449,12 +2475,14 @@ document.addEventListener("click", async e => {
   if (t.id === "ed-fill") { const fid = st.selected; await act(async () => { const r = await api.fill(fid);
     toast(r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know")); await afterItemChange(r.item); }); return; }
   if (t.matches(".book")) { if (drag.suppressClick) { drag.suppressClick = false; return; }
-    if (st.selecting) { toggleSel(idsOf(t)); selChanged(); return; }
+    if (canEdit() && (st.sel.size || e.target.closest(".selbox"))) { toggleSel(idsOf(t)); selChanged(); return; }
     return openBook(t, e.detail === 0); }
   if (t.dataset.open) return openDetail(t.dataset.open);
   if (t.dataset.ltitle) return st.selected === t.dataset.ltitle ? closeDetail() : openDetail(t.dataset.ltitle);
   if (t.matches("table.list tr[data-id]")) { if (st.selected && !st.tableEdit) closeDetail(); return; }
-  if (t.id === "tbl-edit") { if (!canEdit()) return act(GATE); st.tableEdit = true; st.rowCats = {}; st.drafts = {}; st.sel.clear(); renderDatabase(); document.querySelector("table.list [data-f=title]")?.focus(); return; }
+  if (t.id === "tbl-edit") { if (!canEdit()) return act(GATE);
+    if (!st.listMode) { st.listSort = null; await setPref("layout", "list"); }      // Edit from the grid: the list is the spreadsheet
+    st.tableEdit = true; st.rowCats = {}; st.drafts = {}; st.sel.clear(); renderDatabase(); document.querySelector("table.list [data-f=title]")?.focus(); return; }
   if (t.id === "tbl-cancel") { if (hasDrafts() && !confirm("Throw away the changes typed in the rows?")) return; st.drafts = {}; st.tableEdit = false; st.rowCats = {}; toggleCatPop(false); renderDatabase(); return; }
   if (t.id === "tbl-save") return saveTable();
   if (t.id === "tbl-paste") { try { gpaste(await navigator.clipboard.readText()); } catch (er) { toast("The browser didn't allow reading the clipboard: click a cell and press Ctrl/Cmd+V", true); } return; }
@@ -2698,7 +2726,7 @@ const drag = {active: false, suppressClick: false};
 // attached once to the shelf's grid; whether covers can be dragged is read when a drag starts (renderDatabase sets it)
 function enableDrag(grid) {
   grid.addEventListener("pointerdown", e => {
-    if (grid.dataset.drag !== "1" || st.selecting) return;
+    if (grid.dataset.drag !== "1" || st.sel.size || e.target.closest(".selbox")) return;
     const shelf = LIB.shelves.find(s => s.id === st.shelf); if (!shelf) return;
     const book = e.target.closest(".book"); if (!book || e.button > 0) return;
     const start = {x: e.clientX, y: e.clientY, t: Date.now(), id: book.dataset.rep || book.dataset.id, pointer: e.pointerId, touch: e.pointerType === "touch",
@@ -2809,7 +2837,7 @@ document.addEventListener("keydown", e => {
     if (st.fpane) { closeFilterPane(); filterBtn()?.focus(); return; }
     if (entry || (typing && st.tableEdit && e.target.classList?.contains("le"))) { if (st.tableEdit && e.target.classList?.contains("le")) { e.preventDefault(); e.target.blur(); } return; }
     if (st.selected) { closeDetail(); return; }
-    if (st.selecting) { st.selecting = false; st.sel.clear(); renderDatabase(); return; }
+    if (st.sel.size && canEdit()) { st.sel.clear(); selChanged(); return; }
     return;
   }
   if (e.key === "Enter" && st.tableEdit && e.target.classList?.contains("le") && !e.target.dataset.lecats) {

@@ -19,6 +19,10 @@ const BASE = process.env.ML_BASE || 'http://127.0.0.1:8199/', PW = process.env.M
   const frame = () => p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
   const m = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value]));
   const click = async sel => {
+    if (sel.endsWith(' .selbox')) {                                // a cover's check shows on hover (1.0.1): move onto the cover first
+      const hb = await p.evaluate(s => { const r = document.querySelector(s)?.getBoundingClientRect(); return r && {x: r.left + r.width / 2, y: r.top + r.height / 2}; }, sel.slice(0, -7));
+      if (hb) { await cdp.send('Input.dispatchMouseEvent', {type: 'mouseMoved', x: hb.x, y: hb.y}); await frame(); }
+    }
     const box = await p.evaluate(s => { const e = typeof s === 'string' ? document.querySelector(s) : null; if (!e) return null; e.scrollIntoView({block: 'nearest'}); const r = e.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 40)}; }, sel);
     if (!box) return 'missing';
     await cdp.send('Input.dispatchMouseEvent', {type: 'mouseMoved', x: box.x, y: box.y}); await frame();
@@ -29,8 +33,8 @@ const BASE = process.env.ML_BASE || 'http://127.0.0.1:8199/', PW = process.env.M
     const z = await m(), d = k => ((z[k] - a[k]) * 1000).toFixed(0).padStart(5);
     return `wall ${String(Date.now() - t0).padStart(5)} ms | task ${d('TaskDuration')} script ${d('ScriptDuration')} style ${d('RecalcStyleDuration')} layout ${d('LayoutDuration')}`;
   };
-  const steps = [['size L', '#size-l'], ['size M', '#size-m'], ['layout list', '#lay-list'], ['layout grid', '#lay-grid'], ['Select on', '#sel-toggle'],
-    ['select cover a', '#grid .book:nth-child(3)'], ['select cover b', '#grid .book:nth-child(4)'], ['Select off', '#sel-toggle'], ['chip Read', '#f-completed'], ['chip All', '#f-all'],
+  const steps = [['size L', '#size-l'], ['size M', '#size-m'], ['layout list', '#lay-list'], ['layout grid', '#lay-grid'],
+    ['pick cover a', '#grid .book:nth-child(3) .selbox'], ['pick cover b', '#grid .book:nth-child(4)'], ['picks: None', '#sel-none'], ['chip Read', '#f-completed'], ['chip All', '#f-all'],
     ['open detail', '#grid .book:nth-child(6)'], ['close detail', '#d-close']];
   console.log('items', await p.evaluate(() => LIB.items.length), 'throttle', THR, CSS ? 'css: ' + CSS.slice(0, 60) : '');
   for (const [label, sel] of steps) { console.log(label.padEnd(16), await click(sel)); if (label === 'open detail') await p.waitForTimeout(2000); }

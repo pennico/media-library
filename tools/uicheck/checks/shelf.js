@@ -25,10 +25,15 @@ let fails = 0; const ok = (c, m) => { if (!c) fails++; console.log(c ? 'PASS' : 
   const mark = await p.evaluate(() => { document.querySelector('#grid .book').__mark = 1; return 1; });
   await p.click('#size-l'); ok(await p.evaluate(() => document.getElementById('grid').classList.contains('l') && document.querySelector('#grid .book').__mark === 1), 'size L: class set, card nodes reused');
   await p.click('#size-m');
-  // select mode
-  await p.click('#sel-toggle');
-  ok(await p.evaluate(() => getComputedStyle(document.querySelector('#grid .selbox')).display !== 'none'), 'select mode shows the check boxes');
-  for (const k of [1, 2, 3]) await p.locator('#grid .book').nth(k).click();
+  // picking (1.0.1, no Select mode): a cover's check shows on hover and picks it; while any is picked a click on a cover picks too
+  const pick = async loc => { await loc.hover(); await loc.locator('.selbox').click(); };   // 1.0.1: the cover's check (shown on hover) picks it
+  await p.mouse.move(2, 2);
+  ok(await p.evaluate(() => getComputedStyle(document.querySelector('#grid .book:nth-child(2) .selbox')).display === 'none') && !(await p.locator('#sel-toggle').count()),
+    'unlocked: no Select button, the checks wait for the mouse');
+  ok(!(await p.locator('#sel-all').count()), 'All / None only come with a pick');
+  await pick(p.locator('#grid .book').nth(1));
+  ok(await p.evaluate(() => [...document.querySelectorAll('#grid .selbox')].every(e => getComputedStyle(e).display !== 'none')), 'once one is picked, every cover shows its check');
+  for (const k of [2, 3]) await p.locator('#grid .book').nth(k).click();
   ok(await p.locator('#grid .book.sel').count() === 3 && (await p.textContent('#bulkbar b')) === '3 selected', 'three covers selected, bar says 3');
   ok(await p.evaluate(() => document.querySelector('#grid .book.sel').getAttribute('aria-pressed') === 'true'), 'selected card has aria-pressed=true');
   ok((await p.textContent('#bulkbar [data-bulk=trash]')) === 'Move to trash', 'the bar offers Move to trash (with Undo after, no second click)');
@@ -37,9 +42,10 @@ let fails = 0; const ok = (c, m) => { if (!c) fails++; console.log(c ? 'PASS' : 
   const rowBtn = p.locator('#boards .rowsel').first(); await rowBtn.click();
   const cols = await p.evaluate(() => getComputedStyle(document.getElementById('grid')).gridTemplateColumns.split(' ').length);
   ok(await p.locator('#grid .book.sel').count() >= cols && (await rowBtn.getAttribute('aria-pressed')) === 'true', `row toggle selects the first row (${cols} columns)`);
-  await p.click('#sel-none'); ok(await p.locator('#grid .book.sel').count() === 0 && !(await p.locator('#bulkbar').count()), 'None clears and the bar goes');
+  await p.click('#sel-none'); ok(await p.locator('#grid .book.sel').count() === 0 && !(await p.locator('#bulkbar').count()) && !(await p.locator('#sel-all').count()), 'None clears; the bar and All / None go');
+  await pick(p.locator('#grid .book').nth(1));
   await p.click('#sel-all'); ok(await p.locator('#grid .book.sel').count() === nBooks, 'All selects every shown book');
-  await p.keyboard.press('Escape'); ok(!(await p.evaluate(() => st.selecting)) && await p.locator('#grid .book.sel').count() === 0, 'Esc leaves Select mode');
+  await p.keyboard.press('Escape'); ok(await p.evaluate(() => st.sel.size === 0) && await p.locator('#grid .book.sel').count() === 0, 'Esc clears the picks');
   // detail
   await p.locator('#grid .book').nth(5).click(); await p.waitForTimeout(1900);
   ok(await p.evaluate(() => !document.getElementById('detail').hidden && document.querySelector('#grid .book[aria-current=true]')?.dataset.id === st.selected), 'cover opens the detail; card marked current');

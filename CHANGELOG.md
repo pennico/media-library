@@ -2,6 +2,23 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-10-28
+
+Fewer ways to do the same thing, and more of the list editable.
+
+- **No Select button**: unlocked, every cover has its check, like the list's
+  rows (with a mouse it shows on hover; on a touch screen it is always there).
+  Click a check to pick a cover; while any is picked, a click on a cover picks
+  it too, the shelf-row toggles show, and All / None appear in the toolbar.
+  Esc clears the picks. Covers still drag into a new order when none is picked.
+- **Edit** has a small spreadsheet picture and works from the grid too (it
+  switches to the list, which is the spreadsheet).
+- **More cells in Edit for movies and series**: a movie's runtime, the
+  original language and Where (the place of the last watch) are now edited
+  in the row, pasted from Excel or Sheets and filled down like the others. A
+  place needs a watch to go on: give the row a watched date first (one save
+  can do both). A runtime you type is yours: TMDB's Fill missing leaves it.
+
 ## [1.0.0] - 2026-10-27
 
 The console is complete for its one user: fast on a big library, kind to

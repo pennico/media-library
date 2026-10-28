@@ -14,8 +14,8 @@ const books = async p => { await p.click('#kind-book'); if (await p.locator('#la
   await p.locator('#toasts .toast .tx').first().click(); ok(await p.locator('#toasts .toast').count() === 2, 'a toast can be dismissed');
   await p.evaluate(() => { $('toasts').innerHTML = ''; });
   // Undo a trash from the bar
-  await p.click('#sel-toggle'); const ids = await p.evaluate(() => [...document.querySelectorAll('#grid > .book')].slice(1, 3).map(b => b.dataset.id));
-  for (const id of ids) await p.click(`#b-${id}`);
+  const ids = await p.evaluate(() => [...document.querySelectorAll('#grid > .book')].slice(1, 3).map(b => b.dataset.id));
+  await p.hover(`#b-${ids[0]}`); await p.click(`#b-${ids[0]} .selbox`); await p.click(`#b-${ids[1]}`);
   const tb = await p.locator('#toasts').boundingBox(), bar = await p.locator('#bulkbar').boundingBox();
   await p.click('#bulkbar [data-bulk=trash]'); await p.waitForTimeout(600);
   ok(ids.every(id => true) && await p.evaluate(ids => ids.every(id => !document.getElementById('b-' + id)), ids), 'Move to trash: both covers leave the shelf');
@@ -23,11 +23,11 @@ const books = async p => { await p.click('#kind-book'); if (await p.locator('#la
   await p.locator('#toasts .tact').click(); await p.waitForTimeout(800);
   ok(await p.evaluate(ids => ids.every(id => !!document.getElementById('b-' + id) && !LIB.items.find(i => i.id === id).section), ids), 'Undo brings both back to the shelf');
   // Undo an archive puts the book back where it was
-  await p.click(`#b-${ids[0]}`); await p.click('#bulkbar [data-bulk=archive]'); await p.waitForTimeout(600);
+  await p.hover(`#b-${ids[0]}`); await p.click(`#b-${ids[0]} .selbox`); await p.click('#bulkbar [data-bulk=archive]'); await p.waitForTimeout(600);
   ok(await p.evaluate(id => !!LIB.items.find(i => i.id === id).section, ids[0]), 'Archive moves it to the Archive');
   await p.locator('#toasts .tact').last().click(); await p.waitForTimeout(800);
   ok(await p.evaluate(id => !LIB.items.find(i => i.id === id).section && !!document.getElementById('b-' + id), ids[0]), 'Undo puts it back in the library');
-  await p.keyboard.press('Escape'); await p.click('#sel-toggle').catch(() => {}); await p.evaluate(() => { if (st.selecting) { st.selecting = false; st.sel.clear(); renderDatabase(); } });
+  await p.keyboard.press('Escape'); await p.evaluate(() => { if (st.sel.size) { st.sel.clear(); selChanged(); } });
   // srcset: sizes from the real column width; a sharp choice at DPR 2
   const ss = await p.evaluate(() => { const im = document.querySelector('#grid .cov img[srcset]'); return [!!im, im?.sizes, document.getElementById('grid').dataset.sizes]; });
   ok(ss[0] && ss[1] === ss[2] && /^\d+px$/.test(ss[1]), 'covers carry srcset; sizes = the drawn width (' + ss[1] + ')');

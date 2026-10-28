@@ -336,3 +336,32 @@ def test_collections_in_the_library_api(web, cfg, app, tmp_path):
     assert len(films) == 2 and films[0]["coll"]["name"] == group and films[0]["coll"]["id"] == films[1]["coll"]["id"]
     s, d = Client(web).call("GET", "api/items/" + films[0]["id"])
     assert d["coll"]["name"] == group and d["screen"]["prov"]["collection_id"] == "owner"
+
+
+def test_batch_edit_a_movies_runtime_language_and_where(web, cfg, app, tmp_path):
+    """1.0.1: the list's Edit mode saves a movie's runtime, original language and where it was watched."""
+    from test_web import Client
+    seen, unseen = uniq("Edited film"), uniq("Unseen film")
+    run_import(cfg, app, [
+        {"kind": "movie", "tmdb": movie_details(seen, 880_001), "status": "completed",
+         "watches": [{"state": "completed", "ended": "2015-06-12", "platform": "netflix", "source": "owner"}]},
+        {"kind": "movie", "tmdb": movie_details(unseen, 880_002), "status": "planned", "watches": []}], tmp_path)
+    c = Client(web).unlock()
+    ids = {i["title"]: i["id"] for i in c.call("GET", "api/library")[1]["items"]}
+    s, r = c.call("POST", "api/items/batch", {"rows": [
+        {"id": ids[seen], "patch": {"item": {"runtime": "95", "originalLang": "ita"}}, "platform": "disc"},
+        {"id": ids[unseen], "platform": "disc"}]})
+    assert s == 200 and r["done"] == 1 and r["errors"][0]["id"] == ids[unseen] and "watched date" in r["errors"][0]["error"]
+    it = next(i for i in r["items"] if i["id"] == ids[seen])
+    assert it["runtime"] == 95 and it["origLang"] == "ita" and it["platforms"] == ["disc"] and it["reads"][-1][4] == "disc"
+    # a date and a place in one row: the date makes the watch, the place goes on it
+    s, r = c.call("POST", "api/items/batch", {"rows": [{"id": ids[unseen], "ended": "2021-04-10", "platform": "disc"}]})
+    assert s == 200 and r["done"] == 1 and r["items"][0]["platforms"] == ["disc"]
+    # the runtime is now the owner's (TMDB's Fill missing leaves it alone), and only a movie has one
+    prov = app.execute("SELECT m.provenance->'runtime_min'->>'src' AS src FROM catalog.movie m JOIN catalog.media_item i"
+                       " ON i.id = m.item_id WHERE i.public_id = %s", (ids[seen],)).fetchone()
+    assert prov["src"] == "owner"
+    s, r = c.call("POST", "api/items/batch", {"rows": [{"id": web["item"], "patch": {"item": {"runtime": "90"}}}]})
+    assert r["done"] == 0 and "only a movie" in r["errors"][0]["error"]
+    s, r = c.call("POST", "api/items/batch", {"rows": [{"id": ids[seen], "patch": {"item": {"runtime": "0"}}}]})
+    assert r["done"] == 0 and "runtime" in r["errors"][0]["error"]

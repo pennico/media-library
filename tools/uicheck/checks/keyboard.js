@@ -11,11 +11,11 @@ let fails = 0; const ok = (c, m) => { if (!c) fails++; console.log(c ? 'PASS' : 
   await p.click('#kind-book'); if (await p.locator('#lay-grid[aria-pressed=false]').count()) await p.click('#lay-grid');
   await p.waitForSelector('#grid .book');
   // Escape in the filter box keeps a selection
-  await p.click('#sel-toggle'); await p.locator('#grid .book').nth(1).click(); await p.locator('#grid .book').nth(2).click();
+  { const c = p.locator('#grid .book').nth(1); await c.hover(); await c.locator('.selbox').click(); } await p.locator('#grid .book').nth(2).click();
   await p.click('#filter-q'); await p.keyboard.press('Escape');
-  ok(await p.evaluate(() => st.selecting && st.sel.size === 2), 'Escape in the filter box keeps Select mode and the 2 selected');
+  ok(await p.evaluate(() => st.sel.size === 2), 'Escape in the filter box keeps the 2 picked');
   await p.locator('#grid .book').nth(0).focus(); await p.keyboard.press('Escape');
-  ok(await p.evaluate(() => !st.selecting), 'Escape on the shelf then leaves Select mode');
+  ok(await p.evaluate(() => st.sel.size === 0), 'Escape on the shelf then clears the picks');
   // arrow keys
   await p.locator('#grid .book').nth(0).focus(); await p.keyboard.press('ArrowRight'); await p.keyboard.press('ArrowDown');
   const cols = await p.evaluate(() => gridRows(document.getElementById('grid')).cols);
