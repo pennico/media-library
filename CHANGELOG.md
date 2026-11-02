@@ -2,6 +2,14 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-11-02
+
+- **Reopening the console**: the page always matches the left pane. The kind and
+  the collection were kept apart, so after a movie collection had been opened
+  once, reopening on Books showed the movies under the Books pane and filters.
+  A kept collection of another kind now gives way to the kept kind, and changing
+  kind keeps the collection too.
+
 ## [1.0.1] - 2026-10-28
 
 Fewer ways to do the same thing, and more of the list editable.

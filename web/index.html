@@ -679,7 +679,7 @@ document.addEventListener("visibilitychange", async () => {
   const fresh = LIB_ETAG !== tag || offline;
   if (fresh && LIB === lib0 && LIBREV === rev0 && !busyN && !editingNow()) {
     LIB = lib; OFFLINE_COPY = false;
-    if (!st.shelf || !LIB.shelves.some(s => s.id === st.shelf)) st.shelf = allShelf(st.kind)?.id || null;
+    settleShelf();
     render();
   } else {
     if (fresh) LIB_ETAG = tag;
@@ -792,7 +792,7 @@ let BOOT_ITEM = decodeURIComponent((location.hash.match(/^#item=(.+)$/) || [])[1
 async function refresh(keepDetail) {
   const live = Promise.all([api.session(), api.library()]);            // the server first; the kept copy meanwhile
   let settled = false; live.then(() => { settled = true; }, () => { settled = true; });
-  const useCopy = c => { LIB = c; OFFLINE_COPY = true; if (!st.shelf || !LIB.shelves.some(s => s.id === st.shelf)) st.shelf = allShelf(st.kind)?.id || null; };
+  const useCopy = c => { LIB = c; OFFLINE_COPY = true; settleShelf(); };
   const copy = LIB.items.length ? null : await cachedLibrary(), good = !!(copy?.items && copy.shelves);
   if (good && !settled) { useCopy(copy); try { render(); } catch (e) { LIB = {items: [], shelves: [], languages: {}}; OFFLINE_COPY = false; } }
   try {
@@ -802,7 +802,7 @@ async function refresh(keepDetail) {
     if (OFFLINE_COPY) { SESSION = {offline: true, error: e.message}; try { render(); } catch (er) {} renderKeybar(); return; }
     $("v-database").innerHTML = `<p class="empty">Could not load the library: ${esc(e.message)} <button class="btn small" data-retry="1">Try again</button></p>`; return;
   }
-  if (!st.shelf || !LIB.shelves.some(s => s.id === st.shelf)) st.shelf = allShelf(st.kind)?.id || null;
+  settleShelf();
   if (st.sec === "sync") await loadReading();
   if (keepDetail && st.selected) await openDetail(st.selected, true);
   render();
@@ -824,6 +824,8 @@ function showItem(id) {
   return true;
 }
 const allShelf = kind => LIB.shelves.find(s => s.kind === "all" && s.media_kind === kind);
+// the open shelf must exist and be of the open kind (a shelf kept from another kind would show that kind under this one's pane)
+function settleShelf() { if (!LIB.shelves.some(s => s.id === st.shelf && s.media_kind === st.kind)) st.shelf = allShelf(st.kind)?.id || null; }
 const shelvesOf = kind => LIB.shelves.filter(s => s.media_kind === kind);
 const itemsById = () => Object.fromEntries(LIB.items.map(i => [i.id, i]));
 function shelfPrefs(shelf) {
@@ -2439,7 +2441,7 @@ document.addEventListener("click", async e => {
   if (t.dataset.linkdoc) { const item = $("ld-" + t.dataset.linkdoc)?.value; if (!item) { toast("Pick a book first", true); return; }
     await act(async () => { await api.linkDocument(t.dataset.linkdoc, item); await loadReading(); render(); }, "Linked: the next sync updates that book"); return; }
   if (t.dataset.gobook) { const k = LIB.items.find(i => i.id === t.dataset.gobook)?.kind || "book"; st.sec = "database"; st.kind = k; st.shelf = allShelf(k)?.id; save("sec", st.sec); render(); return openDetail(t.dataset.gobook); }
-  if (t.dataset.kind) { st.section = null; st.sel.clear(); st.q = ""; st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; st.f = NOF(); saveF(); st.view = "shelf"; st.pick = null; save("kind", st.kind);
+  if (t.dataset.kind) { st.section = null; st.sel.clear(); st.q = ""; st.kind = t.dataset.kind; st.shelf = allShelf(st.kind)?.id; st.filter = "all"; st.selected = null; st.listSort = null; st.f = NOF(); saveF(); st.view = "shelf"; st.pick = null; save("kind", st.kind); save("shelf", st.shelf);
     if (st.sec === "visuals" && st.vtab === "library") st.LSTATS = null; render(); return; }
   if (t.dataset.shelf) { st.section = null; st.sel.clear(); st.q = ""; st.shelf = t.dataset.shelf; st.filter = "all"; st.selected = null; st.listSort = null; st.view = "shelf"; save("shelf", st.shelf); render(); return; }
   if (t.dataset.cat) { const id = +t.dataset.cat; st.f.cats = st.f.cats.length === 1 && st.f.cats[0] === id && st.view !== "trash" ? [] : [id]; saveF(); st.view = "shelf"; st.selected = null; render(); return; }

@@ -12,6 +12,7 @@ the keyboard, the phone sheet, the cached library, and how long clicks take.
 | `checks/regressions.js` | row toggles after a sort, card reuse after a reload, kept actions after unlocking, list scroll and Tab, undo, drafts across filters |
 | `checks/spreadsheet.js` | Edit mode as a spreadsheet: paste, fill, copy, undo, save |
 | `checks/release-1.0.js` | toasts and Undo, srcset, history and reload, the flight's sharp face, the cached library, Keep unlocked, column fit, the phone sheet |
+| `checks/reopen.js` | closing and reopening: the kind in the pane, the shelf and the items on the page agree |
 | `checks/perf.js` | click timings (not pass/fail): `run.py --perf 10 4` clones the library 10x and slows the CPU 4x |
 
 ## Running
