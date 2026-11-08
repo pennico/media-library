@@ -67,8 +67,8 @@ const books = async p => { await p.click('#kind-book'); if (await p.locator('#la
   await p3.close();
   // Keep unlocked
   await p.evaluate(() => { SESSION.unlockedUntil = Date.now() / 1000 + 120; renderKeybar(); });
-  await p.click('#key-extend'); await p.fill('#key-input', PW); await p.click('#key-save'); await p.waitForTimeout(500);
-  ok(await p.evaluate(() => SESSION.unlockedUntil * 1000 - Date.now() > 25 * 60e3), '"Keep unlocked" renews the session for 30 minutes');
+  await p.click('#key-extend'); await p.waitForTimeout(500);       // the unlock still runs: it goes on, no password (2026-11-08)
+  ok(await p.evaluate(() => SESSION.unlockedUntil * 1000 - Date.now() > 25 * 60e3 && !document.getElementById('key-input')), '"Keep unlocked" renews the unlock for 30 minutes, with no password while it runs');
   // fit a column of a long (windowed) list from all its rows
   await p.evaluate(n => { const o = LIB.items.slice(); const out=[]; for (let k=0;k<n;k++) for (const i of o) out.push(k ? {...i, id: i.id+'_'+k, title: k === 9 && i === o[100] ? 'An exceptionally long title that only sits far down the list, never drawn at first' : i.title} : i); LIB.items = out;
     const sh = LIB.shelves.find(s => s.id === st.shelf); sh.items = LIB.items.filter(i => i.kind === 'book').map(i => i.id); render(); }, 10);

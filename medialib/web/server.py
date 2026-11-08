@@ -128,7 +128,8 @@ class App:
         self.fill = fill_service.make(cfg.media_dir, self.store)
         self.tmdb = tmdb_mod.Tmdb(fill_service.http_fetcher(os.path.join(cfg.media_dir, "cache", "http")), tmdb_mod.api_key())
         self.cookie_secure = cookie_secure
-        self.cookie_name = "__Host-ml_session" if cookie_secure else "ml_session"
+        # one unlock for the consoles on this host (auth.py, owner 2026-11-08): the finance console's cookie too
+        self.cookie_name = auth_mod.UNLOCK_COOKIE if cookie_secure else auth_mod.UNLOCK_COOKIE_DEV
         self.lib_lock = threading.Lock()
         self.lib_cache = None                 # (token, built at, JSON bytes): see library_bytes
         self.write_gen = 0                    # bumped after every write through this server
@@ -287,6 +288,9 @@ def make_handler(app):
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("Content-Security-Policy", csp)
             self.send_header("Cache-Control", cache or "no-store")
+            if cookie is None and getattr(self, "renewed", None):     # an unlock in use goes on (write, session)
+                cookie = self.renewed
+            self.renewed = None
             if cookie is not None:
                 self.send_header("Set-Cookie", cookie)
             self.end_headers()
@@ -558,9 +562,18 @@ def make_handler(app):
             app.reader.fail()
             return self.send(402, {"message": "Registration is closed: use the reading-app login from the console."})
 
+        def renew(self):
+            """The cookie for an unlock that goes on because it is used (auth.Auth.renew), sent with the answer."""
+            fresh = app.auth.renew(self.token())
+            if not fresh:
+                return None
+            self.renewed = self.cookie(fresh[0], max(1, int(fresh[1] - time.time())))
+            return fresh[1]
+
         def session(self):
             login = self.login()
-            until = app.auth.session_until(self.token()) if app.auth.is_owner(login) else None
+            self.renewed = None
+            until = app.auth.session_until(self.token()) if app.auth.is_owner(login) else None   # never renews: the page asks it in the background
             keys = app.auth.load_passkeys()
             return self.send(200, {"login": login, "owner": app.auth.is_owner(login), "unlockedUntil": until,
                                    "password": app.auth.password_available(),
@@ -599,12 +612,12 @@ def make_handler(app):
                 return self.error(403, "Missing X-Console-Action header.")
             if method == "POST" and path == "/api/epub":
                 if not app.auth.session_until(self.token()):
-                    return self.error(401, "Locked: unlock first (sessions last 30 minutes).")
+                    return self.error(401, "Locked: unlock first (an unlock lasts 30 minutes from its last use).")
                 return self.guarded(self.epub_upload)
             m = re.fullmatch(r"/api/items/" + UUID + r"/(cover-upload|file)", path)
             if m and method == "POST":
                 if not app.auth.session_until(self.token()):
-                    return self.error(401, "Locked: unlock first (sessions last 30 minutes).")
+                    return self.error(401, "Locked: unlock first (an unlock lasts 30 minutes from its last use).")
                 return self.guarded(lambda: self.upload(m.group(1), m.group(2)))
             try:
                 req = self.body()
@@ -612,6 +625,12 @@ def make_handler(app):
                 return self.error(400, str(e) or "Body must be a JSON object.")
             if method == "POST" and path == "/api/unlock":
                 return self.unlock(req)
+            if method == "POST" and path == "/api/unlock/renew":        # Keep unlocked, with no password
+                self.renewed = None
+                until = app.auth.session_until(self.token())
+                if not until:
+                    return self.error(401, "Locked: unlock first.")
+                return self.send(200, {"ok": True, "expiresAt": self.renew() or until})
             if method == "POST" and path == "/api/lock":
                 app.auth.end_session(self.token())
                 return self.send(200, {"ok": True}, cookie=self.cookie("", 0))
@@ -622,7 +641,9 @@ def make_handler(app):
             if method == "POST" and path == "/api/passkey/login":
                 return self.passkey_login(req)
             if not app.auth.session_until(self.token()):
-                return self.error(401, "Locked: unlock first (sessions last 30 minutes).")
+                return self.error(401, "Locked: unlock first (an unlock lasts 30 minutes from its last use).")
+            self.renewed = None
+            self.renew()
             return self.guarded(lambda: self.route_write(method, path, req))
 
         def guarded(self, fn):
@@ -895,7 +916,7 @@ def make_handler(app):
 
         def start(self):
             token, until = app.auth.start_session()
-            return self.send(200, {"ok": True, "expiresAt": until}, cookie=self.cookie(token, app.auth.session_s))
+            return self.send(200, {"ok": True, "expiresAt": until}, cookie=self.cookie(token, max(1, int(until - time.time()))))
 
     return Handler
 

@@ -2,6 +2,23 @@
 
 All notable changes are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+- **The page's bar stays in view**: the title, status chips, Filter, sort and
+  layout stay under the top bar while the shelf or the Visuals scroll. On a
+  phone they are one row that scrolls sideways, Filter first. The filter pane
+  stays with its button.
+- **A film's collection, from the film**: a film in a collection shows the
+  collection's other films under its title, with the one before and after, so
+  the next film opens without going back to the shelf.
+- **One unlock for the consoles on this host**: the unlock is a signed cookie
+  that any console reading the same password file accepts (the agent console's
+  unlock sets it as well), instead of a session in this process's memory. It
+  lasts 30 minutes from its last use and at most 12 hours; a restart no longer
+  locks; a new password ends every unlock. Keep unlocked needs no password
+  while the unlock runs, and with a passkey a locked change asks for Touch ID /
+  Face ID at once and then goes through.
+
 ## [1.0.2] - 2026-11-02
 
 - **Reopening the console**: the page always matches the left pane. The kind and

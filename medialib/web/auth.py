@@ -14,6 +14,7 @@ import base64
 import hashlib
 import hmac
 import json
+import math
 import os
 import secrets
 import tempfile
@@ -23,6 +24,11 @@ import time
 SESSION_S = 1800
 FAIL_WINDOW_S = 600
 MAX_FAILS = 5
+
+# One unlock for the consoles on this host (owner 2026-11-08): see Auth.start_session.
+MAX_UNLOCK_S = 12 * 3600                 # an unlock in use lasts at most this long, then Touch ID or the password again
+UNLOCK_CONTEXT = b"console-unlock-v1"
+UNLOCK_COOKIE, UNLOCK_COOKIE_DEV = "__Host-console_unlock", "console_unlock"
 
 
 def b64u(data):
@@ -90,7 +96,8 @@ class Auth:
         self.passkeys_file = passkeys_file
         self.counters_file = os.path.join(state_dir, "passkey-counters.json") if state_dir else None
         self.session_s = session_s
-        self._sessions = {}
+        self._ended = {}                         # nonces locked here, until they expire
+        self._fallback = secrets.token_bytes(32)   # no password file: an unlock only this process knows
         self._challenges = {}
         self._fails = []
         self._lock = threading.Lock()
@@ -102,25 +109,72 @@ class Auth:
 
     # --------------------------------------------------------- sessions
 
-    def start_session(self):
-        now = time.time()
-        token = secrets.token_urlsafe(32)
-        with self._lock:
-            for k in [k for k, exp in self._sessions.items() if exp < now]:
-                del self._sessions[k]
-            self._sessions[token] = now + self.session_s
-        return token, now + self.session_s
+    # One unlock for the consoles on this host (owner 2026-11-08, "consolidate the unlock: easier while secure"). The
+    # session is a signed cookie, not an entry in this process's memory: every console that reads the same password
+    # file accepts it, and cookies belong to the host, not the port, so unlocking the finance console unlocks
+    # media-library too (agent-console sets it as well when you unlock there, but accepts only its own unlock: it runs
+    # host actions). It locks after `session_s` without use and at the latest MAX_UNLOCK_S after Touch ID or the
+    # password; a restart no longer locks it; a new password ends every unlock (the key comes from the password file).
+    # Value: v1.<unlocked at>.<until>.<nonce>.<mac>, mac = HMAC-SHA256(HMAC-SHA256(password file, UNLOCK_CONTEXT), the rest).
 
-    def session_until(self, token):
-        if not token:
+    def _key(self):
+        try:
+            with open(self.password_file, "rb") as fh:
+                raw = fh.read().strip()
+        except (OSError, TypeError):
+            raw = b""
+        return hmac.new(raw, UNLOCK_CONTEXT, hashlib.sha256).digest() if raw else self._fallback
+
+    def start_session(self, first=None):
+        """A new unlock (`first` keeps the time of the unlock it renews): (cookie value, until)."""
+        now = time.time()
+        first = int(first or now)
+        until = math.ceil(min(now + self.session_s, first + MAX_UNLOCK_S))
+        body = "v1.{}.{}.{}".format(first, until, secrets.token_urlsafe(12))
+        return body + "." + b64u(hmac.new(self._key(), body.encode(), hashlib.sha256).digest()), float(until)
+
+    def _parse(self, token):
+        parts = str(token or "").split(".")
+        if len(parts) != 5 or parts[0] != "v1":
+            return None
+        body = ".".join(parts[:4])
+        if not hmac.compare_digest(parts[4], b64u(hmac.new(self._key(), body.encode(), hashlib.sha256).digest())):
+            return None
+        try:
+            first, until = int(parts[1]), int(parts[2])
+        except ValueError:
+            return None
+        now = time.time()
+        if until <= now or first > now + 60 or until - first > MAX_UNLOCK_S:
             return None
         with self._lock:
-            exp = self._sessions.get(token)
-        return exp if exp and exp > time.time() else None
+            if parts[3] in self._ended:
+                return None
+        return first, until, parts[3]
+
+    def session_until(self, token):
+        got = self._parse(token)
+        return float(got[1]) if got else None
+
+    def renew(self, token):
+        """An unlock in use goes on for another `session_s` (at most once a minute, never past MAX_UNLOCK_S after the
+        unlock): (cookie value, until), or None when there is nothing to renew."""
+        got = self._parse(token)
+        if not got:
+            return None
+        first, until, _nonce = got
+        if until - time.time() > self.session_s - 60 or until >= first + MAX_UNLOCK_S:
+            return None
+        return self.start_session(first)
 
     def end_session(self, token):
-        with self._lock:
-            self._sessions.pop(token, None)
+        """Lock: the browser drops the cookie (every console's), and this console refuses that value from now on."""
+        got = self._parse(token)
+        if got:
+            now = time.time()
+            with self._lock:
+                self._ended = {k: v for k, v in self._ended.items() if v > now}
+                self._ended[got[2]] = float(got[1])
 
     def locked_out(self):
         now = time.time()

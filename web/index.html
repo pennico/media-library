@@ -104,7 +104,7 @@ header.top { grid-column: 1 / -1; position: sticky; top: env(safe-area-inset-top
 
 /* left pane */
 aside.side { border-right: 1px solid var(--wood-edge); box-shadow: 4px 0 10px -8px var(--board-shadow); padding: 14px 12px; display: flex; flex-direction: column; gap: 16px;
-  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 52px); align-self: start; height: calc(100vh - 52px - env(safe-area-inset-top, 0px)); overflow: auto; }
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--headh)); align-self: start; height: calc(100vh - var(--headh) - env(safe-area-inset-top, 0px)); overflow: auto; }
 .seg { display: grid; grid-template-columns: repeat(3, auto); gap: 2px; padding: 3px; background: var(--sunk); border-radius: 10px; }
 .seg button { border: 0; background: none; border-radius: 7px; padding: 6px 4px; font-size: 13px; font-weight: 600; min-width: 0; color: var(--muted); }
 .seg button[aria-selected="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 1px 2px var(--shadow); }
@@ -156,6 +156,27 @@ select, .toolbar input[type=search] { padding: 4px 8px; border: 1px solid var(--
 .segsmall button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 1px 2px var(--shadow); }
 h2 .count { font-size: 12.5px; font-weight: 500; color: var(--muted); margin-left: 6px; }
 .hintline { font-size: 12px; color: var(--muted); margin: -6px 0 12px; }
+/* the page's own bar (title, status, Filter, sort, layout; the active filters under it) stays under the top bar while
+   the page scrolls; --headh and --toolh are measured (barHeights), so the side pane and the detail sit below both */
+:root { --headh: 52px; --toolh: 0px; }
+#dbhead, .vhead { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--headh)); z-index: 15;
+  background-color: var(--wall); background-image: var(--grain); padding-top: 10px; margin-top: -10px;
+  margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px))) calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
+#dbhead > :last-child, .vhead > :last-child { margin-bottom: 10px; }
+#dbhead.stuck, .vhead.stuck { box-shadow: 0 6px 10px -8px var(--board-shadow); }
+/* a phone: the bar is one row that scrolls sideways (wrapped, it took a third of the screen) */
+@media (max-width: 760px) {
+  #dbhead .toolbar, .vhead .toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-bottom: 8px; padding-bottom: 2px;
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+  #dbhead .toolbar::-webkit-scrollbar, .vhead .toolbar::-webkit-scrollbar { display: none; }
+  #dbhead .toolbar > *, #dbhead .tools > *, .vhead .toolbar > * { flex: 0 0 auto; }
+  #dbhead .toolbar h2, .vhead .toolbar h2 { white-space: nowrap; }
+  #dbhead .chips, #dbhead .tools { flex-wrap: nowrap; margin-left: 0; }
+  #dbhead #filter-q { width: 140px; }
+  #dbhead .toolbar h2, .vhead .toolbar h2 { order: -2; } #filter-btn, #vfilter-btn { order: -1; }
+  #dbhead .activef { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+}
 
 /* content + detail */
 .lib { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
@@ -239,7 +260,7 @@ table.list img, table.list .noimg { width: 24px; height: 36px; object-fit: cover
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .empty { color: var(--muted); padding: 30px 0; }
 
-.detail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 66px); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+.detail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--headh) + var(--toolh) + 12px); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
   box-shadow: 0 12px 30px -14px var(--board-shadow);
   max-height: calc(100vh - 86px); overflow: auto; min-width: 0; }
 .detail .head { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; }
@@ -439,6 +460,15 @@ body.fb-pane .detail { visibility: hidden; }
 .applyrow .changed { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .collfilm { border: 0; background: none; padding: 4px; margin: -4px; text-align: left; color: inherit; font: inherit; border-radius: 6px; cursor: pointer; }
 .collfilm:hover, .collfilm:focus-visible { background: var(--sunk); }
+.collstrip { margin: 12px 0 0; padding: 8px 10px; background: var(--sunk); border-radius: 10px; }
+.cs-head { display: flex; align-items: center; gap: 8px; font-size: 13px; } .cs-head .linkbtn { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-head .muted { margin-right: auto; font-size: 12px; white-space: nowrap; }
+.cs-films { display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 2px; scrollbar-width: thin; }
+.cs-film { position: relative; flex: 0 0 auto; border: 0; padding: 0; background: none; border-radius: 3px 5px 5px 3px; cursor: pointer; outline-offset: 2px; }
+.cs-film img, .cs-film .noimg { width: 40px; height: 60px; object-fit: cover; display: block; border-radius: inherit; background: var(--panel); opacity: .72; }
+.cs-film:hover img, .cs-film[aria-current="true"] img { opacity: 1; }
+.cs-film[aria-current="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.cs-seen { position: absolute; right: 3px; bottom: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 1.5px var(--panel); }
 .verbar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .verbar button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; display: inline-flex; gap: 5px; align-items: center; }
 .verbar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
@@ -448,7 +478,7 @@ body.fb-pane .detail { visibility: hidden; }
 /* the filter pane: a small panel under the Filter button (a sheet on phones) */
 .fbadge { display: inline-grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; margin-left: 5px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; }
 .btn[aria-expanded="true"] { border-color: var(--accent); background: var(--sel); }
-.fpane { position: absolute; z-index: 50; width: 360px; max-width: calc(100vw - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+.fpane { position: fixed; z-index: 50; width: 360px; max-width: calc(100vw - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
   box-shadow: 0 16px 40px -10px var(--shadow), 0 2px 6px var(--shadow); display: flex; flex-direction: column; }
 .fpane .fp-body { overflow: auto; padding: 4px 14px 8px; overscroll-behavior: contain; }
 .fpane .fp-head, .fpane .fp-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; }
@@ -764,6 +794,7 @@ const serverApi = {
   lock() { return this.send("POST", "api/lock", {}); },
   passkeyOptions() { return this.send("POST", "api/passkey/options", {purpose: "login"}); },
   passkeyLogin(body) { return this.send("POST", "api/passkey/login", body); },
+  renewUnlock() { return this.send("POST", "api/unlock/renew", {}); },
   readingApps() { return this.get("api/reading-apps"); },
   trash() { return this.get("api/trash"); },
   trashItem(id) { return this.send("POST", "api/items/" + id + "/trash", {}); },
@@ -858,7 +889,19 @@ function render() {
   $("v-database").hidden = st.sec !== "database"; $("v-visuals").hidden = st.sec !== "visuals"; $("v-sync").hidden = st.sec !== "sync";
   renderKeybar(); if (st.sec !== "database") { renderSide(); LWIN = null; }       // renderDatabase draws the side pane itself
   if (st.sec === "database") renderDatabase(); else if (st.sec === "visuals") renderVisuals(); else renderSync();
+  barHeights();
 }
+// the heights of the top bar and of the page's sticky bar, for what sits under them (CSS --headh, --toolh)
+const BARS = new ResizeObserver(() => barHeights(true));
+function barHeights(measured) {
+  const top = document.querySelector("header.top"), bar = [$("dbhead"), document.querySelector("#v-visuals .vhead")].find(x => x && x.offsetParent);
+  if (!measured) { BARS.disconnect(); if (top) BARS.observe(top); if (bar) BARS.observe(bar); }
+  const root = document.documentElement.style;
+  if (top) root.setProperty("--headh", top.offsetHeight + "px");
+  root.setProperty("--toolh", (bar ? bar.offsetHeight : 0) + "px");
+}
+addEventListener("scroll", () => { const bar = [$("dbhead"), document.querySelector("#v-visuals .vhead")].find(x => x && x.offsetParent);
+  if (bar) bar.classList.toggle("stuck", scrollY > 4); }, {passive: true});
 function renderSide() {
   if (st.sec === "sync") {
     $("cats").hidden = true;
@@ -1927,8 +1970,8 @@ function renderFilterPane() {
   btn.setAttribute("aria-expanded", "true");
   if (matchMedia("(max-width: 760px)").matches) { p.style.left = p.style.top = p.style.maxHeight = ""; return; }
   const r = btn.getBoundingClientRect(), w = p.offsetWidth;
-  p.style.left = Math.max(16, Math.min(r.left, innerWidth - w - 16)) + scrollX + "px";
-  p.style.top = r.bottom + scrollY + 6 + "px";
+  p.style.left = Math.max(16, Math.min(r.left, innerWidth - w - 16)) + "px";   // fixed: it stays with its button in the sticky bar
+  p.style.top = r.bottom + 6 + "px";
   p.style.maxHeight = Math.max(320, innerHeight - r.bottom - 16) + "px";
 }
 const filterBtn = () => $(st.sec === "visuals" ? "vfilter-btn" : "filter-btn");
@@ -2141,6 +2184,7 @@ function renderDetailNow() {
         <div class="muted" style="font-size:12.5px;margin-top:4px">${(SCREEN(d.kind) ? screenFacts(d) : [e?.published ? fmtDate(e.published, e.publishedPrecision) : null, e?.pages ? e.pages + " pages" : null, langName(e?.lang)]).filter(Boolean).map(esc).join(" · ")}</div>
         ${d.locked ? `<div style="margin-top:6px"><span class="pill warn" title="Automated sources may not change it">locked: tts-ereader copy</span></div>` : ""}
       </div></div>
+    ${collStripHtml(d)}
     ${st.err ? `<p class="err">${esc(st.err)}</p>` : ""}
     ${!edit && !PREVIEW && SESSION.owner ? `<p class="muted" style="font-size:12.5px;margin:12px 0 0">Unlock (top right) to change anything here.</p>` : ""}
     <div class="d-sec"><h3>Status${srcTag("entry", "status")}</h3><div class="statusbar">${statusBtns}</div></div>
@@ -2231,6 +2275,18 @@ function screenDetailsHtml(d) {
     ${d.tagList.length ? `<dt>Tags</dt><dd class="tags">${d.tagList.map(g => `<span class="tag">${esc(g)}</span>`).join("")}</dd>` : ""}
     ${row("Added", esc(d.added))}
   </dl>${it.description ? `<details class="more" style="margin-top:8px"><summary>Overview</summary><p class="desc">${esc(it.description)}</p></details>` : ""}`;
+}
+// a film of a collection: the collection's other films under its head, with the one before and after, so the next
+// film opens from here instead of from the collection's card on the shelf
+function collStripHtml(d) {
+  if (!d.coll || d.kind !== "movie") return "";
+  const f = LIB.items.filter(i => i.coll?.id === d.coll.id).sort(byRelease), k = f.findIndex(x => x.id === st.selected);
+  if (f.length < 2 || k < 0) return "";
+  const nav = (x, dir) => x ? `<button class="btn small" id="cs-${dir}" data-open="${x.id}" title="${esc(x.title)}" aria-label="${dir === "prev" ? "Previous" : "Next"} film: ${esc(x.title)}">${dir === "prev" ? "‹" : "›"}</button>` : `<button class="btn small" disabled aria-hidden="true">${dir === "prev" ? "‹" : "›"}</button>`;
+  return `<div class="collstrip" aria-label="${esc(d.coll.name)}">
+    <div class="cs-head">${nav(f[k - 1], "prev")}<button class="linkbtn" data-open="c:${esc(d.coll.id)}" title="The collection">${esc(d.coll.name)}</button><span class="muted">${k + 1} of ${f.length}</span>${nav(f[k + 1], "next")}</div>
+    <div class="cs-films">${f.map(x => `<button class="cs-film" data-open="${x.id}"${x.id === st.selected ? ` aria-current="true"` : ""} title="${esc(x.title + (x.published ? " (" + x.published + ")" : ""))}" aria-label="${esc(x.title)}">${coverSrc(x.cover) ? `<img src="${smallCover(coverSrc(x.cover))}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}${x.status === "completed" ? `<span class="cs-seen" aria-hidden="true"></span>` : ""}</button>`).join("")}</div>
+  </div>`;
 }
 // a film collection's panel: its films in release order, each opening its own panel
 function collDetail(id) {
@@ -2328,6 +2384,8 @@ let busyN = 0;
 const pendingCtx = () => [st.sec, st.kind, st.shelf, st.section, st.view, st.selected, st.tableEdit].join("|");
 function askUnlock(p, msg) {
   st.pending = p ? Object.assign(p, {ctx: pendingCtx(), at: Date.now()}) : null;
+  // with a passkey, one tap: Touch ID / Face ID asks at once, and the change goes through after it (the password stays a button away)
+  if (SESSION.passkeys?.available && window.PublicKeyCredential && !PREVIEW) { st.unlockMsg = msg; renderKeybar(); passkeyUnlock(); return; }
   st.unlockMsg = msg; st.showPw = true; renderKeybar(); $("key-input")?.focus({preventScroll: true});
 }
 async function act(fn, okMsg, key) {
@@ -2883,9 +2941,9 @@ function renderKeybarNow() {
       + `<button class="btn small" id="key-lock">Lock</button>` + (st.unlockMsg ? `<span class="key-msg" role="status">${esc(st.unlockMsg)}</span>` : "");
   } else {
     const pk = SESSION.passkeys?.available && window.PublicKeyCredential;
-    bar.innerHTML = (pk ? `<button class="btn primary" id="key-passkey" title="Unlock for 30 minutes with the passkey you added in the agent console">Touch ID / Face ID</button>` : "") +
+    bar.innerHTML = (pk ? `<button class="btn primary" id="key-passkey" title="One unlock for this console and the finance console: 30 minutes from its last use, at most 12 hours. The passkey is the one you added in the agent console.">Touch ID / Face ID</button>` : "") +
       (st.showPw ? `<input id="key-input" type="password" autocomplete="current-password" placeholder="Password" aria-label="Console password (the agent console's)"><button class="btn" id="key-save">Unlock</button>`
-        : `<button class="btn" id="key-showpw" title="The same password as the agent console. Unlocks editing for 30 minutes.">${pk ? "Password" : "Unlock to edit"}</button>`) +
+        : `<button class="btn" id="key-showpw" title="The same password as the agent console. One unlock for this console and the finance console: 30 minutes from its last use, at most 12 hours.">${pk ? "Password" : "Unlock to edit"}</button>`) +
       (st.unlockMsg ? `<span class="key-msg" role="status">${esc(st.unlockMsg)}</span>` : "");
   }
 }
@@ -2894,7 +2952,13 @@ function unlocked(r, was) {
   SESSION.unlockedUntil = r.expiresAt; st.unlockMsg = ""; st.showPw = false; st.lockWarned = false;
   if (was && editingNow()) renderKeybar(); else { render(); if (!was) runPending(); }
 }
-function keepUnlocked() {
+// Keep unlocked: the unlock still running goes on with no password (one unlock for this host's consoles, 30 minutes
+// from its last use); only at its 12-hour end does it take Touch ID / Face ID or the password again
+async function keepUnlocked() {
+  try {
+    const r = await api.renewUnlock();
+    if (r.expiresAt * 1000 - Date.now() > 180e3) { unlocked(r, true); return; }
+  } catch (e) {}
   if (SESSION.passkeys?.available && window.PublicKeyCredential) return passkeyUnlock();
   st.showPw = true; renderKeybar(); $("key-input")?.focus({preventScroll: true});
 }
@@ -2920,7 +2984,12 @@ setInterval(() => {
   if (PREVIEW || !SESSION.unlockedUntil) return;
   if (SESSION.unlockedUntil * 1000 >= Date.now()) {
     if (!st.lockWarned && SESSION.unlockedUntil * 1000 - Date.now() < 180e3) {
-      st.lockWarned = true; toast("The console locks in 3 minutes.", false, {label: "Keep unlocked", run: keepUnlocked});
+      st.lockWarned = true;
+      // the unlock is shared with the finance console: used there meanwhile, it went on; ask before warning
+      api.session().then(r => {
+        if (r.unlockedUntil && r.unlockedUntil * 1000 - Date.now() >= 180e3) { SESSION.unlockedUntil = r.unlockedUntil; st.lockWarned = false; renderKeybar(); }
+        else toast("The console locks in 3 minutes.", false, {label: "Keep unlocked", run: keepUnlocked});
+      }).catch(() => toast("The console locks in 3 minutes.", false, {label: "Keep unlocked", run: keepUnlocked}));
     }
     return renderKeybar();
   }
@@ -3182,9 +3251,9 @@ function timeCard(books) {
 // ----------------------------------------------------------------- pages
 function visualsHead(kindLabel, vtabs) {
   const active = activeFilters(st.vf);
-  return `<div class="toolbar"><h2>${kindLabel}</h2>${vtabs}
+  return `<div class="vhead"><div class="toolbar"><h2>${kindLabel}</h2>${vtabs}
       <button class="btn small" id="vfilter-btn" aria-expanded="${st.fpane}" aria-controls="fpane" title="Filter every chart on this page">Page filter${active.length ? `<span class="fbadge">${active.length}</span>` : ""}</button></div>
-    ${active.length ? `<div class="activef" role="group" aria-label="Page filters">${active.map(([k, label]) => `<button class="chip" data-fclear="${esc(k)}" title="Remove this filter">${esc(label)}<span aria-hidden="true">×</span></button>`).join("")}<button class="linkbtn" data-fclear="*">Clear all</button></div>` : ""}`;
+    ${active.length ? `<div class="activef" role="group" aria-label="Page filters">${active.map(([k, label]) => `<button class="chip" data-fclear="${esc(k)}" title="Remove this filter">${esc(label)}<span aria-hidden="true">×</span></button>`).join("")}<button class="linkbtn" data-fclear="*">Clear all</button></div>` : ""}</div>`;
 }
 const vtile = (label, value, sub) => `<div class="tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>`;
 function renderVisuals() {
@@ -3236,6 +3305,7 @@ function paintVisuals(v, head, cards) {
   for (const sc of v.querySelectorAll("#card-time .chartscroll")) sc.scrollLeft = was && was.sig === sc.dataset.sig ? was.left : sc.scrollWidth;
   for (const sc of v.querySelectorAll("#card-calendar .chartscroll")) sc.scrollLeft = sc.scrollWidth;
   scrollTo({top});
+  barHeights();
   if (st.fpane && !fDrag) renderFilterPane();
 }
 function renderLibraryStats(v, head, books) {

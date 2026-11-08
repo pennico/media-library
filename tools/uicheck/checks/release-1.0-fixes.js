@@ -55,7 +55,7 @@ const books = async p => { await p.evaluate(() => { document.getElementById('kin
   await p.evaluate(() => { st.sel.clear(); renderDatabase(); });
   // the key bar keeps a password being typed when it is redrawn
   await p.evaluate(() => { SESSION.unlockedUntil = Date.now() / 1000 + 120; renderKeybar(); });
-  await p.click('#key-extend'); await p.keyboard.type('half-typ');
+  await p.evaluate(() => { st.showPw = true; renderKeybar(); }); await p.click('#key-input'); await p.keyboard.type('half-typ');
   await p.evaluate(() => renderKeybar());
   ok(await p.evaluate(() => $('key-input')?.value === 'half-typ' && document.activeElement?.id === 'key-input'), 'a redraw of the key bar keeps the password being typed, and its focus');
   await p.fill('#key-input', PW); await p.click('#key-save'); await p.waitForTimeout(500);
