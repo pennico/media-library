@@ -4,6 +4,11 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **Touch ID / Face ID still unlocks after five wrong passwords**: the ten-minute
+  lockout now holds back only the password, and a refused passkey does not count
+  towards it (the same in the agent and finance consoles). Parallel wrong
+  passwords can no longer get past five checks (a try is reserved before the
+  check).
 - **The page's bar stays in view**: the title, status chips, Filter, sort and
   layout stay under the top bar while the shelf or the Visuals scroll. On a
   phone they are one row that scrolls sideways, Filter first. The filter pane

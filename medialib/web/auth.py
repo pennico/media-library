@@ -3,7 +3,11 @@
 Ported from agent-console (console/agent-console.py, MIT, same owner): scrypt
 password check, WebAuthn ES256 passkey login (origin, single-use challenge,
 relying-party hash, user verification, signature, counter), 30-minute
-in-memory sessions, five failures lock unlocking for ten minutes.
+in-memory sessions. Five wrong passwords in ten minutes lock the password
+for ten minutes; a passkey still unlocks and its refusals do not count
+(owner 2026-11-08, the same in the agent and finance consoles). A try is
+reserved before the slow scrypt check (begin_try / end_try), so parallel
+wrong passwords cannot get past five checks.
 
 Differences: the password hash and the passkey list belong to the agent
 console and are only read here (adding or removing passkeys happens there);
@@ -100,6 +104,7 @@ class Auth:
         self._fallback = secrets.token_bytes(32)   # no password file: an unlock only this process knows
         self._challenges = {}
         self._fails = []
+        self._inflight = 0                       # password tries being checked now
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------ owner
@@ -185,6 +190,23 @@ class Auth:
     def fail(self):
         with self._lock:
             self._fails.append(time.time())
+
+    def begin_try(self):
+        """Check the lockout and reserve one try in one step (tries still being checked count as failures);
+        False = locked out. Every True must be followed by `end_try`."""
+        now = time.time()
+        with self._lock:
+            self._fails[:] = [t for t in self._fails if now - t < FAIL_WINDOW_S]
+            if len(self._fails) + self._inflight >= MAX_FAILS:
+                return False
+            self._inflight += 1
+            return True
+
+    def end_try(self, ok):
+        with self._lock:
+            self._inflight -= 1
+            if not ok:
+                self._fails.append(time.time())
 
     # --------------------------------------------------------- password
 

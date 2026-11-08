@@ -484,3 +484,64 @@ def test_thumbnails_never_enlarge_and_480_is_served(tmp_path):
     assert Image.open(tmp_path / "t-160.jpg").size == (160, 240)
     assert not list(tmp_path.glob("*.tmp"))
     assert 480 in server.THUMB_WIDTHS
+
+
+def _b64u(b):
+    import base64
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def _assertion(key, cred, challenge, origin, rp, counter):
+    import hashlib
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    cd = json.dumps({"type": "webauthn.get", "challenge": challenge, "origin": origin}).encode()
+    ad = hashlib.sha256(rp.encode()).digest() + bytes([0x05]) + counter.to_bytes(4, "big")
+    sig = key.sign(ad + hashlib.sha256(cd).digest(), ec.ECDSA(hashes.SHA256()))
+    return {"id": cred, "clientDataJSON": _b64u(cd), "authenticatorData": _b64u(ad), "signature": _b64u(sig)}
+
+
+def test_a_passkey_unlocks_during_a_password_lockout(cfg, tmp_path):
+    """Owner 2026-11-08 (finance Q80 B): five wrong passwords lock the password, not Touch ID; a refused passkey
+    does not count. The same in the agent and finance consoles."""
+    from cryptography.hazmat.primitives.asymmetric import ec
+    key = ec.generate_private_key(ec.SECP256R1())
+    nums = key.public_key().public_numbers()
+    cred = _b64u(b"fixture-credential")
+    (tmp_path / "pk.json").write_text(json.dumps([{"id": cred, "x": "{:064x}".format(nums.x),
+                                                   "y": "{:064x}".format(nums.y), "sign_count": 0}]))
+    (tmp_path / "pw").write_text(auth_mod.hash_password(PASSWORD) + "\n")
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    origin = "http://127.0.0.1:{}".format(port)
+    app = server.App(cfg, owner_login=OWNER, origin=origin, password_file=str(tmp_path / "pw"),
+                     passkeys_file=str(tmp_path / "pk.json"), state_dir=str(tmp_path / "state"), cookie_secure=False)
+    httpd = server.Server(("127.0.0.1", port), server.make_handler(app))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        c = Client({"base": origin + "/", "origin": origin})
+        for _ in range(6):              # refused passkeys (a stale challenge) never lock anything
+            bad = _assertion(key, cred, _b64u(b"not-a-challenge"), origin, "127.0.0.1", 1)
+            assert c.call("POST", "api/passkey/login", bad)[0] == 401
+        for _ in range(5):
+            assert c.call("POST", "api/unlock", {"password": "wrong"})[0] == 401
+        s, r = c.call("POST", "api/unlock", {"password": PASSWORD})
+        assert s == 429 and "Touch ID" in r["error"]
+        opts = c.call("POST", "api/passkey/options")[1]["publicKey"]
+        assert c.call("POST", "api/passkey/login", _assertion(key, cred, opts["challenge"], origin, "127.0.0.1", 3))[0] == 200
+        assert c.call("POST", "api/unlock", {"password": PASSWORD})[0] == 429      # the password stays locked
+    finally:
+        httpd.shutdown()
+        app.close()
+
+
+def test_parallel_wrong_passwords_check_at_most_five(cfg, tmp_path):
+    a = auth_mod.Auth(OWNER, "http://127.0.0.1", None, None, None)
+    assert all(a.begin_try() for _ in range(auth_mod.MAX_FAILS))
+    assert not a.begin_try() and not a.locked_out()     # five tries in flight, none failed yet
+    a.end_try(True)                     # a right password releases its reservation
+    assert a.begin_try()
+    for _ in range(auth_mod.MAX_FAILS):
+        a.end_try(False)
+    assert a.locked_out() and not a.begin_try()

@@ -47,6 +47,7 @@ MAX_COVER = 15 * 1024 * 1024
 MAX_EBOOK = 500 * 1024 * 1024
 THUMB_WIDTHS = (160, 320, 480, 640)      # the shelf picks one for the cover's size and the screen (srcset)
 LIB_TTL = 30                              # seconds a built /api/library answer is reused while nothing changed
+LOCKED = "Too many wrong passwords. Try again in 10 minutes, or use Touch ID / Face ID."
 SHA_RE = re.compile(r"^/thumbs/([0-9a-f]{64})-(\d+)\.jpg$")
 COVER_RE = re.compile(r"^/covers/([0-9a-f]{2})/([0-9a-f]{64})\.(jpg|png|webp)$")
 UUID = r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
@@ -895,22 +896,28 @@ def make_handler(app):
             return self.error(404, "Not found.")
 
         def unlock(self, req):
+            """Five wrong passwords in ten minutes lock the password, not the passkeys (owner 2026-11-08)."""
             if app.auth.locked_out():
-                return self.error(429, "Too many failed tries. Try again in 10 minutes.")
+                return self.error(429, LOCKED)
             if not app.auth.password_available():
                 return self.error(503, "No password is set up for this console.")
-            if not app.auth.check_password(req.get("password", "")):
-                app.auth.fail()
+            if not app.auth.begin_try():
+                return self.error(429, LOCKED)
+            ok = False
+            try:
+                ok = app.auth.check_password(req.get("password", ""))
+            finally:
+                app.auth.end_try(ok)
+            if not ok:
                 return self.error(401, "Wrong password.")
             return self.start()
 
         def passkey_login(self, req):
-            if app.auth.locked_out():
-                return self.error(429, "Too many failed tries. Try again in 10 minutes.")
+            """Not held back by the password lockout, and a refusal does not count towards it: each try needs a
+            fresh single-use challenge and a signature only the device can make."""
             try:
                 app.auth.login_passkey(req)
             except (ValueError, KeyError, TypeError) as e:
-                app.auth.fail()
                 return self.error(401, "Touch ID / Face ID didn't verify: {}.".format(e))
             return self.start()
 
