@@ -266,6 +266,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .detail .head { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; }
 .detail h2 { font-size: 16.5px; margin: 0 0 4px; text-wrap: balance; }
 .xbtn { float: right; border: 0; background: var(--sunk); border-radius: 8px; padding: 2px 9px; color: var(--muted); }
+/* the panel's top row (D71, D72): the list's ‹ 3 of 12 ›, the page button, close */
+.dtop { display: flex; align-items: center; gap: 6px; margin: -4px 0 10px; } .dtop .xbtn { float: none; } .dtop-gap { flex: 1; }
+.pnav { display: flex; align-items: center; gap: 4px; } .pnbtn { min-width: 30px; font-size: 15px; line-height: 1.1; padding: 1px 8px; }
+.pn-pos { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 4.5em; text-align: center; }
 .d-sec { margin-top: 16px; }
 .d-sec > h3 { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 6px; font-weight: 500;
   display: flex; align-items: center; gap: 8px; }
@@ -327,6 +331,8 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; 
   .shelfwrap { padding-top: 16px; }
   .detail { overscroll-behavior: contain; }
   .detail > .xbtn { position: sticky; top: 0; z-index: 3; padding: 6px 12px; font-size: 15px; box-shadow: 0 2px 8px var(--shadow); }
+  .detail > .dtop { position: sticky; top: -16px; z-index: 3; background: var(--panel); margin: -16px -4px 10px; padding: 12px 4px 8px; border-bottom: 1px solid var(--line); }
+  .detail > .dtop .xbtn { padding: 6px 12px; font-size: 15px; } .dtop .pnbtn { min-width: 40px; padding: 5px 10px; }
   .scrim.on { display: block; }
   .bulkbar.behind { display: none; }
   .toolbar input[type=search] { width: auto; flex: 1 1 150px; min-width: 120px; }
@@ -1876,7 +1882,9 @@ document.addEventListener("keydown", e => {
   const kids = b.parentElement.children, n = [...kids].indexOf(b), cols = gridRows(b.parentElement).cols;
   const to = {ArrowLeft: n - 1, ArrowRight: n + 1, ArrowUp: n - cols, ArrowDown: n + cols, Home: 0, End: kids.length - 1}[e.key];
   if (to == null) return;
-  e.preventDefault(); kids[Math.max(0, Math.min(kids.length - 1, to))]?.focus();
+  e.preventDefault();
+  const el = kids[Math.max(0, Math.min(kids.length - 1, to))]; el?.focus();
+  if (el && el !== b && st.selected && !String(st.selected).startsWith("__") && !st.sel.size) openDetail(el.dataset.id);   // the open panel follows (D71)
 });
 // an Edit row's language list holds only its value until it is opened (a long list has thousands of them otherwise)
 function fillLazy(el) { if (el?.dataset?.lazy === "lang") { const v = el.value; el.innerHTML = langOptions(v); el.value = v; delete el.dataset.lazy; } }
@@ -2199,9 +2207,57 @@ async function openBook(btn, kb) {
   await Promise.allSettled(anims.map(x => x.finished));
   done();
 }
+// ------------------------------------------- moving through the list from the panel (D71)
+// The panel steps to the item before or after in the list the shelf shows (its sort, filters, search; a film
+// collection folded into one card counts once), with "3 of 12"; ← → do the same. The list is kept as last seen with
+// the open item in it, so an item that leaves the list (marked read under "To read") still has its neighbours.
+const NAV = {seq: null};
+const PANEL_KEYS = ["pn-prev", "pn-next", "pd-full"];
+const NAVMEMO = {lib: null, key: "", seq: []};     // the list again only when something it depends on changed
+function navList() {
+  const shelf = st.sec === "database" && st.view !== "trash" && LIB.shelves.find(s => s.id === st.shelf); if (!shelf) return [];
+  const prefs = shelfPrefs(shelf), key = [LIBREV, LIB.items.length, st.kind, st.shelf, st.section, st.filter, st.q, JSON.stringify(st.f),
+    JSON.stringify(prefs), JSON.stringify(st.listSort), TLANG, SHUFFLE, shelf.items.length].join("|");
+  if (NAVMEMO.lib === LIB && NAVMEMO.key === key) return NAVMEMO.seq;
+  const list = sorted(filtered(visibleItems()), prefs);
+  return Object.assign(NAVMEMO, {lib: LIB, key, seq: (prefs.layout === "grid" ? foldCollections(list) : list).map(c => c.id)}).seq;
+}
+function navAt(seq) {
+  let k = seq.indexOf(st.selected);
+  if (k < 0) { const i = LIB.items.find(x => x.id === st.selected); if (i?.coll) k = seq.indexOf("c:" + i.coll.id); }
+  return k;
+}
+function navState() {
+  if (!st.selected || String(st.selected).startsWith("__") || st.sec !== "database") return null;
+  const live = navList(), k0 = navAt(live);
+  if (k0 >= 0) NAV.seq = live;
+  else if (NAV.seq) { const ids = new Set(LIB.items.map(i => i.id)); NAV.seq = NAV.seq.filter(id => id.startsWith("c:") || ids.has(id) || id === st.selected); }
+  const seq = NAV.seq, k = k0 >= 0 ? k0 : seq ? navAt(seq) : -1;
+  if (k < 0 || seq.length < 2) return null;
+  return {seq, k, prev: k > 0 ? seq[k - 1] : null, next: k < seq.length - 1 ? seq[k + 1] : null};
+}
+const navTitle = id => id.startsWith("c:") ? (LIB.items.find(i => i.coll && "c:" + i.coll.id === id)?.coll.name || "") : tt(LIB.items.find(i => i.id === id) || {title: ""});
+function panelTop() {
+  const n = navState(), btn = (id, to, sym, label, key) => to
+    ? `<button class="btn small pnbtn" id="${id}" data-nav="${esc(to)}" aria-label="${label}: ${esc(navTitle(to))}" title="${label}: ${esc(navTitle(to))} (${key})">${sym}</button>`
+    : `<button class="btn small pnbtn" id="${id}" disabled aria-label="${label}">${sym}</button>`;
+  return `<div class="dtop">${n ? `<div class="pnav" role="group" aria-label="This list">${btn("pn-prev", n.prev, "‹", "Previous", "←")}<span class="pn-pos" aria-live="polite">${n.k + 1} of ${n.seq.length}</span>${btn("pn-next", n.next, "›", "Next", "→")}</div>` : ""}
+    <span class="dtop-gap"></span><button class="xbtn" id="d-close" aria-label="Close">✕</button></div>`;
+}
+// open the item before or after; its card comes into view on the shelf (a wide screen, where the shelf shows)
+function navGo(id) {
+  openDetail(id);
+  if (matchMedia("(max-width: 900px)").matches) return;
+  const el = document.getElementById("b-" + id) || document.getElementById("r-" + id);
+  if (el) { const r = el.getBoundingClientRect(); if (r.top < 120 || r.bottom > innerHeight - 20) el.scrollIntoView({block: "nearest"}); return; }
+  const k = LWIN ? LWIN.list.findIndex(i => i.id === id) : -1, tb = document.querySelector("#content table.list tbody");
+  if (k >= 0 && tb) scrollTo({top: scrollY + tb.getBoundingClientRect().top + k * LWIN.rowH - innerHeight / 2});
+}
 function srcTag(group, col) { const s = group === "screen" ? st.detail?.screen?.prov?.[col] : st.detail?.prov?.[group]?.[col]; return s ? `<span class="src" title="where this value came from">${esc(SRC[s] || s)}</span>` : ""; }
 function renderDetail() {
+  const a = document.activeElement, keep = a && $("detail")?.contains(a) && PANEL_KEYS.includes(a.id) ? a.id : null;
   renderDetailNow();
+  if (keep) { const b = $(keep); (b && !b.disabled ? b : $("d-title") || $("d-close"))?.focus({preventScroll: true}); }
   if (st.focusPanel && st.detail && $("d-title")) { st.focusPanel = false; $("d-title").focus({preventScroll: true}); }
   else if (st.detail?.error) st.focusPanel = false;
 }
@@ -2212,17 +2268,17 @@ function renderDetailNow() {
   if (d?.coll === true) { el.innerHTML = collDetailHtml(d); return; }
   if (!d) {                                          // while the details load: what the shelf already knows
     const i = LIB.items.find(x => x.id === st.selected);
-    el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button>` + (i ? `<div class="head"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="">` : `<span class="ph">no cover</span>`}</div>
+    el.innerHTML = panelTop() + (i ? `<div class="head"><div class="cov">${coverSrc(i.cover) ? `<img src="${coverSrc(i.cover)}" alt="">` : `<span class="ph">no cover</span>`}</div>
       <div style="min-width:0"><h2>${esc(tt(i))}</h2><div>${esc(i.authors || "")}</div><p class="muted" style="font-size:12.5px;margin:4px 0 0">Loading…</p></div></div>` : `<p class="muted">Loading…</p>`);
     return;
   }
-  if (d.error) { el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button><p class="err">${esc(d.error)}</p>`; return; }
+  if (d.error) { el.innerHTML = `${panelTop()}<p class="err">${esc(d.error)}</p>`; return; }
   const e = d.edition, edit = canEdit(), labels = LABEL[d.kind];
   const chosen = d.covers.find(c => c.chosen);
   const statusBtns = STATUS_ORDER.map(s => `<button id="st-${s}" data-status="${s}" aria-pressed="${d.status === s}" ${edit ? "" : "disabled"}>${labels[s]}</button>`).join("");
   const r = d.rating;
   const ratingBtns = Array.from({length: 11}, (_, n) => `<button id="rt-${n}" data-rating="${n}" class="${r != null && n < r ? "on" : ""}" aria-pressed="${r != null && Math.round(r) === n}" ${edit ? "" : "disabled"} aria-label="Rate ${n} of 10">${n}</button>`).join("");
-  el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button>
+  el.innerHTML = `${panelTop()}
     <div class="head"><div class="cov">${coverSrc(chosen?.thumb) ? `<img src="${coverSrc(chosen.thumb)}" alt="Cover of ${esc(d.title)}">` : `<span class="ph">no cover</span>`}</div>
       <div style="min-width:0"><h2 id="d-title" tabindex="-1">${esc(tt(d))}</h2>
         <div>${d.authorsList.map(a => esc(a.name)).join(", ") || `<span class="muted">no ${makerLabel(d.kind, 1).toLowerCase()}</span>`}</div>
@@ -2349,7 +2405,7 @@ function collDetail(id) {
 function collDetailHtml(d) {
   const f = d.films, seen = f.filter(x => x.status === "completed").length, mins = f.reduce((n, x) => n + (x.runtime || 0), 0);
   const ys = f.map(x => x.published).filter(Boolean), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  return `<button class="xbtn" id="d-close" aria-label="Close">✕</button>
+  return `${panelTop()}
     <div class="head"><div class="cov">${coverSrc(f[0].cover) ? `<img src="${coverSrc(f[0].cover)}" alt="">` : `<span class="ph">${esc(d.name)}</span>`}</div>
       <div style="min-width:0"><h2 id="d-title" tabindex="-1">${esc(d.name)}</h2><div>${esc(collMakers(f).join(", "))}</div>
         <div class="muted" style="font-size:12.5px;margin-top:4px">${esc([f.length + " films", ys.length ? y0 + (y1 > y0 ? "–" + y1 : "") : null, mins ? fmtRuntime(mins) : null].filter(Boolean).join(" · "))}</div></div></div>
@@ -2602,6 +2658,7 @@ document.addEventListener("click", async e => {
   if (t.matches(".book")) { if (drag.suppressClick) { drag.suppressClick = false; return; }
     if (canEdit() && (st.sel.size || e.target.closest(".selbox"))) { toggleSel(idsOf(t)); selChanged(); return; }
     return openBook(t, e.detail === 0); }
+  if (t.dataset.nav) return navGo(t.dataset.nav);
   if (t.dataset.open) return openDetail(t.dataset.open);
   if (t.dataset.ltitle) return st.selected === t.dataset.ltitle ? closeDetail() : openDetail(t.dataset.ltitle);
   if (t.matches("table.list tr[data-id]")) { if (st.selected && !st.tableEdit) closeDetail(); return; }
@@ -3055,6 +3112,12 @@ document.addEventListener("keydown", e => {
     return;
   }
   if (e.target.id === "key-input" && e.key === "Enter") { unlock(); return; }
+  if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !typing && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && !st.tableEdit
+      && !e.target.closest?.("#grid, .search, #fpane, [role=slider], .cs-films")) {
+    const n = navState(), to = n && (e.key === "ArrowLeft" ? n.prev : n.next);
+    if (to) { e.preventDefault(); navGo(to); }
+    return;
+  }
   if (e.target.id === "ce-q" && e.key === "Enter") { const b = document.querySelector("#ce-hits [data-ceadd]"); if (b) { e.preventDefault(); collAdd(b.dataset.ceadd); } return; }
   if (e.target.id !== "search") return;
   if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (!hits.length) return; active = (active + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;

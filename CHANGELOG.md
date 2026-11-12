@@ -4,6 +4,10 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **Previous and next from the panel**: the info panel has ‹ › with "3 of 12"
+  for the list the shelf shows (its sort and filters), and ← → do the same; the
+  shelf's arrow keys take an open panel along. An item that leaves a filtered
+  list keeps its neighbours.
 - **Edit a collection from its own view**: Edit collection opens a panel to add
   items (search your library, click Add or press Enter), remove them, and put them
   in order (to the top, up, down), rename or delete the collection. Each change is

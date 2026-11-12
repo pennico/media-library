@@ -15,6 +15,7 @@ the keyboard, the phone sheet, the cached library, and how long clicks take.
 | `checks/reopen.js` | closing and reopening: the kind in the pane, the shelf and the items on the page agree |
 | `checks/titles-random.js` | 1.1.0: the Random order (new per opening, steady while browsing, Shuffle), titles in other languages (shown, filtered, searched, listed and edited) |
 | `checks/collection-edit.js` | D70: a collection's editor (add by search, Enter, up, down, to the top, remove, Undo of each), Remove from collection on a selection, rename, delete, 375 px |
+| `checks/panel-nav.js` | D71: ‹ › and "3 of 12", ← →, the address replaced, the ends, the shelf's arrow keys taking the panel along, an item leaving a filtered list, the list layout, the phone sheet |
 | `checks/perf.js` | click timings (not pass/fail): `run.py --perf 10 4` clones the library 10x and slows the CPU 4x |
 
 ## Running

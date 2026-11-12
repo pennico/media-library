@@ -1425,3 +1425,20 @@ series shows its seasons (D49).
   a remove, a move or a drag on the shelf by sending back the order from before.
   Each Undo has its own action key. Deleting the collection has no Undo, so it
   asks first.
+
+## 20. Moving through a list from the panel (2026-11-12, D71)
+
+- The panel's top row has **‹ 3 of 12 ›** whenever the open item is in the
+  list the shelf shows: the collection, section or library with its sort, status
+  chip, Filter pane and filter box; on the Movies grid a folded film collection
+  is one step (its panel opens). **← →** do the same when the focus is not in a
+  field (the spreadsheet mode, the search, the filter pane and the shelf keep
+  their own keys); on the shelf, the arrow keys that move between covers take an
+  open panel along. The film collection strip (D49) stays below the title.
+- **Which list**: the one in view when the open item was last in it (memoised
+  on what it depends on, so a redraw costs nothing: 11 ms per computation at
+  1,680 items and 4x CPU before the memo). An item that leaves the list, e.g.
+  marked read while the To read chip is on, keeps its place and its neighbours.
+- The address follows with `replaceState` (`#item=<id>`): Back still closes the
+  panel, a reload opens the item that was open. On a phone the row stays at the
+  top of the sheet while it scrolls.
