@@ -35,6 +35,9 @@ looks like a bookshelf.
   sync; reading in Readest moves a book to Reading and, at the end, to Read.
 - **Joplin review notes** (one note per book or film: rating, review, date,
   collections) flow in hourly from a Joplin sync folder.
+- **Joplin "To watch" and "To read" lists**: a title per line; every hour what
+  the library or the sources are sure of goes on your list and the line is
+  deleted from the note by a headless Joplin client; the rest stays, with why.
 - **Categories** in two levels (Fiction / Non-fiction and their kinds), filled
   from your own labels and the providers' subjects.
 - **Read** EPUBs in the browser, or follow a configurable search link for
@@ -84,8 +87,8 @@ Status: 1.0.0, used daily by its author.
 | `tools/devdb.py` | development PostgreSQL 18.6 without root (PGDG packages in `.devdb/`) |
 | `tools/restore_drill.py` | dump/restore + point-in-time recovery drill on the dev cluster |
 | `tools/uicheck/` | browser checks of the console (headless Chromium, a copy of the dev database): `run.py` |
-| `ops/` | WAL archiver, dump, base backup, restore test and Joplin feed scripts |
-| `deploy/` | Dockerfile, compose file, `pg_hba.conf`, `env.example`, `make-password.py` |
+| `ops/` | WAL archiver, dump, base backup, restore test and Joplin feed and list scripts |
+| `deploy/` | Dockerfile, compose file, `pg_hba.conf`, `env.example`, `make-password.py`; `deploy/joplin/`: the headless Joplin client for the lists |
 
 ## Development
 

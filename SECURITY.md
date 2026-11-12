@@ -60,7 +60,13 @@ owner's rights; the app role still has no hard DELETE, and the audit log
 keeps what was removed.
 
 **Joplin notes** come in as a read-only tar stream of the sync folder; the
-app gets no credentials for wherever Joplin syncs to.
+app gets no credentials for wherever Joplin syncs to. The optional To watch /
+To read lists use a separate container with the Joplin CLI (`deploy/joplin`):
+it alone holds a login for the sync target (a Docker secret, and the CLI's own
+profile, which has no keychain: use a login that sees only the Joplin folder),
+has a read-only filesystem and no capabilities, changes only the two list
+notes, and refuses to sync when it would change anything the owner's devices
+share (DESIGN.md §22).
 
 **What the app can do.** The app container has a read-only filesystem, no
 capabilities and no Docker socket, and runs as the install user. It connects

@@ -6,6 +6,7 @@
     python -m medialib import-watch FILE.json [--apply] [--offline] [--out DIR]
     python -m medialib serve [--host 0.0.0.0] [--port 8099]
     python -m medialib joplin (--dir DIR | --tar FILE|-) [--apply] [--offline]
+    python -m medialib joplin-lists (--notes FILE|- | --tar FILE|- | --dir DIR | --client-error FILE|-) [--apply] [--offline]
     python -m medialib adopt-files SNAPSHOT_DIR [--apply]
     python -m medialib categorize [--apply] [--offline] [--out DIR]
     python -m medialib purge-trash [--days 30] [--apply]
@@ -45,6 +46,16 @@ def main(argv=None):
     j.add_argument("--notebook", default="Reviews")
     j.add_argument("--apply", action="store_true", help="write (default: show what it would do)")
     j.add_argument("--offline", action="store_true", help="no Apple Books / Open Library search")
+    jl = sub.add_parser("joplin-lists", help="Joplin To watch / To read notes -> the library (dry run unless --apply);"
+                                          " prints the lines for the Joplin client to delete (JSON)")
+    jsrc = jl.add_mutually_exclusive_group(required=True)
+    jsrc.add_argument("--notes", help="the list notes as JSON from the Joplin client ('-' = stdin)")
+    jsrc.add_argument("--dir", help="the Joplin sync folder (read-only; a dry run only)")
+    jsrc.add_argument("--tar", help="a tar stream of the sync folder ('-' = stdin; a dry run only)")
+    jsrc.add_argument("--client-error", help="record what the Joplin client said when it failed ('-' = stdin)")
+    jl.add_argument("--notebook", default=None, help="only notes in this notebook (default: any)")
+    jl.add_argument("--apply", action="store_true", help="add what the lines name (default: show what it would do)")
+    jl.add_argument("--offline", action="store_true", help="the library only: no TMDB / Apple Books / Open Library")
     f = sub.add_parser("adopt-files", help="copy the imported CWA ebook files into the store (dry run unless --apply)")
     f.add_argument("snapshot")
     f.add_argument("--apply", action="store_true")
@@ -91,6 +102,25 @@ def main(argv=None):
             with open(a.tar, "rb") as fh:
                 return joplin.main(cfg, tar=fh, apply=a.apply, offline=a.offline, notebook=a.notebook)
         return joplin.main(cfg, source_dir=a.dir, apply=a.apply, offline=a.offline, notebook=a.notebook)
+    elif a.cmd == "joplin-lists":
+        from .feeds import joplin_lists
+        kw = dict(apply=a.apply, offline=a.offline, notebook=a.notebook)
+        if a.client_error:
+            if a.client_error == "-":
+                return joplin_lists.main(cfg, client_error=sys.stdin)
+            with open(a.client_error, encoding="utf-8") as fh:
+                return joplin_lists.main(cfg, client_error=fh)
+        if a.notes == "-":
+            return joplin_lists.main(cfg, notes=sys.stdin, **kw)
+        if a.notes:
+            with open(a.notes, encoding="utf-8") as fh:
+                return joplin_lists.main(cfg, notes=fh, **kw)
+        if a.tar == "-":
+            return joplin_lists.main(cfg, tar=sys.stdin.buffer, **kw)
+        if a.tar:
+            with open(a.tar, "rb") as fh:
+                return joplin_lists.main(cfg, tar=fh, **kw)
+        return joplin_lists.main(cfg, source_dir=a.dir, **kw)
     elif a.cmd == "adopt-files":
         from . import adopt
         return adopt.main(cfg, a.snapshot, apply=a.apply)

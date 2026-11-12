@@ -919,7 +919,7 @@ def add_from_epub(conn, login, path, summary, sha, media_dir, store, fill=None, 
 
 # ------------------------------------------------- movies and series (TMDB)
 
-def add_screen(conn, login, kind, details, covers, status="planned"):
+def add_screen(conn, login, kind, details, covers, status="planned", client=None):
     """A movie or series from TMDB details (posters already downloaded): the
     catalogue values labelled tmdb, the entry and its watch the owner's."""
     from .. import screen
@@ -934,7 +934,7 @@ def add_screen(conn, login, kind, details, covers, status="planned"):
     if found:
         return {"id": str(conn.execute("SELECT public_id FROM catalog.media_item WHERE id = %s", (found,)).fetchone()["public_id"]),
                 "existing": True}
-    with db.write_tx(conn, "tmdb", "console:" + (login or "unknown"), reason="add from TMDB"):
+    with db.write_tx(conn, "tmdb", client or "console:" + (login or "unknown"), reason="add from TMDB"):
         item, _ = screen.write(conn, kind, p, covers)
         db.set_source(conn, "owner")
         conn.execute("INSERT INTO library.entry (item_id, status) VALUES (%s, %s)", (item, status))

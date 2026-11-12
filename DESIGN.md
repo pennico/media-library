@@ -1461,3 +1461,65 @@ series shows its seasons (D49).
   was and scrolled where it was, with the item now open (after ‹ ›, the entry
   under the page is corrected to it). ✕ on the page closes both (two history
   steps). Choosing another kind, collection or section leaves the page.
+
+## 22. Joplin "To watch" and "To read" lists (2026-11-12, D73, D74)
+
+**Format.** One note *To watch* and one *To read* (any notebook, or the one
+`JOPLIN_LISTS_NOTEBOOK` names; titles matched without case), a title per line:
+`Dune (2021)` (a year), `Severance (series)` / `(film)` (the kind, on To watch),
+a heading `# Series` / `# Films` (the kind of the lines under it), `Pachinko -
+Min Jin Lee` or `Stoner by John Williams` (the author, or the director),
+`Stoner (John Williams)` (on To read), a TMDB address (that one), list marks,
+checkboxes, emphasis and links. Each line is read as tries from the most
+precise reading to the plain text (`Stand by Me (1986)` tries "Stand" by "Me",
+then "Stand by Me" 1986, then the whole line), so a title with " by " or a
+number in it still matches. Headings, rules, quotes, other links and blank
+lines are left alone.
+
+**Matching** (`medialib/feeds/joplin_lists.py`): the library first (the review
+feed's `Library.find`: same title, author or year agreeing), then TMDB (films
+and series together unless the line says which: titles scoring 0.97+, the year
+within one; one candidate, or one more than 3× as popular as the next, as Fill
+missing does) or Apple Books + Open Library (the review feed's `_choose`).
+Something already read or watched (or abandoned) is taken only when the line
+names its year or author: a bare "Dune" may mean another Dune than the one
+seen. An item in the Trash leaves the line in the note. Added items are planned
+(To watch / To read), written by the same writers as the console's Add
+(`add_screen`, `fill.add`) as the owner, client `joplin-list:<note id>`.
+
+**State** (`sync.joplin_list_line`, 0030): a row per line left unclear (why, the
+closest candidates, when the sources were last asked) or taken but not yet
+deleted from the note. Unclear lines are tried against the library every run
+and against the sources again after 24 h; rows of lines no longer in a note go.
+Runs are `ingest.run` rows (tool `joplin_lists`) with a summary (added with their
+items, taken, unclear, errors); a failure of the client is recorded as a failed
+run with what it said. The Sync page's **Joplin lists** shows them; the health
+check wants the last run ok and under 3 hours old once the lists run.
+
+**The client** (`deploy/joplin`: Joplin CLI 3.7.1, every dependency locked;
+Node 22 for `node:sqlite`; `client.sh` + `lists.mjs`), run by
+`ops/joplin-lists.sh` hourly:
+
+1. `pull`: settings from the environment (target, URL, user; the password
+   through `config --import` on stdin, never an argument; attachments on demand,
+   so a first sync fetches notes only), guard, `joplin sync`, guard, then the
+   list notes from the CLI's own database as JSON (conflict copies marked);
+2. `medialib joplin-lists --notes - --apply` in the console container prints
+   the plan: per note, the lines taken;
+3. `push`: guard, sync (the owner's latest edits), delete each taken line once
+   from the note as it is now (skipped for a note edited in the last 20
+   minutes), `joplin set <id> body -- <text>`, read it back from the database
+   (a mismatch is put back; if that fails, `STOPPED`), guard, sync, guard.
+
+The guard (D74) reads `info.json` over WebDAV before each sync: format 3, no
+end-to-end encryption, no locked notes, no shared setting in the client's
+profile newer than the target's (it would win Joplin's merge: turning off
+note history on a test client reached every device), and an `appMinVersion`
+at least the CLI's own (a client raises it to its own, and older apps then
+refuse to sync); after the sync the shared settings must be as before, else
+`STOPPED`. `joplin sync` exits 0 when items failed, so the script requires its
+"Completed:" line and no "Last error:". Locks: each client holds its own shared
+sync lock (3 min, refreshed), so the owner's devices sync at the same time; only
+an upgrade (`--upgrade`, never used) takes the exclusive lock. Tested against
+the real CLI with a second profile standing in for the owner's devices, and the
+hourly script end to end with a stand-in `docker`.

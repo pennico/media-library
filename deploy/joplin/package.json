@@ -1,0 +1,8 @@
+{
+  "name": "medialib-joplin",
+  "private": true,
+  "description": "media-library's headless Joplin client (D73): the Joplin CLI, locked with every dependency",
+  "dependencies": {
+    "joplin": "3.7.1"
+  }
+}

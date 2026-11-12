@@ -17,6 +17,7 @@ the keyboard, the phone sheet, the cached library, and how long clicks take.
 | `checks/collection-edit.js` | D70: a collection's editor (add by search, Enter, up, down, to the top, remove, Undo of each), Remove from collection on a selection, rename, delete, 375 px |
 | `checks/panel-nav.js` | D71: ‹ › and "3 of 12", ← →, the address replaced, the ends, the shelf's arrow keys taking the panel along, an item leaving a filtered list, the list layout, the phone sheet |
 | `checks/full-page.js` | D72: expand and reduce, `#page=` and its history entry, Back / Forward / Esc, the shelf's scroll kept, ‹ › on the page, a link into the page, ✕ from it, two columns, the phone page |
+| `checks/joplin-lists.js` | D73: the Sync page's Joplin lists (lines left with why and candidates, added items, a failed client run, a conflict copy, 375 px) |
 | `checks/perf.js` | click timings (not pass/fail): `run.py --perf 10 4` clones the library 10x and slows the CPU 4x |
 
 ## Running

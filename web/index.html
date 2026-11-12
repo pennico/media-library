@@ -295,7 +295,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .rating button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
 .rating .val { margin-left: 6px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .kv { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 4px 10px; font-size: 13px; margin: 0; }
-.kv dt { color: var(--muted); } .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.kv dt { color: var(--muted); overflow-wrap: anywhere; } .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .src { font-family: var(--mono); font-size: 10.5px; color: var(--muted); background: var(--sunk); border-radius: 4px; padding: 0 5px; margin-left: 5px; white-space: nowrap; }
 .review { padding: 10px 12px; background: var(--sunk); border-radius: 8px; white-space: pre-wrap; font-size: 13px; }
 textarea, .form input, .form select { width: 100%; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; }
@@ -972,7 +972,9 @@ function renderSide() {
   if (st.sec === "sync") {
     $("cats").hidden = true;
     const J = READING?.joplin, unclear = J ? J.unclear.length : 0, docs = READING ? READING.documents.length : 0;
-    $("kinds").innerHTML = `<h3>Reading apps and feeds</h3>` + [["readest", "Readest", "◫", docs], ["joplin", "Joplin notes", "✎", unclear || ""]].map(([k, label, ico, n]) =>
+    const left = (READING?.lists?.lines || []).filter(l => l.state === "unclear").length;
+    $("kinds").innerHTML = `<h3>Reading apps and feeds</h3>` + [["readest", "Readest", "◫", docs], ["joplin", "Joplin notes", "✎", unclear || ""],
+      ["lists", "Joplin lists", "☰", left || ""]].map(([k, label, ico, n]) =>
       `<button class="nav" id="sync-${k}" data-synctab="${k}" aria-current="${st.syncTab === k}"><span class="ico">${ico}</span>${label}<span class="n">${n}</span></button>`).join("");
     $("shelves").hidden = true;
     $("side-foot").innerHTML = PREVIEW ? `Preview: no server behind this page.` : `Tailnet only · ${esc(SESSION.login || "no login")}`;
@@ -3669,6 +3671,7 @@ function renderSync() {
   if (!R) { v.innerHTML = `<p class="empty">Loading…</p>`; return; }
   if (R.error) { v.innerHTML = `<p class="empty">Could not load: ${esc(R.error)}</p>`; return; }
   if (st.syncTab === "joplin") return renderJoplin(v, R.joplin);
+  if (st.syncTab === "lists") return renderLists(v, R.lists || {lines: [], added: []});
   const copy = val => `<span class="mono">${esc(val)}</span> <button class="btn small" data-copy="${esc(val)}">Copy</button>`;
   const pw = st.readerPw ? copy(st.readerPw) : `<button class="btn small" data-showpw>${canEdit() ? "Show password" : "Unlock to show"}</button>`;
   const books = LIB.items.filter(i => i.kind === "book").sort((a, b) => a.sort.localeCompare(b.sort));
@@ -3716,6 +3719,45 @@ function renderJoplin(v, J) {
           ["rating: 4/5", "or 8/10; stored 0–10"], ["isbn: 9788806…", "when the title alone isn't enough"],
           ["lists: Favourites", "collections (created if new)"], ["# Comment", "then your review, as long as you like"]]
           .map(([k, d]) => `<dt class="mono">${esc(k)}</dt><dd class="muted">${esc(d)}</dd>`).join("")}</dl></div>
+    </div>`;
+}
+
+// Joplin "To watch" / "To read" lists (D73): what the hourly job took, and the lines it left in the notes, with why
+function renderLists(v, L) {
+  const run = L.lastRun, sm = run?.summary || {}, failed = run && run.status !== "ok";
+  const NAME = {watch: "To watch", read: "To read"};
+  const left = L.lines.filter(l => l.state === "unclear"), waiting = L.lines.filter(l => l.state === "taken");
+  const copies = (sm.notes || []).filter(n => n.conflictCopy);
+  const cand = c => esc(c.title + (c.year ? " (" + (c.kind === "series" ? "series, " : c.kind === "movie" ? "film, " : "") + c.year + ")" : "")
+    + (c.authors?.length ? " — " + c.authors.join(", ") : ""));
+  const goItem = (id, title) => id ? `<button class="linkbtn" data-gobook="${esc(id)}">${esc(title || "open")}</button>` : esc(title || "");
+  const pill = !run ? `<span class="pill plain">not run yet</span>` : failed ? `<span class="pill warn">the last run failed</span>`
+    : `<span class="pill ok">last run ${esc(when(run.at))}</span>`;
+  const byList = lst => left.filter(l => l.list === lst);
+  v.innerHTML = `<div class="toolbar"><h2>Joplin lists</h2>${pill}</div>
+    <div class="charts">
+      ${failed ? `<div class="card wide"><h3>The Joplin client stopped</h3><p class="err" style="font-size:13px">${esc(sm.client_error || (sm.errors || []).join("; ") || run.status)}</p>
+        <p class="note">Nothing was taken from the notes in that run. The server's log is <span class="mono">out/joplin-lists.log</span>; <span class="mono">docs/INSTALL.md</span> §6d says what each message means.</p></div>` : ""}
+      ${copies.length ? `<div class="card wide"><h3>A conflict copy in Joplin</h3><p class="note">Joplin kept a copy of ${copies.map(c => "<b>" + esc(c.title) + "</b>").join(", ")}: one of your devices changed the note while this server was changing it. The lines only in the copy were taken like the others; delete the copy in Joplin's <b>Conflicts</b> notebook when you have looked at it.</p></div>` : ""}
+      <div class="card"><h3>Left in the notes ${left.length ? `<span class="pill warn">${left.length}</span>` : ""}</h3>
+        ${left.length ? ["watch", "read"].filter(x => byList(x).length).map(x => `<p class="note" style="margin:6px 0 2px"><b>${NAME[x]}</b></p>` + byList(x).map(l =>
+          `<div class="unclear"><span class="mono">${esc(l.line)}</span><br>${esc(l.problem || "")}${l.candidates?.length ? `<div class="muted" style="font-size:12px;margin-top:3px">Close: ${l.candidates.map(cand).join(" · ")}</div>` : ""}</div>`).join("")).join("")
+          : `<p class="muted">${run ? "Nothing: every line was taken." : "Nothing yet."}</p>`}
+        ${waiting.length ? `<p class="note" style="margin-top:8px">${waiting.length} line${waiting.length === 1 ? "" : "s"} taken but not deleted from the note yet (it was being edited, or the client could not sync): next run.</p>` : ""}</div>
+      <div class="card"><h3>Last run</h3>
+        <p class="note">${run ? `${esc(when(run.at))}${(sm.notes || []).length ? " · " + sm.notes.map(n => esc(n.title) + (n.notebook ? ` <span class="muted">(${esc(n.notebook)})</span>` : "")).join(", ") : " · no list notes found"} · ${sm.lines || 0} line${sm.lines === 1 ? "" : "s"}` : "The hourly job hasn't run yet: it needs the Joplin client on the server (docs/INSTALL.md §6d)."}</p>
+        ${(sm.added || []).length ? `<p class="note" style="margin:8px 0 2px"><b>Added</b></p><ul class="plain">${sm.added.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+        ${(sm.taken || []).length ? `<p class="note" style="margin:8px 0 2px"><b>Already in the library</b></p><ul class="plain">${sm.taken.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+        ${(sm.errors || []).length && !failed ? `<p class="note" style="margin:8px 0 2px"><b>Errors</b></p><ul class="plain">${sm.errors.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div>
+      ${L.added.length ? `<div class="card wide"><h3>Recently added from the lists</h3><ul class="plain">${L.added.map(a => `<li>${goItem(a.id, a.title)} <span class="muted">· ${esc(NAME[a.list] || "")} · ${esc(when(a.at))} · “${esc(a.line)}”</span></li>`).join("")}</ul></div>` : ""}
+      <div class="card wide"><h3>How a list is read</h3>
+        <p class="note">One note <b>To watch</b> and one <b>To read</b> in Joplin, one title per line. Every hour each line is matched: what the library has, or what TMDB (films, series) or Apple Books and Open Library (books) are sure of, is put on your list and the line is deleted from the note. A line that can't be matched stays, with why, here. Headings and other text stay as they are.</p>
+        <dl class="kv fmt">${[["Dune (2021)", "a year, when titles repeat"], ["Severance (series)", "or (film): the kind, on To watch"],
+          ["# Series", "a heading: the lines under it are series (# Films: films)"], ["Pachinko - Min Jin Lee", "or “by”: the author (or director)"],
+          ["Stoner (John Williams)", "on To read: the author"], ["themoviedb.org/movie/603", "a TMDB address: that one"],
+          ["- [ ] Perfect Days", "list marks and checkboxes are fine"]]
+          .map(([k, d]) => `<dt class="mono">${esc(k)}</dt><dd class="muted">${esc(d)}</dd>`).join("")}</dl>
+        <p class="note">Something you have read or watched already is taken only when the line names its year (or author): a bare title may mean another one.</p></div>
     </div>`;
 }
 

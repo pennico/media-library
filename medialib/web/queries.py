@@ -380,7 +380,25 @@ def reading_apps(conn):
     unclear = conn.execute("""SELECT title, kind, problem, candidates, seen_at FROM sync.joplin_note
                                WHERE state = 'unclear' ORDER BY seen_at DESC LIMIT 100""").fetchall()
     synced = conn.execute("SELECT count(*) AS n FROM sync.joplin_note WHERE state = 'synced'").fetchone()["n"]
+    lrun = conn.execute("""SELECT started_at, finished_at, status, summary FROM ingest.run
+                            WHERE tool = 'joplin_lists' AND mode = 'apply' ORDER BY id DESC LIMIT 1""").fetchone()
+    lines = conn.execute("""SELECT l.note_id, l.line, l.list, l.state, l.how, l.problem, l.candidates, l.first_seen,
+                                   i.public_id::text AS item, i.title AS item_title
+                              FROM sync.joplin_list_line l LEFT JOIN catalog.media_item i ON i.id = l.item_id
+                             ORDER BY l.list DESC, l.first_seen, l.line LIMIT 500""").fetchall()
+    added = conn.execute("""SELECT finished_at, summary->'addedItems' AS items FROM ingest.run
+                             WHERE tool = 'joplin_lists' AND mode = 'apply' AND status = 'ok'
+                               AND jsonb_array_length(coalesce(summary->'addedItems', '[]')) > 0
+                             ORDER BY id DESC LIMIT 20""").fetchall()
     return {
+        "lists": {
+            "lastRun": {"at": iso(lrun["finished_at"] or lrun["started_at"]), "status": lrun["status"],
+                        "summary": lrun["summary"]} if lrun else None,
+            "lines": [{"note": r["note_id"], "line": r["line"], "list": r["list"], "state": r["state"], "how": r["how"],
+                       "problem": r["problem"], "candidates": r["candidates"], "since": iso(r["first_seen"]),
+                       "item": r["item"], "itemTitle": r["item_title"]} for r in lines],
+            "added": [dict(x, at=iso(a["finished_at"])) for a in added for x in a["items"]][:40],
+        },
         "documents": docs, "opdsBooks": books,
         "joplin": {
             "lastRun": {"at": iso(run["finished_at"] or run["started_at"]), "status": run["status"],

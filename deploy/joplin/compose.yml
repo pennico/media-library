@@ -1,0 +1,43 @@
+# The headless Joplin client for the To watch / To read lists (D73), used next to the main compose file:
+#   docker compose -f docker-compose.yml -f app/deploy/joplin/compose.yml run --rm -T joplin pull | push | status
+# ops/joplin-lists.sh does this every hour. Its profile (the CLI's local copy of your notes, and its sync login: the
+# CLI has no keychain) lives in state/joplin; the WebDAV password comes from secrets/joplin-webdav.pw. It reaches the
+# sync target over the egress network; a site file next to the compose file (compose.joplin.site.yml, picked up by
+# ops/joplin-lists.sh) can add the network your Nextcloud is on.
+services:
+  joplin:
+    profiles: [joplin]
+    build:
+      context: ./app/deploy/joplin
+      args:
+        JOPLIN_VERSION: ${JOPLIN_VERSION:-3.7.1}
+    image: media-library-joplin:local
+    user: "${ML_UID}:${ML_GID}"
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      HOME: /tmp
+      JOPLIN_DATA: /data
+      JOPLIN_SYNC_TARGET: ${JOPLIN_SYNC_TARGET:-5}            # 5 Nextcloud, 6 WebDAV: as in your Joplin apps
+      JOPLIN_WEBDAV_URL: ${JOPLIN_WEBDAV_URL:-}
+      JOPLIN_WEBDAV_USER: ${JOPLIN_WEBDAV_USER:-}
+      JOPLIN_WEBDAV_PASSWORD_FILE: /run/secrets/joplin-webdav.pw
+      JOPLIN_LISTS_NOTEBOOK: ${JOPLIN_LISTS_NOTEBOOK:-}       # empty: the notes anywhere
+      JOPLIN_LISTS_QUIET_MINUTES: ${JOPLIN_LISTS_QUIET_MINUTES:-20}
+    secrets:
+      - source: joplin_webdav_pw
+        target: joplin-webdav.pw
+    volumes:
+      - ./state/joplin:/data
+    networks: [egress]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    mem_limit: 512m
+    pids_limit: 100
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+
+secrets:
+  joplin_webdav_pw:
+    file: ./secrets/joplin-webdav.pw

@@ -166,6 +166,63 @@ docker compose run --rm tools import-watch medialib-watch.json            # dry 
 docker compose run --rm tools import-watch medialib-watch.json --apply    # posters download once
 ```
 
+## 6d. Joplin "To watch" and "To read" lists (optional)
+
+Keep one note **To watch** and one **To read** in Joplin, a title per line
+(`Dune (2021)`, `Severance (series)`, `Pachinko - Min Jin Lee`; DESIGN.md §22
+has the whole format). Every hour each line is matched; what the library has,
+or what TMDB or Apple Books / Open Library are sure of, is put on your list,
+and **the line is deleted from the note**. Lines that can't be matched stay, and
+the console's Sync page (Joplin lists) says why.
+
+Deleting lines needs a real Joplin client: a headless Joplin CLI in its own
+container (`deploy/joplin`) syncs with the same target as your apps (never by
+editing the sync folder's files). Give it a login for that target only: for
+Nextcloud, a user of its own that you share the Joplin folder with (edit
+rights), and an app password of that user.
+
+```bash
+( umask 077; printf '%s\n' '<app password>' > secrets/joplin-webdav.pw )
+install -d -m 700 state/joplin
+# .env: JOPLIN_SYNC_TARGET (5 Nextcloud, 6 WebDAV), JOPLIN_WEBDAV_URL (the address your apps sync to, as this
+# user sees it, e.g. https://cloud.example/remote.php/dav/files/<user>/<folder>), JOPLIN_WEBDAV_USER, and
+# JOPLIN_LISTS_NOTEBOOK if the notes should only count in one notebook
+C="-f docker-compose.yml -f app/deploy/joplin/compose.yml"
+docker compose $C build joplin
+docker compose $C run --rm -T joplin status        # the target's shared settings; syncs nothing
+app/ops/joplin-lists.sh --dry-run                  # first sync (all notes, no attachments), then what it would do
+( crontab -l 2>/dev/null
+  echo "42 * * * * flock -n /tmp/medialib-lists.lock $BASE/app/ops/joplin-lists.sh > $BASE/out/joplin-lists.log 2>&1"
+) | crontab -
+```
+
+If your Nextcloud is on another Docker network, put a `compose.joplin.site.yml`
+next to the compose file that adds it to the `joplin` service; the script picks
+it up.
+
+The client never fights your devices:
+
+- It only syncs (Joplin's shared sync lock: your devices sync at the same time)
+  and changes only the body of the two notes. It never upgrades the target
+  (`--upgrade`), never turns on encryption and changes no shared setting.
+- Before each sync it reads the target's `info.json` and stops when the target
+  is end-to-end encrypted, has locked notes, is not format 3, when its own
+  profile would change a shared setting (note history, encryption), or when
+  syncing would raise **appMinVersion**: a Joplin client raises it to its own
+  (3.7.0 for the 3.7 CLI), and older apps then refuse to sync. If `status` or
+  the dry run says so, update your Joplin apps (and sync one of them), or build
+  the client with an older CLI: `JOPLIN_VERSION=3.6.2` in `.env` (installed
+  unlocked; 3.6 writes 3.0.0). After each sync it checks that nothing shared
+  changed; if something did, it stops for good (`state/joplin/STOPPED` says
+  what) until you delete that file.
+- A note edited in the last 20 minutes is left alone (`JOPLIN_LISTS_QUIET_MINUTES`):
+  its lines go an hour later. If a device that had not synced yet changed a list
+  while the server changed it, Joplin keeps that device's version as a conflict
+  copy (Conflicts notebook); the lines only in the copy are taken too, and the
+  Sync page asks you to delete the copy.
+- The CLI has no keychain: the app password is also kept in its profile
+  (`state/joplin`, 0700). Use a login that sees only the Joplin folder.
+
 ## 7. Backups
 
 ```bash
@@ -220,7 +277,8 @@ before `docker compose up`; migration 0014 runs with `migrate`. To 0.8.0:
 migration 0016 (sections); `docker compose run --rm tools test-data` adds
 made-up items to the Test section to try the console with (`--remove` deletes them). To 0.8.1: migration 0017 (places to watch). To 1.0.0: no
 migration; the first start makes the 160, 480 and 640 px thumbnails of the chosen
-covers in the background (about 110 KB more per cover, in `media/thumbs/`).
+covers in the background (about 110 KB more per cover, in `media/thumbs/`). To
+1.2.0: migration 0030 (Joplin lists); the lists themselves are optional (6d).
 
 ## Upgrades
 

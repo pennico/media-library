@@ -4,6 +4,16 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **Joplin "To watch" and "To read" lists** (migration 0030): one note To watch
+  and one To read in Joplin, a title per line (a year, an author, (series) or
+  a heading help). Every hour each line is matched against the library, then
+  TMDB or Apple Books and Open Library, never a guess; what is sure is put on
+  your list, and a headless Joplin client (`deploy/joplin`, its own container)
+  deletes the line from the note. Lines it can't match stay, and the Sync
+  page's Joplin lists says why, with the closest candidates. The client checks
+  the sync target before and after every sync, so it never upgrades it, never
+  raises the version your apps need, and changes no shared setting; a note being
+  edited is left for a later run. Set up: docs/INSTALL.md §6d.
 - **The info as a full page**: the expand arrows in the panel show the item as a
   page of its own (cover on the left, details in two columns; a plain page on a
   phone) with its own address to reload or share inside the console (Copy link).

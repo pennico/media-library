@@ -979,6 +979,11 @@ def health(app):
             if j:      # only once the feed is set up
                 add("Joplin feed ran ok < 3 h ago", j["status"] == "ok" and j["age"] < 3,
                     "{} {:.1f} h ago".format(j["status"], j["age"]))
+            j = q("SELECT status, extract(epoch FROM now() - coalesce(finished_at, started_at)) / 3600 AS age"
+                  " FROM ingest.run WHERE tool = 'joplin_lists' AND mode = 'apply' ORDER BY id DESC LIMIT 1")
+            if j:      # the To watch / To read lists (D73), once set up
+                add("Joplin lists ran ok < 3 h ago", j["status"] == "ok" and j["age"] < 3,
+                    "{} {:.1f} h ago".format(j["status"], j["age"]))
     except psycopg.Error as e:
         add("database reachable", False, type(e).__name__)
     bdir = app.backup_dir
