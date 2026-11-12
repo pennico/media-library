@@ -4,6 +4,10 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **The info as a full page**: the expand arrows in the panel show the item as a
+  page of its own (cover on the left, details in two columns; a plain page on a
+  phone) with its own address to reload or share inside the console (Copy link).
+  Reduce, Back or Esc return to the panel where you were. ‹ › work there too.
 - **Previous and next from the panel**: the info panel has ‹ › with "3 of 12"
   for the list the shelf shows (its sort and filters), and ← → do the same; the
   shelf's arrow keys take an open panel along. An item that leaves a filtered

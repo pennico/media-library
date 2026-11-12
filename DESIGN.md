@@ -1442,3 +1442,22 @@ series shows its seasons (D49).
 - The address follows with `replaceState` (`#item=<id>`): Back still closes the
   panel, a reload opens the item that was open. On a phone the row stays at the
   top of the sheet while it scrolls.
+
+## 21. The open item as a page (2026-11-12, D72)
+
+- The panel's top row has an **expand** button (arrows out): the item's info
+  becomes the page. `#lib.fullpage` hides the shelf and `#dbhead`; the panel is
+  static and up to 1,180 px wide: the cover a sticky rail on the left, title
+  and facts beside it, the sections (`.dbody`) in two balanced columns
+  (`columns`, sections never split). On a phone (≤ 900 px) it is a plain page in
+  the window's scroll instead of the sheet (no scrim); the top row stays under
+  the top bar. Everything in it works as in the panel (edits, Undo, unlock).
+- **Address**: `#page=<id>`, pushed as its own history entry over the panel's
+  `#item=<id>`, so Back returns to the panel. ‹ › on the page replace it. A
+  `#page=` link or a reload opens the console on the item's shelf and then the
+  page, so reduce and Back still lead to the panel and the console. Copy link
+  copies the address; the tab's title is the item's.
+- **Reduce** (arrows in), Back or Esc: the panel again, on the shelf as it
+  was and scrolled where it was, with the item now open (after ‹ ›, the entry
+  under the page is corrected to it). ✕ on the page closes both (two history
+  steps). Choosing another kind, collection or section leaves the page.

@@ -53,7 +53,8 @@ looks like a bookshelf.
   come in the size the screen needs; the last library is kept in the browser,
   so the console opens at once (and offline); Undo after trash, archive and
   move; the open book is in the address (Back closes it); the phone panel is
-  a sheet. Browser checks: `tools/uicheck/`.
+  a sheet; ‹ › move through the list from the panel, and an item's info opens
+  as a page of its own (expand), with its own address. Browser checks: `tools/uicheck/`.
 - **Access**: tailnet only through Tailscale Serve. Only the owner's
   Tailscale login can write, after unlocking with a password or a passkey
   (shared with [agent-console](https://github.com/pennico/agent-console) if

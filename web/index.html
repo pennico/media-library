@@ -269,6 +269,17 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* the panel's top row (D71, D72): the list's ‹ 3 of 12 ›, the page button, close */
 .dtop { display: flex; align-items: center; gap: 6px; margin: -4px 0 10px; } .dtop .xbtn { float: none; } .dtop-gap { flex: 1; }
 .pnav { display: flex; align-items: center; gap: 4px; } .pnbtn { min-width: 30px; font-size: 15px; line-height: 1.1; padding: 1px 8px; }
+.lib.fullpage { grid-template-columns: minmax(0, 1fr); } .lib.fullpage > #content, .dbfull > #dbhead { display: none; }
+.lib.fullpage > .detail { position: static; max-height: none; overflow: visible; width: 100%; max-width: 1180px; margin: 4px auto 24px; padding: 18px 26px 26px; }
+.lib.fullpage > .detail > .dtop { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--headh)); z-index: 3; background: var(--panel); margin: -18px -26px 14px; padding: 10px 26px 8px; border-bottom: 1px solid var(--line); border-radius: 12px 12px 0 0; }
+/* the page on a wide screen: the cover a rail on the left (it stays while the page scrolls), the rest beside it */
+.lib.fullpage > .detail { display: grid; grid-template-columns: 220px minmax(0, 1fr); column-gap: 32px; align-items: start; }
+.lib.fullpage > .detail > * { grid-column: 2; } .lib.fullpage > .detail > .dtop { grid-column: 1 / -1; }
+.lib.fullpage .detail .head { display: contents; } .lib.fullpage .detail .head > div { grid-column: 2; }
+.lib.fullpage .detail .head > .cov { grid-column: 1; grid-row: 2 / span 6; position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--headh) + 62px); }
+.lib.fullpage .detail h2 { font-size: 26px; margin-bottom: 8px; }
+.lib.fullpage .detail .dbody { columns: 2 330px; column-gap: 34px; } .lib.fullpage .detail .dbody > .d-sec { break-inside: avoid; }
+#pd-copy { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
 .pn-pos { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 4.5em; text-align: center; }
 .d-sec { margin-top: 16px; }
 .d-sec > h3 { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 6px; font-weight: 500;
@@ -333,8 +344,14 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; 
   .detail > .xbtn { position: sticky; top: 0; z-index: 3; padding: 6px 12px; font-size: 15px; box-shadow: 0 2px 8px var(--shadow); }
   .detail > .dtop { position: sticky; top: -16px; z-index: 3; background: var(--panel); margin: -16px -4px 10px; padding: 12px 4px 8px; border-bottom: 1px solid var(--line); }
   .detail > .dtop .xbtn { padding: 6px 12px; font-size: 15px; } .dtop .pnbtn { min-width: 40px; padding: 5px 10px; }
+  .lib.fullpage > .detail { position: static; inset: auto; max-height: none; overflow: visible; border-radius: 12px; z-index: auto; box-shadow: 0 12px 30px -14px var(--board-shadow);
+    margin: 0 calc(-1 * max(4px, env(safe-area-inset-left, 0px)) + 4px) 18px; padding: 14px 14px 22px; }
+  .lib.fullpage > .detail > .dtop { margin: -14px -14px 12px; padding: 8px 14px; }
+  .lib.fullpage > .detail { display: block; } .lib.fullpage .detail .head { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px; }
+  .lib.fullpage .detail .head > .cov { position: static; } .lib.fullpage .detail h2 { font-size: 20px; }
   .scrim.on { display: block; }
   .bulkbar.behind { display: none; }
+  .pd-copy-l { display: none; }
   .toolbar input[type=search] { width: auto; flex: 1 1 150px; min-width: 120px; }
 }
 .scrim { display: none; position: fixed; inset: 0; z-index: 39; border: 0; padding: 0; background: rgb(20 12 4 / 0.32); cursor: default; }
@@ -864,7 +881,8 @@ async function cachedLibrary() {
   if (PREVIEW || !window.caches) return null;
   try { const r = await (await caches.open(LIBCACHE)).match("api/library"); return r ? await r.json() : null; } catch (e) { return null; }
 }
-let BOOT_ITEM = decodeURIComponent((location.hash.match(/^#item=(.+)$/) || [])[1] || "");   // a link or reload into a book
+let BOOT_ITEM = decodeURIComponent((location.hash.match(/^#(?:item|page)=(.+)$/) || [])[1] || "");   // a link or reload into a book
+let BOOT_FULL = /^#page=/.test(location.hash);                                                          // ... as a page (D72)
 async function refresh(keepDetail) {
   const live = Promise.all([api.session(), api.library()]);            // the server first; the kept copy meanwhile
   let settled = false; live.then(() => { settled = true; }, () => { settled = true; });
@@ -885,7 +903,9 @@ async function refresh(keepDetail) {
   if (BOOT_ITEM) {                                   // once, on the first load that reached the server
     const want = BOOT_ITEM; BOOT_ITEM = "";
     history.replaceState(null, "", location.pathname + location.search);       // the console itself, under the book
-    if (showItem(want)) { history.pushState({ml: want}, "", "#item=" + encodeURIComponent(want)); HIST_OWN = true; openDetail(want, false, true); }
+    if (showItem(want)) { history.pushState({ml: want}, "", "#item=" + encodeURIComponent(want)); HIST_OWN = true; openDetail(want, false, true);
+      if (BOOT_FULL) fullOpen(); }
+    BOOT_FULL = false;
   }
 }
 // the shelf an item is on, as a search hit puts it (its kind, its section, no filter that hides it); false if gone
@@ -929,12 +949,13 @@ function applySide() {
 }
 let qTimer = 0;
 function render() {
+  if (!st.selected || st.sec !== "database" || String(st.selected).startsWith("__")) st.full = false;
   if ((!st.selected || st.sec !== "database") && history.state?.ml) historyClear();
   for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-selected", String(b.dataset.sec === st.sec));
   $("v-database").hidden = st.sec !== "database"; $("v-visuals").hidden = st.sec !== "visuals"; $("v-sync").hidden = st.sec !== "sync";
   renderKeybar(); if (st.sec !== "database") { renderSide(); LWIN = null; }       // renderDatabase draws the side pane itself
   if (st.sec === "database") renderDatabase(); else if (st.sec === "visuals") renderVisuals(); else renderSync();
-  barHeights();
+  if (st.sec !== "database") applyFull(); else barHeights();
 }
 // the heights of the top bar and of the page's sticky bar, for what sits under them (CSS --headh, --toolh)
 const BARS = new ResizeObserver(() => barHeights(true));
@@ -1157,7 +1178,7 @@ function renderDatabase() {
   if (fid && $(fid)) { $(fid).focus({preventScroll: true}); if (caret) try { $(fid).setSelectionRange(...caret); } catch (e) {} }
   const lib = $("lib"), content = $("content"), pane = $("detail"), paneTop = pane.scrollTop, drafts = st.tableEdit ? gridDrafts() : null;
   LWIN = null;                                                    // listHtml sets it again for a long list
-  lib.classList.toggle("withdetail", !!st.selected); pane.hidden = !st.selected; syncSheet();
+  lib.classList.toggle("withdetail", !!st.selected); pane.hidden = !st.selected; applyFull(); syncSheet();
   if (!list.length) content.innerHTML = `<p class="empty">${shelfItems().length ? `Nothing matches the filter. <button class="linkbtn" data-fclear="*">Clear the filters</button>`
     : shelf.kind === "manual" && !sec && canEdit() ? `Nothing here yet. <button class="linkbtn" id="coll-add-first">Add ${noun(kind)}</button>` : "Nothing here yet."}</p>`;
   else if (prefs.layout === "list") { content.innerHTML = listHtml(list, prefs); listWindow(true); }
@@ -2077,29 +2098,48 @@ const reduceMotion = () => !Element.prototype.animate || matchMedia("(prefers-re
 // the page's place in the browser history: #item=<id> while a book is open (pushed once, replaced when moving
 // from book to book), so Back closes the panel and a reload opens the same book again
 let popping = false, HIST_OWN = false;      // HIST_OWN: the #item entry was pushed by this page (Back returns to the console)
+let HIST_FULL = false;                      // the #page entry (D72) was pushed by this page (Back returns to the panel)
+const itemHash = (id, full) => (full ? "#page=" : "#item=") + encodeURIComponent(id);
 function historyOpen(id) {
   if (PREVIEW || String(id).startsWith("__")) return;
-  const url = "#item=" + encodeURIComponent(id);
-  if (history.state?.ml) { if (history.state.ml !== id) history.replaceState({ml: id}, "", url); }
+  const full = !!st.full, url = itemHash(id, full);
+  if (history.state?.ml) { if (history.state.ml !== id || !!history.state.full !== full) history.replaceState(full ? {ml: id, full} : {ml: id}, "", url); }
   else { history.pushState({ml: id}, "", url); HIST_OWN = true; }
 }
 // the book's entry goes with the panel: closing it steps back to the console when this page pushed the entry
 // (back), anything else (a kind, a shelf, the trash, another section, a link into a book) turns it into the console
 function historyClear(back) {
   if (popping || !history.state?.ml) return;
-  if (back && HIST_OWN) { HIST_OWN = false; popping = true; history.back(); setTimeout(() => { popping = false; }, 400); }
+  const steps = (back && HIST_OWN ? 1 : 0) + (HIST_FULL && history.state.full ? 1 : 0);
+  HIST_FULL = false;
+  if (back && HIST_OWN) { HIST_OWN = false; popping = true; history.go(-steps); setTimeout(() => { popping = false; }, 400); }
   else history.replaceState(null, "", location.pathname + location.search);
 }
 addEventListener("popstate", e => {
-  if (popping && !e.state?.ml) { popping = false; return; }          // the back() of historyClear
+  if (popping) {                                                    // the back() of historyClear or fullClose: the page is there already
+    popping = false;
+    if (e.state?.ml && !st.selected) history.replaceState(null, "", location.pathname + location.search);
+    else if (e.state?.ml && st.selected && e.state.ml !== st.selected) history.replaceState({ml: st.selected}, "", itemHash(st.selected));
+    return;
+  }
   const id = e.state?.ml;
+  if (id && e.state.full && !st.full) {                             // Forward into the page (D72)
+    if (id !== st.selected) { popping = true; const there = showItem(id); popping = false;
+      if (!there) { history.replaceState(null, "", location.pathname + location.search); return; } openDetail(id, false, true); }
+    HIST_FULL = true; enterFull(); return;
+  }
+  if (st.full && !(id && e.state.full)) {                           // Back from the page: the panel where you were
+    HIST_FULL = false; leaveFull();
+    if (id && st.selected && id !== st.selected) history.replaceState({ml: st.selected}, "", itemHash(st.selected));
+    if (id) return;
+  }
   if (id && id !== st.selected) {                                   // Forward into a book: its shelf first, then the panel
     popping = true; const there = showItem(id); popping = false;          // (its redraw must not clear this entry)
     if (!there) { history.replaceState(null, "", location.pathname + location.search); return; }
     HIST_OWN = true; openDetail(id, false, true);
   } else if (!id) { HIST_OWN = false; if (st.selected && !String(st.selected).startsWith("__")) { popping = true; closeDetail(); popping = false; } }
 });
-const sheetOn = () => !!st.selected && st.sec === "database" && matchMedia("(max-width: 900px)").matches;
+const sheetOn = () => !!st.selected && !st.full && st.sec === "database" && matchMedia("(max-width: 900px)").matches;
 function syncSheet() {
   const on = sheetOn();
   $("scrim")?.classList.toggle("on", on); $("toasts")?.classList.toggle("sheet", on); $("bulkbar")?.classList.toggle("behind", on);
@@ -2116,8 +2156,10 @@ async function openDetail(id, quiet, fromHistory) {
   if (!quiet) renderDetail();
 }
 function closeDetail() {
-  const was = st.selected, inPane = $("detail")?.contains(document.activeElement) || document.activeElement === document.body;
-  st.selected = null; st.detail = null; st.editing = false; st.focusPanel = false; showSelection(); syncSheet();
+  const was = st.selected, inPane = $("detail")?.contains(document.activeElement) || document.activeElement === document.body, wasFull = st.full;
+  st.selected = null; st.detail = null; st.editing = false; st.focusPanel = false;
+  if (wasFull) { st.full = false; applyFull(); scrollTo(0, FULL.scroll || 0); }
+  showSelection(); syncSheet();
   historyClear(true);                                       // its history entry goes too
   if (inPane && was) (document.getElementById("b-" + was) || document.querySelector(`[data-ltitle="${CSS.escape(was)}"]`))?.focus({preventScroll: true});
 }
@@ -2242,11 +2284,50 @@ function panelTop() {
     ? `<button class="btn small pnbtn" id="${id}" data-nav="${esc(to)}" aria-label="${label}: ${esc(navTitle(to))}" title="${label}: ${esc(navTitle(to))} (${key})">${sym}</button>`
     : `<button class="btn small pnbtn" id="${id}" disabled aria-label="${label}">${sym}</button>`;
   return `<div class="dtop">${n ? `<div class="pnav" role="group" aria-label="This list">${btn("pn-prev", n.prev, "‹", "Previous", "←")}<span class="pn-pos" aria-live="polite">${n.k + 1} of ${n.seq.length}</span>${btn("pn-next", n.next, "›", "Next", "→")}</div>` : ""}
-    <span class="dtop-gap"></span><button class="xbtn" id="d-close" aria-label="Close">✕</button></div>`;
+    <span class="dtop-gap"></span>${st.full && !PREVIEW ? `<button class="btn small" data-copy="${esc(location.origin + location.pathname + itemHash(st.selected, true))}" id="pd-copy" aria-label="Copy this page's address" title="Copy this page's address (it opens the console on this page)">${ICON_LINK}<span class="pd-copy-l">Copy link</span></button>` : ""}
+    <button class="btn small pnbtn" id="pd-full" aria-label="${st.full ? "Back to the panel" : "Open as a page"}" title="${st.full ? "Back to the panel (Esc)" : "Open as a page, with its own address"}">${st.full ? ICON_REDUCE : ICON_EXPAND}</button>
+    <button class="xbtn" id="d-close" aria-label="Close">✕</button></div>`;
+}
+// ---------------------------------------------------------------- the page (D72)
+// The open item's info as a page: the shelf and its bar step aside, the panel takes the width (its sections in two
+// columns on a wide screen, a plain page on a phone), its own address (#page=<id>) to reload or share in the console,
+// ‹ › still move through the list. Back, Esc or the reduce button bring the panel back where you were (shelf, scroll).
+const ICON_EXPAND = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const ICON_REDUCE = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M13.5 2.5 9.5 6.5M9.5 3v3.5H13M2.5 13.5l4-4M6.5 13V9.5H3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const ICON_LINK = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M6.8 9.2a2.8 2.8 0 0 0 4 0l2.3-2.3a2.8 2.8 0 0 0-4-4l-.9.9M9.2 6.8a2.8 2.8 0 0 0-4 0L2.9 9.1a2.8 2.8 0 0 0 4 4l.9-.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const FULL = {scroll: 0}, DOC_TITLE = document.title;
+function applyFull() {
+  const on = !!st.full && !!st.selected && st.sec === "database";
+  $("lib")?.classList.toggle("fullpage", on); $("v-database")?.classList.toggle("dbfull", on);
+  const i = on && (st.selected.startsWith("c:") ? {title: navTitle(st.selected)} : LIB.items.find(x => x.id === st.selected));
+  document.title = on && i ? (i.kind ? tt(i) : i.title) + " · " + DOC_TITLE : DOC_TITLE;
+  barHeights();
+}
+function enterFull() {
+  if (!st.full) FULL.scroll = scrollY;
+  st.full = true; applyFull(); syncSheet(); renderDetail(); scrollTo(0, 0);
+}
+function leaveFull() {
+  st.full = false; applyFull(); syncSheet(); renderDetail(); scrollTo(0, FULL.scroll || 0);
+  if (!matchMedia("(max-width: 900px)").matches) document.getElementById("b-" + st.selected)?.scrollIntoView({block: "nearest"});
+}
+function fullOpen() {
+  if (!st.selected || String(st.selected).startsWith("__") || st.full) return;
+  if (!PREVIEW) { history.pushState({ml: st.selected, full: true}, "", itemHash(st.selected, true)); HIST_FULL = true; }
+  enterFull();
+}
+function fullClose() {
+  if (!st.full) return;
+  if (!PREVIEW && history.state?.full) {
+    if (HIST_FULL) { HIST_FULL = false; popping = true; history.back(); setTimeout(() => { popping = false; }, 400); }
+    else history.replaceState({ml: st.selected}, "", itemHash(st.selected));     // came in by a link: the panel takes the entry
+  }
+  leaveFull();
 }
 // open the item before or after; its card comes into view on the shelf (a wide screen, where the shelf shows)
 function navGo(id) {
   openDetail(id);
+  if (st.full) { scrollTo(0, 0); applyFull(); return; }
   if (matchMedia("(max-width: 900px)").matches) return;
   const el = document.getElementById("b-" + id) || document.getElementById("r-" + id);
   if (el) { const r = el.getBoundingClientRect(); if (r.top < 120 || r.bottom > innerHeight - 20) el.scrollIntoView({block: "nearest"}); return; }
@@ -2257,6 +2338,7 @@ function srcTag(group, col) { const s = group === "screen" ? st.detail?.screen?.
 function renderDetail() {
   const a = document.activeElement, keep = a && $("detail")?.contains(a) && PANEL_KEYS.includes(a.id) ? a.id : null;
   renderDetailNow();
+  if (st.full) applyFull();                                      // the page's title follows the item
   if (keep) { const b = $(keep); (b && !b.disabled ? b : $("d-title") || $("d-close"))?.focus({preventScroll: true}); }
   if (st.focusPanel && st.detail && $("d-title")) { st.focusPanel = false; $("d-title").focus({preventScroll: true}); }
   else if (st.detail?.error) st.focusPanel = false;
@@ -2285,7 +2367,7 @@ function renderDetailNow() {
         <div class="muted" style="font-size:12.5px;margin-top:4px">${(SCREEN(d.kind) ? screenFacts(d) : [e?.published ? fmtDate(e.published, e.publishedPrecision) : null, e?.pages ? e.pages + " pages" : null, langName(e?.lang)]).filter(Boolean).map(esc).join(" · ")}</div>
         ${d.locked ? `<div style="margin-top:6px"><span class="pill warn" title="Automated sources may not change it">locked: tts-ereader copy</span></div>` : ""}
       </div></div>
-    ${collStripHtml(d)}
+    ${collStripHtml(d)}<div class="dbody">
     ${st.err ? `<p class="err">${esc(st.err)}</p>` : ""}
     ${!edit && !PREVIEW && SESSION.owner ? `<p class="muted" style="font-size:12.5px;margin:12px 0 0">Unlock (top right) to change anything here.</p>` : ""}
     <div class="d-sec"><h3>Status${srcTag("entry", "status")}</h3><div class="statusbar">${statusBtns}</div></div>
@@ -2314,7 +2396,7 @@ function renderDetailNow() {
     <div class="d-sec"><h3>Identifiers</h3><div class="ids">${d.ids.map(x => x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.p.replace(/_/g, " "))} ${esc(x.v)}</a>` : `<span>${esc(x.p.replace(/_/g, " "))} ${esc(x.v)}</span>`).join("") || `<span class="muted">none</span>`}</div></div>
     <div class="d-sec"><details class="more"><summary>History (${d.history.length})</summary><div class="hist" style="margin-top:8px">${historyHtml(d.history)}</div></details></div>
     ${edit ? `<div class="d-sec">${st.confirmTrash ? `<div class="confirm">Move to the trash? It stays there 30 days. <button class="btn small danger" id="d-trash-yes">Move to trash</button><button class="btn small" id="d-trash-no">Cancel</button></div>`
-      : `<button class="btn small danger" id="d-trash">Move to trash</button>`}</div>` : ""}`;
+      : `<button class="btn small danger" id="d-trash">Move to trash</button>`}</div>` : ""}</div>`;
 }
 function versionHtml(d, edit) {
   const fmt = d.edition?.format, cur = FMT_VER[fmt] || null, fromRead = !cur && FMT_VER[d.medium];
@@ -2659,6 +2741,7 @@ document.addEventListener("click", async e => {
     if (canEdit() && (st.sel.size || e.target.closest(".selbox"))) { toggleSel(idsOf(t)); selChanged(); return; }
     return openBook(t, e.detail === 0); }
   if (t.dataset.nav) return navGo(t.dataset.nav);
+  if (t.id === "pd-full") return st.full ? fullClose() : fullOpen();
   if (t.dataset.open) return openDetail(t.dataset.open);
   if (t.dataset.ltitle) return st.selected === t.dataset.ltitle ? closeDetail() : openDetail(t.dataset.ltitle);
   if (t.matches("table.list tr[data-id]")) { if (st.selected && !st.tableEdit) closeDetail(); return; }
@@ -3100,6 +3183,7 @@ document.addEventListener("keydown", e => {
     if ($("editall")) { $("editall").remove(); return; }
     if (st.fpane) { closeFilterPane(); filterBtn()?.focus(); return; }
     if (entry || (typing && st.tableEdit && e.target.classList?.contains("le"))) { if (st.tableEdit && e.target.classList?.contains("le")) { e.preventDefault(); e.target.blur(); } return; }
+    if (st.full) { fullClose(); return; }
     if (st.selected) { closeDetail(); return; }
     if (st.sel.size && canEdit()) { st.sel.clear(); selChanged(); return; }
     return;
