@@ -277,8 +277,9 @@ before `docker compose up`; migration 0014 runs with `migrate`. To 0.8.0:
 migration 0016 (sections); `docker compose run --rm tools test-data` adds
 made-up items to the Test section to try the console with (`--remove` deletes them). To 0.8.1: migration 0017 (places to watch). To 1.0.0: no
 migration; the first start makes the 160, 480 and 640 px thumbnails of the chosen
-covers in the background (about 110 KB more per cover, in `media/thumbs/`). To
-1.2.0: migration 0030 (Joplin lists); the lists themselves are optional (6d).
+covers in the background (about 110 KB more per cover, in `media/thumbs/`). After
+1.1.0 (2026-11-12): migration 0030 (Joplin lists); the lists themselves are
+optional (6d).
 
 ## Upgrades
 
