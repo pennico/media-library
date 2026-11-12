@@ -461,6 +461,19 @@ body.fb-pane .detail { visibility: hidden; }
 .collfilm { border: 0; background: none; padding: 4px; margin: -4px; text-align: left; color: inherit; font: inherit; border-radius: 6px; cursor: pointer; }
 .collfilm:hover, .collfilm:focus-visible { background: var(--sunk); }
 .collstrip { margin: 12px 0 0; padding: 8px 10px; background: var(--sunk); border-radius: 10px; }
+/* the collection's editor (D70) */
+.ce-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; }
+.ce-row { display: grid; grid-template-columns: auto 30px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.ce-hits .ce-row { grid-template-columns: 30px minmax(0, 1fr) auto; }
+.ce-row:last-child { border-bottom: 0; } .ce-row.hid { opacity: .7; }
+.ce-row img, .ce-row .noimg { width: 30px; height: 45px; object-fit: cover; border-radius: 2px 3px 3px 2px; background: var(--sunk); display: block; }
+.ce-num { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 11.5px; min-width: 1.6em; text-align: right; }
+.ce-t { display: flex; flex-direction: column; min-width: 0; } .ce-t b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ce-t .muted { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ce-acts { display: flex; gap: 3px; } .ce-acts .btn { min-width: 30px; padding-left: 6px; padding-right: 6px; }
+#ce-q { width: 100%; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; }
+.ce-name { display: flex; gap: 6px; } .ce-name input { flex: 1; min-width: 0; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; }
+.ce-n { font-family: var(--sans); text-transform: none; letter-spacing: 0; }
 .cs-head { display: flex; align-items: center; gap: 8px; font-size: 13px; } .cs-head .linkbtn { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cs-head .muted { margin-right: auto; font-size: 12px; white-space: nowrap; }
 .cs-films { display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 2px; scrollbar-width: thin; }
@@ -776,6 +789,7 @@ const serverApi = {
   deleteShelf(sid) { return this.send("DELETE", "api/shelves/" + sid, {}); },
   shelfItems(sid, body) { return this.send("POST", "api/shelves/" + sid + "/items", body); },
   move(sid, item, to) { return this.send("POST", "api/shelves/" + sid + "/move", {item, to}); },
+  orderShelf(sid, items) { return this.send("POST", "api/shelves/" + sid + "/order", {items}); },
   lookup(body) { return this.send("POST", "api/lookup", body); },
   add(token, index, status, format) { return this.send("POST", "api/add", {token, index, status, format}); },
   fill(id) { return this.send("POST", "api/items/" + id + "/fill", {}); },
@@ -1119,7 +1133,7 @@ function renderDatabase() {
         <select id="tlang" aria-label="Titles in" title="Show the titles in another language (the filter and search look at all of them)">${TLANGS.map(([k, l]) => `<option value="${k}" ${TLANG === k ? "selected" : ""}>${l}</option>`).join("")}</select>
         ${prefs.layout === "grid" ? `<span class="segsmall" role="group" aria-label="Cover size">${["s", "m", "l"].map(s => `<button id="size-${s}" data-size="${s}" aria-pressed="${prefs.size === s}">${s.toUpperCase()}</button>`).join("")}</span>` : ""}
         <span class="segsmall" role="group" aria-label="Layout"><button id="lay-grid" data-layout="grid" aria-pressed="${prefs.layout === "grid"}">Grid</button><button id="lay-list" data-layout="list" aria-pressed="${prefs.layout === "list"}">List</button></span>
-        ${shelf.kind === "manual" && !sec && canEdit() ? `<button class="btn small" id="shelf-menu">Collection…</button>` : ""}
+        ${shelf.kind === "manual" && !sec && canEdit() ? `<button class="btn small" id="shelf-menu" aria-expanded="${st.selected === "__coll"}" title="Add ${noun(kind)}, remove them, change their order, rename">Edit collection</button>` : ""}
         ${sec && sec.kind === "manual" && canEdit() ? `<button class="btn small" id="section-menu">Section…</button>` : ""}
         ${canEdit() || st.tableEdit ? (st.tableEdit ? `<button class="btn small primary" id="tbl-save" title="Save the rows you changed">Save</button><button class="btn small" id="tbl-paste" title="Paste cells copied from Excel or Sheets at the selected cell">Paste</button><button class="btn small" id="tbl-cancel">Cancel</button>`
           : `<button class="btn small" id="tbl-edit" title="Edit the ${noun(kind)} like a spreadsheet: every row, in place">${TBLICO}Edit</button>`) : ""}
@@ -1138,7 +1152,8 @@ function renderDatabase() {
   const lib = $("lib"), content = $("content"), pane = $("detail"), paneTop = pane.scrollTop, drafts = st.tableEdit ? gridDrafts() : null;
   LWIN = null;                                                    // listHtml sets it again for a long list
   lib.classList.toggle("withdetail", !!st.selected); pane.hidden = !st.selected; syncSheet();
-  if (!list.length) content.innerHTML = `<p class="empty">${shelfItems().length ? `Nothing matches the filter. <button class="linkbtn" data-fclear="*">Clear the filters</button>` : "Nothing here yet."}</p>`;
+  if (!list.length) content.innerHTML = `<p class="empty">${shelfItems().length ? `Nothing matches the filter. <button class="linkbtn" data-fclear="*">Clear the filters</button>`
+    : shelf.kind === "manual" && !sec && canEdit() ? `Nothing here yet. <button class="linkbtn" id="coll-add-first">Add ${noun(kind)}</button>` : "Nothing here yet."}</p>`;
   else if (prefs.layout === "list") { content.innerHTML = listHtml(list, prefs); listWindow(true); }
   else syncGrid(content, list, prefs, canDrag);
   if (st.selected) { renderDetail(); pane.scrollTop = paneTop; }
@@ -1353,6 +1368,7 @@ function renderBulk() {
     <button class="btn small" data-bulk="move" aria-haspopup="true">Move to section…</button>
     <button class="btn small" data-bulk="${archived ? "unarchive" : "archive"}">${archived ? "Unarchive" : "Archive"}</button>
     <button class="btn small" data-bulk="collection" aria-haspopup="true">Add to collection…</button>
+    ${manualShelf() ? `<button class="btn small" data-bulk="uncoll" title="Out of this collection only: they stay in your library">Remove from collection</button>` : ""}
     <button class="btn small primary" data-bulk="edit" title="Fill in what they should all have; the rest stays as it is">Edit all…</button>
     <button class="btn small danger" data-bulk="trash" title="It stays in the Trash 30 days; Undo right after">Move to trash</button>
     <button class="xbtn" data-bulk="clear" aria-label="Clear the selection" style="float:none">✕</button>`;
@@ -2191,6 +2207,7 @@ function renderDetail() {
 }
 function renderDetailNow() {
   const el = $("detail"); if (!el) return;
+  if (st.selected === "__coll") return collEditRender(el);
   const d = st.detail;
   if (d?.coll === true) { el.innerHTML = collDetailHtml(d); return; }
   if (!d) {                                          // while the details load: what the shelf already knows
@@ -2500,6 +2517,7 @@ document.addEventListener("click", async e => {
   if (t.dataset.bulk) {
     const b = t.dataset.bulk, done = LABEL[st.kind].completed.toLowerCase();
     if (b === "clear") { st.sel.clear(); selChanged(); return; }
+    if (b === "uncoll") { const ids = [...st.sel]; st.sel.clear(); closeBulkPop(); selChanged(); return collRemove(ids); }
     if (b === "status") return bulkRun({action: "status", status: "completed"}, "Marked as " + done, true);
     if (b === "archive") return bulkRun({action: "archive"}, "Archived");
     if (b === "unarchive") return bulkRun({action: "unarchive"}, "Back in the library");
@@ -2561,7 +2579,15 @@ document.addEventListener("click", async e => {
   if (t.id === "sortdir") { const shelf = LIB.shelves.find(s => s.id === st.shelf), p = shelfPrefs(shelf); if (st.listSort) { st.listSort.desc = !st.listSort.desc; renderDatabase(); } else setPref("desc", !p.desc); return; }
   if (t.dataset.col) { const shelf = LIB.shelves.find(s => s.id === st.shelf), p = shelfPrefs(shelf), cur = st.listSort?.key || p.sort;
     st.listSort = {key: t.dataset.col, desc: cur === t.dataset.col ? !(st.listSort ? st.listSort.desc : p.desc) : DESC_FIRST.includes(t.dataset.col)}; renderDatabase(); return; }
-  if (t.id === "shelf-menu") return shelfMenu();
+  if (t.id === "shelf-menu" || t.id === "coll-add-first") return shelfMenu();
+  if (t.dataset.ceadd) return collAdd(t.dataset.ceadd);
+  if (t.dataset.cemove) return collMove(t.dataset.ceid, t.dataset.cemove);
+  if (t.dataset.cerm) return collRemove([t.dataset.cerm]);
+  if (t.id === "ce-usemanual") { st.listSort = null; await setPrefs({sort: "manual", desc: false}); return; }
+  if (t.id === "sf-delete") { COLL.del = true; const b = t; b.outerHTML = `<span class="confirm" id="sf-confirm">Delete this collection? The ${noun(st.kind)} stay in your library. <button class="btn small danger" id="sf-delete-yes">Delete</button><button class="btn small" id="sf-delete-no">Cancel</button></span>`; $("sf-delete-no")?.focus(); return; }
+  if (t.id === "sf-delete-no") { COLL.del = false; renderDetail(); $("sf-delete")?.focus(); return; }
+  if (t.id === "sf-delete-yes") { const s = manualShelf(); if (!s) return; COLL.del = false;
+    await act(async () => { await api.deleteShelf(s.id); LIB = await api.library(); st.shelf = allShelf(st.kind)?.id; st.selected = null; render(); }, "Collection deleted"); return; }
   if (t.dataset.addtab) return addTab(t.dataset.addtab);
   if (t.id === "add-book") { if (!canEdit()) return act(GATE); return addPanel(); }
   if (t.id === "add-screen") { if (!canEdit()) return act(GATE); return addScreenPanel(); }
@@ -2652,6 +2678,8 @@ document.addEventListener("submit", async e => {
   if (f.id === "sectionform") { await act(async () => { await api.editSection(st.section, {name: $("sc-name").value}); LIB = await api.library(); st.selected = null; render(); }, "Renamed"); return; }
   if (f.id === "editall-form") { const fields = editAllFields(); if (!Object.keys(fields).length) { toast("Nothing filled in: nothing to change", true); return; }
     $("editall")?.remove(); return bulkRun({action: "edit", fields}, "Updated", true); }
+  if (f.id === "shelfform") { const s = manualShelf(), name = $("sf-name").value.trim(); if (!s || !name || name === s.name) return;
+    await act(async () => { await api.editShelf(s.id, {name}); s.name = name; LIBREV++; renderDatabase(); }, "Renamed", "coll:" + s.id); return; }
   if (f.id === "newshelf") { const name = $("newshelf-name").value.trim(); if (!name) return;
     await act(async () => { const r = await api.newShelf(name, st.kind); LIB = await api.library(); st.shelf = r.id; render(); }, "Collection created", "new-shelf"); return; }
   if (f.id === "rform") {
@@ -2685,6 +2713,7 @@ document.addEventListener("input", e => {
   // the shelf follows the typing once it pauses (a big library); renderDatabase keeps the box's focus and caret
   if (e.target.id === "filter-q") { st.q = e.target.value; clearTimeout(qTimer); qTimer = setTimeout(renderDatabase, LIB.items.length > 300 ? 140 : 0); }
   if (e.target.id === "search") runSearch(e.target.value);
+  if (e.target.id === "ce-q") { COLL.q = e.target.value; const s = manualShelf(); if (s && $("ce-hits")) $("ce-hits").innerHTML = collHitsHtml(s); }
 });
 document.addEventListener("change", e => {
   if (e.target.id === "rf-platform") { const own = $("rf-platform-new"); if (own) { own.hidden = e.target.value !== "__new"; if (!own.hidden) own.focus(); } }
@@ -2715,16 +2744,86 @@ document.addEventListener("change", async e => {
   if (e.target.id === "sort") { st.listSort = null; const v = e.target.value; if (v === "random") reshuffle(); setPrefs({sort: v, desc: DESC_FIRST.includes(v)}); }
   if (e.target.id === "tlang") { TLANG = e.target.value; save("tlang", TLANG); CARDS.clear(); renderDatabase(); if (st.selected) renderDetail(); }
 });
-async function shelfMenu() {
-  const shelf = LIB.shelves.find(s => s.id === st.shelf);
-  const el = $("detail"); st.selected = "__shelf"; renderDatabase();
-  const d = $("detail"); d.hidden = false; $("lib").classList.add("withdetail");
-  d.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button><h2>Collection</h2>
-    <form class="form" id="shelfform"><label for="sf-name">Name</label><input id="sf-name" value="${esc(shelf.name)}" maxlength="100">
-    <div class="row-actions full"><button type="button" class="btn small danger" id="sf-delete">Delete collection</button><span style="flex:1"></span><button class="btn small primary" type="submit">Rename</button></div></form>
-    <p class="muted" style="font-size:12.5px">Deleting a collection keeps the books in your library.</p>`;
-  $("shelfform").addEventListener("submit", async ev => { ev.preventDefault(); ev.stopPropagation(); await act(async () => { await api.editShelf(shelf.id, {name: $("sf-name").value}); LIB = await api.library(); st.selected = null; render(); }, "Renamed"); }, true);
-  $("sf-delete").addEventListener("click", async ev => { ev.stopPropagation(); await act(async () => { await api.deleteShelf(shelf.id); LIB = await api.library(); st.shelf = allShelf(st.kind).id; st.selected = null; render(); }, "Collection deleted"); });
+// ------------------------------------------------- editing a collection (D70)
+// The collection's own panel: rename, add from the library (search), remove, put in order (↑ ↓ ⤒ here, or drag the
+// covers on the shelf when it is sorted by hand), delete. Each change is saved at once, and its message has Undo
+// (D53: undo over asking); an Undo sends back exactly the order from before.
+const COLL = {q: "", seq: 0};
+const manualShelf = () => { const s = LIB.shelves.find(x => x.id === st.shelf); return s && s.kind === "manual" && !st.section ? s : null; };
+function shelfMenu() {
+  if (!canEdit()) return act(GATE);
+  if (!manualShelf()) return;
+  if (st.selected === "__coll") { closeDetail(); return; }
+  COLL.q = ""; st.selected = "__coll"; st.detail = null; st.editing = false;
+  renderDatabase();
+  $("ce-q")?.focus({preventScroll: true});
+}
+function collEditRender(el) {
+  const shelf = manualShelf();
+  if (!shelf) { el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button><p class="muted">No collection open.</p>`; return; }
+  // what has the focus (and the caret in the search box) is put back after the panel is drawn again
+  const f = el.contains(document.activeElement) ? document.activeElement : null, fid = f?.id, caret = fid === "ce-q" ? [f.selectionStart, f.selectionEnd] : null;
+  const byId = itemsById(), members = shelf.items.map(id => byId[id]).filter(Boolean), kind = shelf.media_kind;
+  const sorted = (st.listSort?.key || shelfPrefs(shelf).sort) !== "manual";
+  el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button>
+    <h2 id="d-title" tabindex="-1">${esc(shelf.name)}</h2>
+    <p class="muted" style="font-size:12.5px;margin:2px 0 0">Each change is saved at once; Undo is in its message.</p>
+    <div class="d-sec"><h3>Add ${noun(kind)}</h3>
+      <input type="search" id="ce-q" value="${esc(COLL.q)}" placeholder="Search your ${noun(kind)}" aria-label="Search your ${noun(kind)} to add" autocomplete="off" spellcheck="false" aria-controls="ce-hits">
+      <div id="ce-hits">${collHitsHtml(shelf)}</div></div>
+    <div class="d-sec"><h3>In this collection <span class="ce-n">${members.length}</span></h3>
+      ${sorted && members.length > 1 ? `<p class="hintline" style="margin:0 0 6px">The shelf is sorted by ${esc((sortsFor(kind).find(x => x[0] === (st.listSort?.key || shelfPrefs(shelf).sort)) || [, "another order"])[1].toLowerCase())}; this is the collection's own order. <button class="linkbtn" id="ce-usemanual">Show it on the shelf</button></p>` : ""}
+      ${members.length ? `<ol class="ce-list" id="ce-members">${members.map((i, k) => collRowHtml(i, k, members.length)).join("")}</ol>` : `<p class="muted" style="margin:0">Empty: search above to add ${noun(kind)}.</p>`}</div>
+    <div class="d-sec"><h3>Name</h3><form class="ce-name" id="shelfform"><input id="sf-name" value="${esc(shelf.name)}" maxlength="100" aria-label="Collection name" autocomplete="off"><button class="btn small" type="submit">Rename</button></form></div>
+    <div class="d-sec"><button type="button" class="btn small danger" id="sf-delete">Delete collection</button> <span class="muted" style="font-size:12.5px">The ${noun(kind)} stay in your library.</span></div>`;
+  const back = fid && document.getElementById(fid);
+  if (back && !back.disabled) { back.focus({preventScroll: true}); if (caret) try { back.setSelectionRange(...caret); } catch (e) {} }
+  else if (fid && f.dataset.ceid) (document.getElementById("ce-" + f.dataset.ceid)?.querySelector("button:not([disabled])") || $("ce-q"))?.focus({preventScroll: true});
+}
+const TOPICO = `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 2.5h10M8 14V6M4.5 9.5 8 6l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const ceThumb = i => coverSrc(i.cover) ? `<img src="${smallCover(coverSrc(i.cover))}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`;
+const ceSub = i => [i.authors, hiddenItem(i) ? "in " + (sectionOf(i.section)?.name || "a section") : statusLabel(i.kind, i.status) + (i.year ? " " + i.year : "")].filter(Boolean).join(" · ");
+function collRowHtml(i, k, n) {
+  const T = esc(tt(i)), b = (what, sym, label, off) => `<button class="btn small" id="ce-${what}-${i.id}" data-cemove="${what}" data-ceid="${i.id}" ${off ? "disabled" : ""} title="${label}" aria-label="${label}: ${T}">${sym}</button>`;
+  return `<li class="ce-row${hiddenItem(i) ? " hid" : ""}" id="ce-${i.id}"><span class="ce-num">${k + 1}</span>${ceThumb(i)}<span class="ce-t"><b>${T}</b><span class="muted">${esc(ceSub(i))}</span></span>
+    <span class="ce-acts">${b("top", TOPICO, "To the top", !k)}${b("up", "↑", "Up one", !k)}${b("down", "↓", "Down one", k === n - 1)}<button class="btn small" id="ce-rm-${i.id}" data-cerm="${i.id}" data-ceid="${i.id}" title="Remove from the collection" aria-label="Remove ${T} from the collection">✕</button></span></li>`;
+}
+function collHitsHtml(shelf) {
+  const terms = fold(COLL.q).split(/\s+/).filter(Boolean); if (!terms.length) return "";
+  const inIt = new Set(shelf.items), q = terms.join(" ");
+  const hits = LIB.items.filter(i => i.kind === shelf.media_kind && !hiddenItem(i)).map(i => ({i, hay: fold([allTitles(i), i.authors, i.year].join(" "))}))
+    .filter(x => terms.every(t => x.hay.includes(t))).map(x => ({i: x.i, score: (inIt.has(x.i.id) ? 0 : 4) + (fold(tt(x.i)).startsWith(q) ? 2 : 1)}))
+    .sort((a, b) => b.score - a.score || String(a.i.sort).localeCompare(String(b.i.sort))).slice(0, 12).map(x => x.i);
+  if (!hits.length) return `<p class="muted" style="margin:6px 0 0;font-size:12.5px">Nothing in your ${noun(shelf.media_kind)} matches “${esc(COLL.q)}”.</p>`;
+  return `<ul class="ce-list ce-hits">${hits.map(i => `<li class="ce-row" id="ceh-${i.id}">${ceThumb(i)}<span class="ce-t"><b>${esc(tt(i))}</b><span class="muted">${esc(ceSub(i))}</span></span>
+    <span class="ce-acts">${inIt.has(i.id) ? `<span class="muted" style="font-size:12px">In it</span>` : `<button class="btn small primary" id="ce-add-${i.id}" data-ceadd="${i.id}" data-ceid="${i.id}" aria-label="Add ${esc(tt(i))}">Add</button>`}</span></li>`).join("")}</ul>`;
+}
+// one change to the collection: the server answers with its items in order; Undo puts back the order from before
+async function collChange(shelf, call, msg, undo) {
+  const before = [...shelf.items], sid = shelf.id, ukey = "undo:coll:" + sid + ":" + (++COLL.seq);
+  const take = r => { const s = LIB.shelves.find(x => x.id === sid); if (s && r?.items) s.items = r.items; LIBREV++; };
+  return act(async () => {
+    take(await call());
+    renderDatabase();
+    toast(msg, false, {label: "Undo", run: () => act(async () => { take(await undo(before)); renderDatabase(); toast("Undone"); }, null, ukey)});
+  }, null, "coll:" + sid);
+}
+const undoOrder = sid => before => api.orderShelf(sid, before);
+function collAdd(id) {
+  const s = manualShelf(), i = LIB.items.find(x => x.id === id); if (!s || !i) return;
+  return collChange(s, () => api.shelfItems(s.id, {add: [id]}), `Added ${tt(i)}`, () => api.shelfItems(s.id, {remove: [id]}));
+}
+function collRemove(ids) {
+  const s = manualShelf(); if (!s) return;
+  const one = ids.length === 1 && LIB.items.find(x => x.id === ids[0]);
+  return collChange(s, () => api.shelfItems(s.id, {remove: ids}), one ? `Removed ${tt(one)} from ${s.name}` : `${ids.length} removed from ${s.name}`, undoOrder(s.id));
+}
+function collMove(id, how) {
+  const s = manualShelf(); if (!s) return;
+  const order = [...s.items], k = order.indexOf(id); if (k < 0) return;
+  const to = how === "top" ? 0 : how === "up" ? k - 1 : k + 1; if (to < 0 || to >= order.length || to === k) return;
+  order.splice(k, 1); order.splice(to, 0, id);
+  return collChange(s, () => api.orderShelf(s.id, order), how === "top" ? "Moved to the top" : "Moved " + (how === "up" ? "up" : "down"), undoOrder(s.id));
 }
 
 // ------------------------------------------------------------- add a book
@@ -2872,8 +2971,11 @@ function enableDrag(grid) {
         order.splice(from, 1); order.splice(order.indexOf(anchor), 0, m); anchor = m;
       }
       if (!steps.length) return;
-      shelf.items = order; renderDatabase();
-      try { for (const [m, to] of steps) await api.move(shelf.id, m, to); } catch (er) { toast(er.message, true); LIB = await api.library(); renderDatabase(); }
+      const before = [...shelf.items], sid = shelf.id, ukey = "undo:drag:" + sid + ":" + (++COLL.seq);
+      shelf.items = order; LIBREV++; renderDatabase();
+      try { for (const [m, to] of steps) await api.move(shelf.id, m, to); } catch (er) { toast(er.message, true); LIB = await api.library(); renderDatabase(); return; }
+      toast("Moved", false, {label: "Undo", run: () => act(async () => { const r = await api.orderShelf(sid, before), s = LIB.shelves.find(x => x.id === sid);
+        if (s) s.items = r.items; LIBREV++; renderDatabase(); toast("Undone"); }, null, ukey)});
     };
     const cleanup = () => {
       clearTimeout(timer); drag.active = false; book.classList.remove("dragging"); if (ghost) ghost.remove(); ghost = null;
@@ -2953,6 +3055,7 @@ document.addEventListener("keydown", e => {
     return;
   }
   if (e.target.id === "key-input" && e.key === "Enter") { unlock(); return; }
+  if (e.target.id === "ce-q" && e.key === "Enter") { const b = document.querySelector("#ce-hits [data-ceadd]"); if (b) { e.preventDefault(); collAdd(b.dataset.ceadd); } return; }
   if (e.target.id !== "search") return;
   if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (!hits.length) return; active = (active + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;
     document.querySelectorAll("#search-pop .pop-item").forEach(b => { const on = +b.dataset.hit === active; b.classList.toggle("active", on); b.setAttribute("aria-selected", String(on)); if (on) b.scrollIntoView({block: "nearest"}); }); }
@@ -3583,7 +3686,10 @@ function makePreviewApi(P) {
     async shelfItems(sid, body) { const s = S.library.shelves.find(x => x.id === sid);
       for (const id of body.add || []) if (!s.items.includes(id)) { s.items.push(id); const m = S.details[id]?.shelves.find(x => x.id === sid); if (m) m.member = true; }
       for (const id of body.remove || []) { s.items = s.items.filter(x => x !== id); const m = S.details[id]?.shelves.find(x => x.id === sid); if (m) m.member = false; }
-      persist(); return {ok: true}; },
+      persist(); return {ok: true, items: [...s.items]}; },
+    async orderShelf(sid, items) { const s = S.library.shelves.find(x => x.id === sid);
+      s.items = [...items, ...s.items.filter(x => !items.includes(x))]; for (const id of items) { const m = S.details[id]?.shelves.find(x => x.id === sid); if (m) m.member = true; }
+      persist(); return {ok: true, items: [...s.items]}; },
     async addManual(body) {
       if (!String(body.title || "").trim()) throw new Error("title cannot be empty");
       const id = newId(), [pd, pp] = parseDate(body.published, "published"), names = String(body.authors || "").split(/\s*;\s*/).filter(Boolean);

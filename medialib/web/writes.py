@@ -554,12 +554,27 @@ def delete_shelf(conn, login, sid):
         conn.execute("UPDATE library.shelf SET deleted_at = now() WHERE id = %s", (s["id"],))
 
 
+def shelf_members(conn, shelf_id):
+    """The collection's items as the console shows them (not those in the trash), in order."""
+    return conn.execute("""SELECT coalesce(array_agg(i.public_id::text ORDER BY si.position), '{}') AS items
+                             FROM library.shelf_item si
+                             JOIN catalog.media_item i ON i.id = si.item_id AND i.deleted_at IS NULL
+                             JOIN library.entry e ON e.item_id = i.id AND e.deleted_at IS NULL
+                            WHERE si.shelf_id = %s""", (shelf_id,)).fetchone()["items"]
+
+
 def shelf_items(conn, login, sid, body):
-    """{add: [item ids], remove: [item ids]}"""
+    """{add: [item ids], remove: [item ids]} -> the collection's items after it, in order."""
+    for k in ("add", "remove"):
+        v = body.get(k)
+        if v is not None and (not isinstance(v, list) or len(v) > BULK_MAX or not all(isinstance(x, str) for x in v)):
+            raise BadRequest(k + " must be a list of item ids")
     with tx(conn, login):
         s = shelf_row(conn, sid)
         for pid in body.get("add") or []:
             ids = ids_for(conn, pid)
+            if ids["kind"] != s["media_kind"]:
+                raise BadRequest("{} is not a {}: it can't go in this collection".format(title_of(conn, pid), s["media_kind"]))
             if conn.execute("SELECT 1 AS x FROM library.shelf_item WHERE shelf_id = %s AND item_id = %s",
                             (s["id"], ids["id"])).fetchone():
                 continue
@@ -575,6 +590,45 @@ def shelf_items(conn, login, sid, body):
             if row:
                 conn.execute("UPDATE library.shelf_item SET position = position - 1 WHERE shelf_id = %s AND position > %s",
                              (s["id"], row["position"]))
+        return shelf_members(conn, s["id"])
+
+
+ORDER_MAX = 20000
+
+
+def order_shelf(conn, login, sid, body):
+    """A collection's order in one go (D70): {items: [item ids]} come first, in that order; ones not in it yet join
+    it there; members not named (in the trash, or left out) keep their order after them. Nothing leaves the
+    collection here (that is `remove`), so an Undo that sends the order from before puts back exactly what was."""
+    pids = body.get("items")
+    if not isinstance(pids, list) or not pids or len(pids) > ORDER_MAX or not all(isinstance(x, str) for x in pids):
+        raise BadRequest("items must be a list of item ids")
+    if len(set(pids)) != len(pids):
+        raise BadRequest("an item is named twice")
+    with tx(conn, login):
+        s = shelf_row(conn, sid)
+        want = []
+        for pid in pids:
+            ids = ids_for(conn, pid)
+            if ids["kind"] != s["media_kind"]:
+                raise BadRequest("{} is not a {}: it can't go in this collection".format(title_of(conn, pid), s["media_kind"]))
+            if not conn.execute("SELECT 1 AS x FROM library.entry WHERE item_id = %s AND deleted_at IS NULL",
+                                (ids["id"],)).fetchone():
+                raise LookupError("no such item in the library")
+            want.append(ids["id"])
+        cur = conn.execute("SELECT item_id, position FROM library.shelf_item WHERE shelf_id = %s ORDER BY position",
+                           (s["id"],)).fetchall()
+        named = set(want)
+        order = want + [r["item_id"] for r in cur if r["item_id"] not in named]
+        at = {r["item_id"]: r["position"] for r in cur}
+        for pos, item in enumerate(order, 1):             # positions are unique again at commit (deferred)
+            if item not in at:
+                conn.execute("INSERT INTO library.shelf_item (shelf_id, item_id, position) VALUES (%s, %s, %s)",
+                             (s["id"], item, pos))
+            elif at[item] != pos:
+                conn.execute("UPDATE library.shelf_item SET position = %s WHERE shelf_id = %s AND item_id = %s",
+                             (pos, s["id"], item))
+        return shelf_members(conn, s["id"])
 
 
 def move(conn, login, sid, body):

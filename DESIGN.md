@@ -1401,3 +1401,27 @@ series shows its seasons (D49).
   the page loads, a kind or collection opens, Random is picked or Shuffle is
   pressed, so the order holds while browsing (filters, cover size, the detail).
   Films of a collection still fold into one card at the first film's place.
+
+## 19. Editing collections (2026-11-12, D70)
+
+- **Edit collection** (a collection's toolbar, unlocked) opens its panel in the
+  detail column (the sheet on a phone): a search box over the library's items of
+  that kind (titles in every language, authors, year; Archive and Test left out),
+  each hit with Add (or "In it"), Enter adding the first one; the collection's
+  items in its own order, each with To the top, Up, Down and Remove; the name;
+  Delete collection. An empty collection offers "Add books" on its shelf. When the
+  shelf is sorted another way, the panel says so and "Show it on the shelf" sorts
+  it by hand again. A selection on the collection's shelf adds **Remove from
+  collection** to the bar.
+- **Saving**: every change is one request and one audited transaction, answered
+  with the collection's items in order, which the page takes as they are (no
+  reload of the library). `POST /api/shelves/<id>/items {add | remove}` as before;
+  new `POST /api/shelves/<id>/order {items}` puts the items named first, in that
+  order, adds those not in it yet, and keeps every other member after them
+  (members in the trash among them): it never removes, so an order sent back by an
+  Undo restores exactly what was there, removed items included. Items of another
+  kind are refused (also by the database's trigger).
+- **Undo** (D53) is in the message of each change: an add is undone by a remove;
+  a remove, a move or a drag on the shelf by sending back the order from before.
+  Each Undo has its own action key. Deleting the collection has no Undo, so it
+  asks first.

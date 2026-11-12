@@ -4,6 +4,11 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **Edit a collection from its own view**: Edit collection opens a panel to add
+  items (search your library, click Add or press Enter), remove them, and put them
+  in order (to the top, up, down), rename or delete the collection. Each change is
+  saved at once and its message has Undo; dragging covers on the shelf has Undo
+  too. A selection on a collection's shelf can be removed from it in one go.
 - **Titles in other languages** (migration 0018): a movie or series keeps its
   title in English, Italian and Danish (`catalog.item_title`), from TMDB's
   translations when it is added or filled, or typed in the details editor (one

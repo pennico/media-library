@@ -879,7 +879,7 @@ def make_handler(app):
                     return self.send(200, {"ok": True})
                 if path == "/api/shelves" and method == "POST":
                     return self.send(200, {"id": writes.create_shelf(conn, login, req)})
-                m = re.fullmatch(r"/api/shelves/" + UUID + r"(/items|/move)?", path)
+                m = re.fullmatch(r"/api/shelves/" + UUID + r"(/items|/move|/order)?", path)
                 if m:
                     sid, sub = m.group(1), m.group(2)
                     if sub is None and method == "PATCH":
@@ -887,7 +887,9 @@ def make_handler(app):
                     elif sub is None and method == "DELETE":
                         writes.delete_shelf(conn, login, sid)
                     elif sub == "/items" and method == "POST":
-                        writes.shelf_items(conn, login, sid, req)
+                        return self.send(200, {"ok": True, "items": writes.shelf_items(conn, login, sid, req)})
+                    elif sub == "/order" and method == "POST":
+                        return self.send(200, {"ok": True, "items": writes.order_shelf(conn, login, sid, req)})
                     elif sub == "/move" and method == "POST":
                         writes.move(conn, login, sid, req)
                     else:

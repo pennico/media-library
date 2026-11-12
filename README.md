@@ -21,6 +21,8 @@ looks like a bookshelf.
   import a whole watch history (`medialib import-watch`).
 - **List edit as a spreadsheet**: select cells, copy and paste to and from Excel or
   Sheets, fill down, clear and undo; one request saves all the changed rows.
+- **Collections you edit in place**: add items from a search of your library,
+  remove them, put them in order, each change with Undo.
 - **Sections and quick actions**: folders in the left pane (and an Archive);
   select covers, rows or everything and mark them read, move, archive,
   delete, or edit them all at once (only the fields you fill in change).
