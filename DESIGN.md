@@ -1371,3 +1371,33 @@ series shows its seasons (D49).
 - **Test data**: `medialib test-data` adds made-up books, movies and series
   (one with seasons) to the Test section, as source `system`; `--remove`
   deletes everything in the Test section for good.
+
+## 18. Titles in other languages and a random order (1.1.0, 2026-11-12, D54)
+
+- **Schema (0018)**: `catalog.item_title (item_id, language, title, source)`,
+  one row per item and language, audited (key `item_id` + `language`), trigram
+  index for search. Languages kept: `eng`, `ita`, `dan` (`medialib/titles.py`
+  `LANGS`). `media_item.title` stays the item's own title; `original_title`
+  stays the original. The shelf's `sort_key` accepts `random`.
+- **Where titles come from**: TMDB's translations (`details` appends
+  `translations`; the US/GB English, the Italian from Italy, the Danish from
+  Denmark first; TMDB leaves the original's language empty, so that one is not
+  stored), written by `screen.write` with source `tmdb` on Add and Fill missing;
+  `medialib titles [--apply]` asks for the movies and series already there
+  (dry run first). The owner's titles (details editor, `PATCH … {titles:
+  {ita: …}}`, an empty one removes it) are never replaced by TMDB. The watch
+  import file carries no translations; run `titles` after an import.
+- **Console**: `/api/library` items carry `titles` ({lang: title}),
+  `origTitle` and `titleLang`; the detail adds `otherTitles` with their
+  source. A **Titles** menu in the toolbar (per browser, `ml-tlang`) shows the
+  titles as saved, in English, Italian, Danish or the original; a language with
+  no title falls back to the original title when the item was made in it, else
+  the title. The title sort follows the shown titles (leading articles in
+  English, Italian and Danish dropped). The filter box and the search match
+  every title; a search hit found by another title shows that one next to it.
+  The detail lists the saved title and the other ones that differ from the
+  heading.
+- **Random order**: a hash of each item's id with a seed; the seed is new when
+  the page loads, a kind or collection opens, Random is picked or Shuffle is
+  pressed, so the order holds while browsing (filters, cover size, the detail).
+  Films of a collection still fold into one card at the first film's place.

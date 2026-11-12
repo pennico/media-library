@@ -70,10 +70,15 @@ class Tmdb:
         return out
 
     def details(self, kind, tmdb_id):
-        """Details with credits and external ids (the importer's `tmdb` object has the same shape)."""
+        """Details with credits, external ids and the titles in other languages (the importer's
+        `tmdb` object has the same shape, without the translations)."""
         d = self._get("/{}/{}".format(PATH[kind], int(tmdb_id)), language="en-US",
-                      append_to_response="credits,external_ids")
+                      append_to_response="credits,external_ids,translations")
         return d if d.get("id") else None
+
+    def translations(self, kind, tmdb_id):
+        """The titles (and overviews) TMDB has in other languages: {translations: [...]}."""
+        return self._get("/{}/{}/translations".format(PATH[kind], int(tmdb_id)))
 
     def confident(self, kind, title, year):
         """The one TMDB entry this title (and year) can only mean, else None (never a guess)."""

@@ -10,6 +10,7 @@
     python -m medialib categorize [--apply] [--offline] [--out DIR]
     python -m medialib purge-trash [--days 30] [--apply]
     python -m medialib test-data [--remove]
+    python -m medialib titles [--apply]          # movies' and series' titles in other languages, from TMDB
 """
 import argparse
 import sys
@@ -56,6 +57,9 @@ def main(argv=None):
     t.add_argument("--apply", action="store_true")
     td = sub.add_parser("test-data", help="made-up books, movies and series in the Test section (or --remove them)")
     td.add_argument("--remove", action="store_true", help="delete every item in the Test section for good")
+    ti = sub.add_parser("titles", help="English, Italian and Danish titles of the movies and series, from TMDB"
+                                       " (dry run unless --apply; needs the TMDB key)")
+    ti.add_argument("--apply", action="store_true")
     a = ap.parse_args(argv)
     cfg = config.from_env(**({"db_name": a.db} if a.db else {}))
     if a.cmd == "bootstrap":
@@ -110,6 +114,16 @@ def main(argv=None):
                 testdata.remove(conn, cfg.media_dir)
             else:
                 testdata.add(conn)
+    elif a.cmd == "titles":
+        import os
+        from . import db, titles
+        from .fill import service, tmdb
+        client = tmdb.Tmdb(service.http_fetcher(os.path.join(cfg.media_dir, "cache", "http")), tmdb.api_key())
+        if not client.available:
+            print("TMDB is off: no key in secrets/tmdb.key")
+            return 2
+        with db.connect(cfg, db.ROLE_APP) as conn:
+            return 2 if titles.backfill(conn, client, apply=a.apply)["failed"] else 0
     elif a.cmd == "serve":
         from .web import server
         server.serve(cfg, host=a.host, port=a.port, **server.from_env(cfg))

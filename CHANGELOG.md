@@ -4,6 +4,20 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **Titles in other languages** (migration 0018): a movie or series keeps its
+  title in English, Italian and Danish (`catalog.item_title`), from TMDB's
+  translations when it is added or filled, or typed in the details editor (one
+  field per language; yours are never replaced by TMDB). A **Titles** menu in the
+  toolbar shows the shelf, the list, the search and the details in one language
+  (English, Italian, Danish or the original), kept in this browser; a missing
+  title falls back to the original one when the film was made in that language.
+  The filter box and the search find an item by any of its titles, and the
+  search names the title it matched. The details list the other titles.
+  `medialib titles [--apply]` fetches them for the movies and series already in
+  the library (needs the TMDB key).
+- **Random order**: a collection can be sorted Random. The order is new each time
+  the page or the collection opens and stays put while you browse; Shuffle (in
+  place of the sort direction) deals again.
 - **Touch ID / Face ID still unlocks after five wrong passwords**: the ten-minute
   lockout now holds back only the password, and a refused passkey does not count
   towards it (the same in the agent and finance consoles). Parallel wrong

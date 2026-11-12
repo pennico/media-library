@@ -15,7 +15,7 @@ importer, the console's "Add movie / series" and "Fill missing".
 import datetime
 import re
 
-from . import db
+from . import db, titles
 from .fill import providers as P
 from .fill import tmdb as T
 
@@ -66,6 +66,7 @@ def parse(kind, d):
         "poster": T.image_url(d.get("poster_path")),
         "makers": list(dict.fromkeys(m.strip() for m in makers if m and m.strip()))[:4],
         "cast": list(dict.fromkeys(c["name"].strip() for c in (credits.get("cast") or [])[:CAST] if c.get("name"))),
+        "titles": titles.from_translations(kind, d),       # {lang3: title}, when TMDB's translations came along
     }
     if kind == "movie":
         p["runtime"] = _minutes(d.get("runtime"))
@@ -284,6 +285,9 @@ def write(conn, kind, p, covers=None, item=None):
             add_tag(conn, item, genre_tag(conn, name), "tmdb")
         changes.append("genres")
     _cover(conn, "item_id", item, p["poster"], covers.get(p["poster"]), changes, "poster")
+    if p.get("titles"):
+        changes += ["title " + lang for lang in titles.save(conn, item, p["titles"], "tmdb")]
+        db.set_source(conn, "tmdb")
     if kind == "movie" and p.get("collection"):
         join_collection(conn, item, p["collection"], changes)
     if kind == "series":

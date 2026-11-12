@@ -17,6 +17,8 @@ MAKER_ROLE = "CASE i.kind WHEN 'movie' THEN 'director' WHEN 'series' THEN 'creat
 
 LIBRARY = """
 SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locked, i.original_language,
+       i.original_title, i.title_language,
+       (SELECT jsonb_object_agg(t.language, t.title) FROM catalog.item_title t WHERE t.item_id = i.id) AS titles,
        e.status, e.rating, e.added_at, e.review IS NOT NULL AS has_review,
        (SELECT sc.public_id::text FROM library.section sc WHERE sc.id = e.section_id AND sc.deleted_at IS NULL) AS section,
        ed.pages, ed.language, ed.format, extract(year FROM ed.published_on)::int AS published,
@@ -111,6 +113,8 @@ def summary(r):
         "year": r["last_read"].year if r["last_read"] else None, "timesRead": r["times_read"],
         "progress": float(r["progress"]) if r["progress"] is not None else None,
         "pages": r["pages"], "lang": r["language"], "origLang": r["original_language"],
+        # the title in other languages (D54): {lang3: title}; the original title when it differs; the title's language
+        "titles": r["titles"] or {}, "origTitle": r["original_title"], "titleLang": r["title_language"],
         "published": r["first_published"] or r["published"], "added": r["added_at"].date().isoformat(),
         "hasReview": r["has_review"], "cover": thumb_url(r["cover_sha"], 320),
         "cats": r["cat_ids"] or [], "hasFile": r["has_file"], "format": r["format"], "medium": r["medium"],
@@ -236,6 +240,8 @@ def detail(conn, pid):
                               WHERE ct.item_id = %s AND ct.role = %s ORDER BY ct.position""", (iid, maker)).fetchall()
     tags = conn.execute("""SELECT t.id, t.kind, t.name FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id
                             WHERE it.item_id = %s AND t.deleted_at IS NULL ORDER BY t.kind, it.position""", (iid,)).fetchall()
+    other_titles = conn.execute("SELECT language, title, source FROM catalog.item_title WHERE item_id = %s ORDER BY language",
+                                (iid,)).fetchall()
     shelves = conn.execute("""SELECT s.public_id::text AS id, s.name, s.kind,
                                      EXISTS (SELECT 1 FROM library.shelf_item si WHERE si.shelf_id = s.id AND si.item_id = %s) AS member
                                 FROM library.shelf s WHERE s.deleted_at IS NULL AND s.media_kind = %s ORDER BY s.position""",
@@ -258,6 +264,7 @@ def detail(conn, pid):
                            "ids": [{"p": x["provider"], "v": x["value"]} for x in ids if x["edition_id"] == e["id"]]}
                           for e in eds if not e["is_primary"]],
         "authorsList": [{"name": p["name"], "sort": p["sort_name"]} for p in people],
+        "otherTitles": [{"lang": t["language"], "title": t["title"], "src": t["source"]} for t in other_titles],
         "genreList": [t["name"] for t in tags if t["kind"] == "genre"],
         "genreIds": [t["id"] for t in tags if t["kind"] == "genre"],
         "tagList": [t["name"] for t in tags if t["kind"] == "tag"],

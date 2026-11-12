@@ -13,13 +13,15 @@ from zoneinfo import ZoneInfo
 import psycopg
 
 from .. import db
+from .. import titles as titles_mod
 from . import queries
 from ..covers import CoverError
 
 STATUSES = ("planned", "in_progress", "completed", "paused", "dropped")
 READING_STATES = ("in_progress", "paused", "completed", "dropped")
 FORMATS = ("ebook", "print", "paperback", "hardcover", "audiobook")
-SORT_KEYS = ("manual", "title", "author", "added", "finished", "rating", "published", "pages", "language", "status", "genre")
+SORT_KEYS = ("manual", "title", "author", "added", "finished", "rating", "published", "pages", "language", "status", "genre",
+             "random")
 
 
 class BadRequest(ValueError):
@@ -137,8 +139,9 @@ def update(conn, table, key_col, key, cols):
 # ------------------------------------------------------------ item edits
 
 def edit_item(conn, login, pid, body):
-    """PATCH: {item: {...}, edition: {...}, entry: {...}, authors: [...], genres: [...], tags: [...]}"""
-    unknown = set(body) - {"item", "edition", "entry", "authors", "genres", "tags"}
+    """PATCH: {item: {...}, edition: {...}, entry: {...}, authors: [...], genres: [...], tags: [...],
+    titles: {lang3: title}} (titles: the item's name in other languages, D54; empty removes one)"""
+    unknown = set(body) - {"item", "edition", "entry", "authors", "genres", "tags", "titles"}
     if unknown:
         raise BadRequest("unknown fields: " + ", ".join(sorted(unknown)))
     with tx(conn, login):
@@ -168,6 +171,11 @@ def edit_item(conn, login, pid, body):
                 raise BadRequest("unknown item field " + k)
         update(conn, "catalog.media_item", "id", ids["id"], cols)
         update(conn, "catalog.movie", "item_id", ids["id"], movie)
+        if "titles" in body:
+            tt = body["titles"]
+            if not isinstance(tt, dict) or set(tt) - set(titles_mod.LANGS):
+                raise BadRequest("titles: an object with the languages " + ", ".join(titles_mod.LANGS))
+            titles_mod.save(conn, ids["id"], {k: text(v, "title in " + k) or "" for k, v in tt.items()}, "owner")
         ed = body.get("edition") or {}
         if ed and ids["edition_id"] is None:
             raise BadRequest("this item has no edition")
