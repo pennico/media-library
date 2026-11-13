@@ -1518,8 +1518,14 @@ note history on a test client reached every device), and an `appMinVersion`
 at least the CLI's own (a client raises it to its own, and older apps then
 refuse to sync); after the sync the shared settings must be as before, else
 `STOPPED`. `joplin sync` exits 0 when items failed, so the script requires its
-"Completed:" line and no "Last error:". Locks: each client holds its own shared
-sync lock (3 min, refreshed), so the owner's devices sync at the same time; only
-an upgrade (`--upgrade`, never used) takes the exclusive lock. Tested against
+"Completed:" line and no "Last error:". Locks: Joplin 3.x writes none (its lock
+handler is switched off in the code), so nothing blocks the owner's devices or
+the client; what keeps two writers apart is Joplin's own per-note conflict check
+at upload, hence the 20-minute rule. Why WebDAV and not the folder in
+Nextcloud's data directory (D75): Nextcloud does not see changes made there
+until a `files:scan`, the apps' delta on a Nextcloud target goes by timestamps
+only (Joplin's tolerant delta is for file-system and localhost targets), so a
+device that syncs before the scan can miss the change for good; and such writes
+leave no Nextcloud version and skip its file locking. Tested against
 the real CLI with a second profile standing in for the owner's devices, and the
 hourly script end to end with a stand-in `docker`.

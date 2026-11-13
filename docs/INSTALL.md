@@ -202,8 +202,8 @@ it up.
 
 The client never fights your devices:
 
-- It only syncs (Joplin's shared sync lock: your devices sync at the same time)
-  and changes only the body of the two notes. It never upgrades the target
+- It only syncs (Joplin 3 writes no sync locks: your devices sync at the same
+  time) and changes only the body of the two notes. It never upgrades the target
   (`--upgrade`), never turns on encryption and changes no shared setting.
 - Before each sync it reads the target's `info.json` and stops when the target
   is end-to-end encrypted, has locked notes, is not format 3, when its own
