@@ -197,6 +197,16 @@ def test_page_and_security_headers(site):
         assert b"Media library" in r.read()
 
 
+def test_app_icon_is_served_and_linked(site):
+    for path, ctype in (("favicon.ico", "image/png"), ("icon-32.png", "image/png"), ("icon.svg", "image/svg+xml"),
+                        ("apple-touch-icon.png", "image/png")):
+        with urllib.request.urlopen(site["base"] + path) as r:
+            assert r.status == 200 and r.headers["Content-Type"].startswith(ctype) and r.read()
+    with urllib.request.urlopen(site["base"]) as r:
+        page = r.read()
+    assert b'href="/icon.svg"' in page and b'href="/apple-touch-icon.png"' in page
+
+
 def test_find_link_address_is_the_owners_to_change(site):
     """The "find this book" address: none from the environment here; the owner sets one, it survives a restart
     (state folder), bad addresses are refused, and reset goes back to the environment's."""

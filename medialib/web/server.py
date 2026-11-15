@@ -60,6 +60,10 @@ CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 
 READER_CSP = ("default-src 'none'; script-src 'self'; style-src 'unsafe-inline' blob:; img-src blob: data:;"
               " font-src blob: data:; media-src blob:; connect-src 'self'; frame-src blob:; base-uri 'none';"
               " form-action 'none'; frame-ancestors 'self'")
+# The app icon (owner 2026-11-15, the homelab icon family): Safari asks the root for a favicon and a touch icon
+# when a bookmark or the start page has no page to read the links from.
+ICONS = {"/favicon.ico": ("icon-32.png", "image/png"), "/icon-32.png": ("icon-32.png", "image/png"),
+         "/icon.svg": ("icon.svg", "image/svg+xml"), "/apple-touch-icon.png": ("icon-180.png", "image/png")}
 READER_JS = re.compile(r"^/(reader\.js|vendor/foliate-js/(vendor/)?[a-z-]+\.js)$")
 DOC = r"([0-9a-f]{32})"
 FRIENDLY = writes.FRIENDLY
@@ -341,6 +345,8 @@ def make_handler(app):
                     return self.static("index.html", "text/html; charset=utf-8")
                 if path == "/read":
                     return self.static("reader.html", "text/html; charset=utf-8", csp=READER_CSP)
+                if path in ICONS:
+                    return self.static(ICONS[path][0], ICONS[path][1], cache="public, max-age=86400")
                 if READER_JS.match(path):
                     return self.static(path.lstrip("/"), "text/javascript; charset=utf-8", cache="public, max-age=3600")
                 if path == "/healthz":

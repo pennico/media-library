@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **App icon**: a bookshelf icon (SVG, 32 px, touch icon) linked from the
+  console and the reader and served at `/favicon.ico` and
+  `/apple-touch-icon.png`, so browser tabs, bookmarks and home screens show it.
 - **Joplin "To watch" and "To read" lists** (migration 0030): one note To watch
   and one To read in Joplin, a title per line (a year, an author, (series) or
   a heading help). Every hour each line is matched against the library, then
