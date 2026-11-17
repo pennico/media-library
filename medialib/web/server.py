@@ -883,6 +883,24 @@ def make_handler(app):
                     else:
                         writes.delete_section(conn, login, m.group(1))
                     return self.send(200, {"ok": True})
+                if path == "/api/groups" and method == "POST":
+                    return self.send(200, writes.create_group(conn, login, req))
+                if path == "/api/groups/leave" and method == "POST":
+                    return self.send(200, writes.leave_groups(conn, login, req))
+                m = re.fullmatch(r"/api/groups/" + UUID + r"(/items|/order|/restore)?", path)
+                if m:
+                    gid, sub = m.group(1), m.group(2)
+                    if sub is None and method == "PATCH":
+                        return self.send(200, writes.edit_group(conn, login, gid, req))
+                    if sub is None and method == "DELETE":
+                        return self.send(200, writes.delete_group(conn, login, gid))
+                    if sub == "/items" and method == "POST":
+                        return self.send(200, writes.group_items(conn, login, gid, req))
+                    if sub == "/order" and method == "POST":
+                        return self.send(200, writes.order_group(conn, login, gid, req))
+                    if sub == "/restore" and method == "POST":
+                        return self.send(200, writes.restore_group(conn, login, gid))
+                    return self.error(405, "Method not allowed.")
                 if path == "/api/shelves" and method == "POST":
                     return self.send(200, {"id": writes.create_shelf(conn, login, req)})
                 m = re.fullmatch(r"/api/shelves/" + UUID + r"(/items|/move|/order)?", path)

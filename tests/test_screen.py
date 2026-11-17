@@ -273,8 +273,9 @@ def test_import_watch_a_watchlist_title_seen_later(cfg, app, tmp_path):
 # ------------------------------------------------------- film collections (D49)
 
 def in_collection(conn, item):
-    return conn.execute("SELECT fc.name, fc.tmdb_id, mv.provenance -> 'collection_id' ->> 'src' AS src FROM catalog.movie mv"
-                        " LEFT JOIN catalog.film_collection fc ON fc.id = mv.collection_id WHERE mv.item_id = %s",
+    return conn.execute("SELECT g.name, g.tmdb_id, gm.provenance -> 'group_id' ->> 'src' AS src, gm.group_id"
+                        " FROM catalog.movie mv LEFT JOIN catalog.group_member gm ON gm.item_id = mv.item_id"
+                        " LEFT JOIN catalog.item_group g ON g.id = gm.group_id WHERE mv.item_id = %s",
                         (item,)).fetchone()
 
 
@@ -289,8 +290,11 @@ def test_tmdb_collection_groups_films(app):
         b, _ = screen.write(app, "movie", screen.parse("movie", second))
     assert "collection Rocky" in changes
     assert in_collection(app, a)["name"] == "Rocky" and in_collection(app, a)["src"] == "tmdb"
-    ids = app.execute("SELECT DISTINCT collection_id FROM catalog.movie WHERE item_id IN (%s, %s)", (a, b)).fetchall()
+    ids = app.execute("SELECT DISTINCT group_id FROM catalog.group_member WHERE item_id IN (%s, %s)", (a, b)).fetchall()
     assert len(ids) == 1                                   # one collection, both films in it
+    order = app.execute("SELECT item_id FROM catalog.group_member WHERE group_id = %s ORDER BY position",
+                        (ids[0]["group_id"],)).fetchall()
+    assert [r["item_id"] for r in order] == [a, b]         # in release order
     assert screen.parse("movie", movie_details("No saga", 1))["collection"] is None
 
 
@@ -335,7 +339,8 @@ def test_collections_in_the_library_api(web, cfg, app, tmp_path):
     films = [i for i in lib["items"] if i["title"] in titles]
     assert len(films) == 2 and films[0]["coll"]["name"] == group and films[0]["coll"]["id"] == films[1]["coll"]["id"]
     s, d = Client(web).call("GET", "api/items/" + films[0]["id"])
-    assert d["coll"]["name"] == group and d["screen"]["prov"]["collection_id"] == "owner"
+    assert d["coll"]["name"] == group and d["prov"]["group"]["group_id"] == "owner"
+    assert any(g["name"] == group and g["kind"] == "movie" and g["n"] == 2 for g in lib["groups"])
 
 
 def test_batch_edit_a_movies_runtime_language_and_where(web, cfg, app, tmp_path):

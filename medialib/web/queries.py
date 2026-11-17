@@ -3,6 +3,8 @@ statistics use the read-only role (stats.* views only)."""
 import collections
 import datetime
 
+from .. import groups
+
 KINDS = ("book", "movie", "series")
 PROVIDER_URL = {
     "openlibrary_edition": "https://openlibrary.org/books/{}", "openlibrary_work": "https://openlibrary.org/works/{}",
@@ -24,8 +26,10 @@ SELECT i.id, i.public_id::text AS id_pub, i.kind, i.title, i.sort_title, i.locke
        ed.pages, ed.language, ed.format, extract(year FROM ed.published_on)::int AS published,
        extract(year FROM coalesce(i.first_published, mv.release_date, sr.first_air_date))::int AS first_published,
        mv.runtime_min, sr.season_count,
-       (SELECT jsonb_build_object('id', fc.public_id, 'name', fc.name) FROM catalog.film_collection fc
-         WHERE fc.id = mv.collection_id) AS coll, sr.episode_runtime_min, coalesce(mv.origin_countries, sr.origin_countries) AS countries,
+       -- the book series or film collection it is in (D49, D76), with its place there
+       (SELECT jsonb_build_object('id', g.public_id, 'name', g.name, 'pos', gm.position) FROM catalog.group_member gm
+          JOIN catalog.item_group g ON g.id = gm.group_id AND g.deleted_at IS NULL
+         WHERE gm.item_id = i.id) AS coll, sr.episode_runtime_min, coalesce(mv.origin_countries, sr.origin_countries) AS countries,
        (SELECT string_agg(p.name, ', ' ORDER BY ct.position) FROM catalog.contribution ct
           JOIN catalog.person p ON p.id = ct.person_id WHERE ct.item_id = i.id AND ct.role = """ + MAKER_ROLE + """) AS authors,
        (SELECT p.sort_name FROM catalog.contribution ct JOIN catalog.person p ON p.id = ct.person_id
@@ -136,7 +140,7 @@ def library(conn):
         "SELECT public_id::text AS id, name, kind FROM library.section WHERE deleted_at IS NULL"
         " ORDER BY kind = 'manual' DESC, position, name")]
     return {"items": items, "shelves": shelves, "languages": langs, "platforms": platforms, "sections": sections,
-            "categories": categories(conn),
+            "categories": categories(conn), "groups": groups.listing(conn),
             "trash": conn.execute("SELECT count(*) AS n FROM catalog.media_item WHERE deleted_at IS NOT NULL"
                                   " AND kind IN ('book', 'movie', 'series')").fetchone()["n"]}
 
@@ -191,11 +195,16 @@ def history(conn, iid, edition_ids, reading_ids, kind="book", limit=60):
             OR (table_name = 'library.entry' AND row_key = jsonb_build_object('item_id', %(i)s::bigint))
             OR (table_name = 'catalog.edition' AND row_key = ANY(ARRAY(SELECT jsonb_build_object('id', x) FROM unnest(%(e)s::bigint[]) x)))
             OR (table_name = 'library.consumption' AND row_key = ANY(ARRAY(SELECT jsonb_build_object('id', x) FROM unnest(%(r)s::bigint[]) x)))
+            OR (table_name = 'catalog.group_member' AND row_key = jsonb_build_object('item_id', %(i)s::bigint))
          ORDER BY coalesce(occurred_at, at) DESC, id DESC LIMIT %(n)s""",
                         {"i": iid, "e": edition_ids or [0], "r": reading_ids or [0], "n": limit}).fetchall()
     out = []
     skip = {"updated_at", "provenance", "created_at", "id", "public_id", "item_id", "work_id"}
+    gnames = {}
     for r in rows:
+        if r["table_name"] == "catalog.group_member":
+            out.extend(group_history(conn, r, kind, gnames))
+            continue
         what = {"catalog.media_item": {"book": "book", "series": "series"}.get(kind, kind), "library.entry": "your entry",
                 "catalog.edition": "edition", "library.consumption": "reading" if kind == "book" else "watch"}[r["table_name"]]
         changes = {}
@@ -207,6 +216,33 @@ def history(conn, iid, edition_ids, reading_ids, kind="book", limit=60):
                     "client": r["client"], "source": r["source"], "imported": r["client"] == "importer",
                     "external": r["occurred_at"] is not None})
     return out
+
+
+def group_history(conn, r, kind, names):
+    """A change of the book series / film collection an item is in, in words: "series: — → Name", or its place."""
+    word = "series" if kind == "book" else "collection"
+
+    def name(gid):
+        if gid is None:
+            return None
+        if gid not in names:
+            row = conn.execute("SELECT name FROM catalog.item_group WHERE id = %s", (gid,)).fetchone()
+            names[gid] = row["name"] if row else "#{}".format(gid)
+        return names[gid]
+    old, new = r["old_row"] or {}, r["new_values"] or {}
+    if r["op"] == "D":
+        return []
+    if r["op"] == "I":
+        old, new = {}, {"group_id": new.get("group_id"), "position": new.get("position")}
+    if "group_id" in new and new["group_id"] != old.get("group_id"):
+        changes = {word: [name(old.get("group_id")), name(new["group_id"])]}
+    elif "position" in new and new["position"] is not None and old.get("position") is not None:
+        changes = {"place in the " + word: [old["position"], new["position"]]}
+    else:
+        return []
+    return [{"at": iso(r["occurred_at"] or r["at"]), "what": word, "op": "U", "changes": changes,
+             "client": r["client"], "source": r["source"], "imported": r["client"] == "importer",
+             "external": r["occurred_at"] is not None}]
 
 
 def detail(conn, pid):
@@ -240,6 +276,7 @@ def detail(conn, pid):
                               WHERE ct.item_id = %s AND ct.role = %s ORDER BY ct.position""", (iid, maker)).fetchall()
     tags = conn.execute("""SELECT t.id, t.kind, t.name FROM library.item_tag it JOIN library.tag t ON t.id = it.tag_id
                             WHERE it.item_id = %s AND t.deleted_at IS NULL ORDER BY t.kind, it.position""", (iid,)).fetchall()
+    member = conn.execute("SELECT provenance FROM catalog.group_member WHERE item_id = %s", (iid,)).fetchone()
     other_titles = conn.execute("SELECT language, title, source FROM catalog.item_title WHERE item_id = %s ORDER BY language",
                                 (iid,)).fetchall()
     shelves = conn.execute("""SELECT s.public_id::text AS id, s.name, s.kind,
@@ -284,7 +321,8 @@ def detail(conn, pid):
                    "storage": f["storage"], "download": "api/files/" + f["id"] if f["storage"] == "store" else None,
                    "added": iso(f["added_at"])} for f in files],
         "prov": {"item": labels(it["provenance"]), "entry": labels(en["provenance"]),
-                 "edition": labels(primary["provenance"]) if primary else {}},
+                 "edition": labels(primary["provenance"]) if primary else {},
+                 "group": labels(member["provenance"]) if member else {}},
         "shelves": [dict(s) for s in shelves],
         "history": history(conn, iid, ed_ids, [r["id"] for r in reads], it["kind"]),
     })

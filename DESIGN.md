@@ -1325,7 +1325,8 @@ series shows its seasons (D49).
 - **Schema (migration 0015)**: `catalog.film_collection` (name, TMDB's
   collection id or none for the owner's own groups; one owner group per
   name) and `catalog.movie.collection_id`: a film is in at most one
-  collection. The provenance guard tracks `collection_id`, so TMDB never
+  collection. Since 0031 (§23, D76) a film collection is a group like a book
+  series: `catalog.item_group` and `catalog.group_member`. The provenance guard tracks `collection_id`, so TMDB never
   moves a film out of a group the owner chose. Audited like the rest.
 - **Where collections come from**: TMDB's `belongs_to_collection` ("Rocky
   Collection" becomes "Rocky"), set when the film is in none: on import,
@@ -1529,3 +1530,63 @@ device that syncs before the scan can miss the change for good; and such writes
 leave no Nextcloud version and skip its file locking. Tested against
 the real CLI with a second profile standing in for the owner's devices, and the
 hourly script end to end with a stand-in `docker`.
+
+## 23. Book series (2026-11-18, D76-D…)
+
+Books that belong together (a cycle, a trilogy) show as **one card** on the
+Books shelf, as a film collection does on Movies (§16). A book series and a
+film collection are the same thing for two kinds of item: a **group** (D76).
+
+**Schema (migration 0031).** `catalog.film_collection` is renamed
+`catalog.item_group` and gains `media_kind` (`book` or `movie`; a TMDB id only
+on a film collection; the kind never changes), `updated_at` and `deleted_at`.
+One owner group per kind and name among the live ones. Membership moves from
+`catalog.movie.collection_id` (dropped, with its provenance labels) to
+`catalog.group_member`:
+
+| Column | |
+|---|---|
+| `item_id` | the key: an item is in at most one group (cascades with the item's purge) |
+| `item_kind` | with `group_id`, a foreign key to the group's `(id, media_kind)`: no film in a book series |
+| `group_id` | the group; NULL is the owner's "in no group" (TMDB leaves such a film alone) |
+| `position` | the place in the group's order; unique per group, checked at commit |
+| `provenance` | the guard tracks `group_id`: TMDB never moves a film the owner placed |
+
+The films of 0015's collections were copied with their labels (TMDB's or the
+owner's), numbered in release order. A delete guard keeps anyone but the owner
+from removing a membership the owner made (the app has no DELETE on the table;
+a purge deletes as the owner), and `catalog.row_locked` covers the table, so a
+locked item is grouped by the owner only. The trash leaves the row alone: a
+book restored from it is back in its place. A group is deleted softly and its
+rows stay: its items are in no group while it is deleted, and an Undo brings it
+back exactly as it was.
+
+**Placing** (`medialib/groups.py`, the one writer for the console, TMDB and the
+watch import). An item joins a group where its date belongs (D77): the item's
+first published date, else the film's release date, else the primary
+edition's; before the first member dated later, undated ones last. The order
+the console sends fills the places of the members it names, in the order
+named; members not named (in the trash) keep their place; named items that are
+not members yet join after them. TMDB's `belongs_to_collection` joins a film
+that has no member row, unless the owner deleted that TMDB collection or the
+film is locked; an import file's `film_collection` (the owner's) also replaces
+TMDB's, never the owner's.
+
+**API** (owner, unlocked; each one audited transaction; every answer has the
+group's live items in order and every live group, which the page takes as they
+are):
+
+| Request | |
+|---|---|
+| `POST /api/groups {kind, name, items, move}` | a new group of the items, by date; an item in another group only with `move` (else 400 naming them); a name the kind already has: 400 |
+| `POST /api/groups/<id>/items {add, move} / {remove}` | join by date / out of it (in no group) |
+| `POST /api/groups/<id>/order {items}` | the order (the rule above); items not in it join, from another group too (what an Undo sends) |
+| `PATCH /api/groups/<id> {name}` | rename (409 for a name the kind has) |
+| `DELETE /api/groups/<id>` | soft delete; answers with the items it had, in order |
+| `POST /api/groups/<id>/restore` | the Undo of a delete |
+| `POST /api/groups/leave {items}` | Remove from series / collection on a selection: each item out of whichever group it is in |
+
+`/api/library` items carry `coll: {id, name, pos}` (the live group only) and
+the library a `groups` list (`id, name, kind, tmdb, n` live members). The
+detail has the membership's label under `prov.group`, and the history shows
+"series: — → Name" and "place in the series: 3 → 1".

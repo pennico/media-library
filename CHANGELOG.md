@@ -4,6 +4,14 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **Book series** (migration 0031): books that belong together become one
+  series, as films do in a film collection; both are now one kind of group
+  (`catalog.item_group`, `catalog.group_member`), so a film collection keeps
+  working as before. A series keeps its own order, starting from each book's
+  first published date. The console's buttons follow below.
+- **Fix: a Joplin lists test failed after 13 November**: the 24-hour retry of
+  the sources compared the run's clock with the database's; it stores the
+  run's own clock now.
 - **Fix: the info panel's bottom could not be reached**: since the page bar stays
   at the top, the panel was taller than the room under it, so its last lines
   (Move to trash) stayed under the window's edge however far you scrolled. Its

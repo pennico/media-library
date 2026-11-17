@@ -15,7 +15,7 @@ importer, the console's "Add movie / series" and "Fill missing".
 import datetime
 import re
 
-from . import db, titles
+from . import db, groups, titles
 from .fill import providers as P
 from .fill import tmdb as T
 
@@ -297,29 +297,29 @@ def write(conn, kind, p, covers=None, item=None):
 
 
 def collection_id(conn, name, tmdb=None):
-    """The film collection: TMDB's by its id, else the owner's group of that name; created when new."""
-    if tmdb:
-        row = conn.execute("SELECT id FROM catalog.film_collection WHERE tmdb_id = %s", (tmdb,)).fetchone()
-    else:
-        row = conn.execute("SELECT id FROM catalog.film_collection WHERE tmdb_id IS NULL"
-                           " AND lower(catalog.f_unaccent(name)) = lower(catalog.f_unaccent(%s))", (name,)).fetchone()
+    """The film collection: TMDB's by its id, else the owner's group of that name; created when new.
+    None when the owner deleted TMDB's collection (it is not made again)."""
+    row = groups.find(conn, "movie", name, tmdb)
     if row:
-        return row["id"]
-    return conn.execute("INSERT INTO catalog.film_collection (name, tmdb_id) VALUES (%s, %s) RETURNING id",
-                        (name.strip()[:300], tmdb)).fetchone()["id"]
+        return None if row["deleted_at"] else row["id"]
+    return groups.create(conn, "movie", name, tmdb)["id"]
 
 
 def join_collection(conn, item, coll, changes=None, replace=False):
-    """Put the movie in the collection {name, tmdb} when it is in none. replace (the owner's own group,
-    from an import): also when it is in TMDB's, never when the owner put it in another one already."""
+    """Put the movie in the collection {name, tmdb} when it is in none, at its release date's place (D49, D76).
+    replace (the owner's own group, from an import): also when it is in TMDB's; never when the owner put it in
+    another one, or took it out of one ("in no group"). A locked film is left to the owner."""
     changes = changes if changes is not None else []
-    row, src = _labels(conn, "catalog.movie", "item_id", item)
-    if row["collection_id"] is not None and (not replace or src.get("collection_id") == "owner"):
+    gid, src = groups.membership(conn, item)
+    if src is not None and (not replace or src == "owner"):
+        return False
+    if conn.execute("SELECT locked AND catalog.current_source() <> 'owner' AS no FROM catalog.media_item WHERE id = %s",
+                    (item,)).fetchone()["no"]:
         return False
     cid = collection_id(conn, coll["name"], coll.get("tmdb"))
-    if cid == row["collection_id"]:
+    if cid is None or cid == gid:
         return False
-    conn.execute("UPDATE catalog.movie SET collection_id = %s WHERE item_id = %s", (cid, item))
+    groups.place(conn, cid, [item])
     changes.append("collection " + coll["name"])
     return True
 

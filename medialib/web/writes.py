@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
-from .. import db
+from .. import db, groups
 from .. import titles as titles_mod
 from . import queries
 from ..covers import CoverError
@@ -62,6 +62,7 @@ FRIENDLY = {
     "consumption_started_ok": "Start date: use YYYY, YYYY-MM or YYYY-MM-DD.",
     "consumption_ended_ok": "Finish date: use YYYY, YYYY-MM or YYYY-MM-DD.",
     "shelf_name": "There is already a collection with that name.",
+    "item_group_owner_name": "There is already one with that name: pick another, or add to that one.",
     "person_name_key": "That person already exists.",
     "tag_name": "That tag already exists.",
 }
@@ -1232,3 +1233,145 @@ def edit_one(conn, login, pid, f):
         set_status(conn, login, pid, {"status": f["status"]})
     if f.get("collection"):
         shelf_items(conn, login, f["collection"], {"add": [pid]})
+
+
+# ------------------------------------------- book series and film collections (D76-D78)
+# One concept for two kinds: a book series on Books, a film collection on Movies (catalog.item_group). The
+# console names, fills, orders and deletes them here; medialib/groups.py does the placing.
+
+GROUP_WORD = {"book": "series", "movie": "collection"}
+
+
+def group_row(conn, gid, deleted=False):
+    row = conn.execute("SELECT * FROM catalog.item_group WHERE public_id = %s AND (deleted_at IS NOT NULL) = %s",
+                       (gid, deleted)).fetchone()
+    if not row:
+        raise LookupError("no such series or collection" + (" among the deleted ones" if deleted else ""))
+    return row
+
+
+def _group_items(conn, kind, pids, field="items"):
+    """The items named, as [(public id, item id, title)], each live, in the library and of the group's kind."""
+    if not isinstance(pids, list) or not pids or len(pids) > BULK_MAX or not all(isinstance(x, str) for x in pids):
+        raise BadRequest(field + " must be a list of item ids")
+    if len(set(pids)) != len(pids):
+        raise BadRequest("an item is named twice")
+    out = []
+    for pid in pids:
+        ids = ids_for(conn, pid)
+        if ids["kind"] != kind:
+            raise BadRequest("{} is not a {}: it can't go in a {}".format(
+                title_of(conn, pid), {"book": "book", "movie": "film"}[kind],
+                "book series" if kind == "book" else "film collection"))
+        if not conn.execute("SELECT 1 AS x FROM library.entry WHERE item_id = %s AND deleted_at IS NULL", (ids["id"],)).fetchone():
+            raise LookupError("no such item in the library")
+        out.append((pid, ids["id"], title_of(conn, pid)))
+    return out
+
+
+def _elsewhere(conn, items, gid=None):
+    """Of the items, those in another live group: [{id, title, from: {id, name}}]."""
+    out = []
+    for pid, iid, title in items:
+        g = groups.live_group_of(conn, iid)
+        if g and g["id"] != gid:
+            out.append({"id": pid, "title": title, "from": {"id": str(g["public_id"]), "name": g["name"]}})
+    return out
+
+
+def _refuse_moves(other, kind, move):
+    if other and not move:
+        word = GROUP_WORD[kind]
+        raise BadRequest("{} already in another {}: {}. Say so to move {}.".format(
+            "It is" if len(other) == 1 else "Some are", word,
+            "; ".join("{} ({})".format(x["title"], x["from"]["name"]) for x in other), "it" if len(other) == 1 else "them"))
+
+
+def group_result(conn, g, moved=()):
+    """What the page needs after a change: the group, its items in order (as the library shows them), every group."""
+    return {"id": str(g["public_id"]), "name": g["name"], "kind": g["media_kind"], "tmdb": g["tmdb_id"] is not None,
+            "items": groups.live_order(conn, g["id"]), "moved": list(moved), "groups": groups.listing(conn)}
+
+
+def create_group(conn, login, body):
+    """A book series (or a film collection) from a selection: {kind, name, items, move}. The items go in by their
+    first published date; one already in another group moves only with move (the page says so first)."""
+    kind = body.get("kind")
+    if kind not in groups.KINDS:
+        raise BadRequest("kind must be book or movie")
+    name = text(body.get("name"), "name", groups.NAME_MAX, required=True)
+    with tx(conn, login):
+        items = _group_items(conn, kind, body.get("items"))
+        other = _elsewhere(conn, items)
+        _refuse_moves(other, kind, body.get("move"))
+        if groups.find(conn, kind, name):
+            raise BadRequest("There is already a {} called “{}”: use Add to {}… to put these in it.".format(
+                GROUP_WORD[kind], name.strip(), GROUP_WORD[kind]))
+        g = groups.create(conn, kind, name)
+        groups.place(conn, g["id"], [iid for _, iid, _ in items])
+        return group_result(conn, g, other)
+
+
+def group_items(conn, login, gid, body):
+    """{add: [ids], move} joins them where their dates belong; {remove: [ids]} takes them out (in no group)."""
+    with tx(conn, login):
+        g = group_row(conn, gid)
+        other = []
+        if body.get("add") is not None:
+            items = _group_items(conn, g["media_kind"], body["add"], "add")
+            other = _elsewhere(conn, items, g["id"])
+            _refuse_moves(other, g["media_kind"], body.get("move"))
+            groups.place(conn, g["id"], [iid for _, iid, _ in items])
+        if body.get("remove") is not None:
+            items = _group_items(conn, g["media_kind"], body["remove"], "remove")
+            groups.leave(conn, [iid for _, iid, _ in items if groups.membership(conn, iid)[0] == g["id"]])
+        return group_result(conn, g, other)
+
+
+def order_group(conn, login, gid, body):
+    """{items}: the order (D70's rule, kept for the trash: members not named keep their place). Items not in it
+    join it, from another group too: that is what an Undo sends back."""
+    with tx(conn, login):
+        g = group_row(conn, gid)
+        items = _group_items(conn, g["media_kind"], body.get("items"))
+        groups.set_order(conn, g["id"], [iid for _, iid, _ in items])
+        return group_result(conn, g)
+
+
+def edit_group(conn, login, gid, body):
+    if set(body) - {"name"}:
+        raise BadRequest("only the name can change here")
+    name = text(body.get("name"), "name", groups.NAME_MAX, required=True)
+    with tx(conn, login):
+        g = group_row(conn, gid)
+        if name != g["name"]:
+            conn.execute("UPDATE catalog.item_group SET name = %s WHERE id = %s", (name, g["id"]))
+        return group_result(conn, group_row(conn, gid))
+
+
+def delete_group(conn, login, gid):
+    """Soft: the group goes, its items stay where they are in the library (each in no group meanwhile);
+    restore_group (the Undo) brings it back as it was."""
+    with tx(conn, login):
+        g = group_row(conn, gid)
+        before = groups.live_order(conn, g["id"])
+        conn.execute("UPDATE catalog.item_group SET deleted_at = now() WHERE id = %s", (g["id"],))
+        return {"id": gid, "items": before, "groups": groups.listing(conn)}
+
+
+def restore_group(conn, login, gid):
+    with tx(conn, login):
+        g = group_row(conn, gid, deleted=True)
+        conn.execute("UPDATE catalog.item_group SET deleted_at = NULL WHERE id = %s", (g["id"],))
+        return group_result(conn, group_row(conn, gid))
+
+
+def leave_groups(conn, login, body):
+    """Remove from series / collection on a selection: {items}, each out of whichever group it is in."""
+    pids = body.get("items")
+    if not isinstance(pids, list) or not pids or len(pids) > BULK_MAX or not all(isinstance(x, str) for x in pids):
+        raise BadRequest("items must be a list of item ids")
+    with tx(conn, login):
+        ids = {pid: ids_for(conn, pid)["id"] for pid in dict.fromkeys(pids)}
+        left = groups.leave(conn, list(ids.values()))
+        return {"left": [pid for pid, iid in ids.items() if iid in left], "groups": groups.listing(conn)}
