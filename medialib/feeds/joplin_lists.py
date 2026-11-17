@@ -290,10 +290,11 @@ def add_screen(conn, tmdb, store, nid, found):
     return joplin._pid_to_id(conn, added["id"])
 
 
-def save_line(conn, nid, line, lst, state, item=None, how=None, problem=None, candidates=(), searched=False):
+def save_line(conn, nid, line, lst, state, item=None, how=None, problem=None, candidates=(), searched=None):
+    """searched: when the sources were asked for this line (the run's own clock, which the 24 h retry compares to)."""
     conn.execute("""INSERT INTO sync.joplin_list_line (note_id, line, list, state, item_id, how, problem, candidates,
                                                        searched_at, seen_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CASE WHEN %s THEN now() END, now())
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, now())
                     ON CONFLICT (note_id, line) DO UPDATE SET list = EXCLUDED.list, state = EXCLUDED.state,
                         item_id = EXCLUDED.item_id, how = EXCLUDED.how,
                         problem = coalesce(EXCLUDED.problem, sync.joplin_list_line.problem),
@@ -373,7 +374,7 @@ def run(conn, data, fill=None, tmdb=None, store=None, apply=False, now=None, log
                     if apply:
                         save_line(conn, nid, p["line"], lst, "unclear", problem=problem if u.args[0] else None,
                                   candidates=joplin._short(u.candidates) if u.candidates and "provider" in u.candidates[0]
-                                  else list(u.candidates), searched=search)
+                                  else list(u.candidates), searched=now if search else None)
                 except Exception as e:      # noqa: BLE001 - one bad line must not stop the others
                     msg = getattr(getattr(e, "diag", None), "message_primary", None) or str(e) or type(e).__name__
                     summary["errors"].append("{}: {}".format(label, msg))
