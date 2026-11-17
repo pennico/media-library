@@ -10,7 +10,13 @@ const BASE = process.env.ML_BASE || 'http://127.0.0.1:8199/', PW = process.env.M
   await p.goto(BASE); await p.waitForSelector('#grid .book, table.list tbody tr');
   await p.evaluate(async pw => { const r = await api.unlock(pw); SESSION.unlockedUntil = r.expiresAt; render(); }, PW);
   await p.click('#kind-book'); if (await p.locator('#lay-grid[aria-pressed=false]').count()) await p.click('#lay-grid'); await p.waitForSelector('#grid .book');
-  if (N > 1) await p.evaluate(n => { const o = LIB.items.slice(); const out=[]; for (let k=0;k<n;k++) for (const i of o) out.push(k ? {...i, id: i.id+'_'+k} : i); LIB.items = out;
+  // SERIES=n: every n books of one author become a book series first (D76); each clone gets series of its own
+  if (process.env.SERIES) await p.evaluate(n => { const by = {}; let g = 0;
+    for (const i of LIB.items.filter(i => i.kind === 'book' && !i.coll)) (by[i.authorSort] = by[i.authorSort] || []).push(i);
+    for (const list of Object.values(by)) for (let k = 0; k + 1 < list.length; k += n) { const gid = 'perf-g' + (++g);
+      list.slice(k, k + n).forEach((i, m) => { i.coll = {id: gid, name: 'Perf series ' + g, pos: m + 1}; }); }
+    LIBREV++; render(); }, +process.env.SERIES);
+  if (N > 1) await p.evaluate(n => { const o = LIB.items.slice(); const out=[]; for (let k=0;k<n;k++) for (const i of o) out.push(k ? {...i, id: i.id+'_'+k, coll: i.coll && {...i.coll, id: i.coll.id + '_' + k}} : i); LIB.items = out;
     const sh = LIB.shelves.find(s => s.id === st.shelf); sh.items = LIB.items.filter(i => i.kind === 'book').map(i => i.id); render(); }, N);
   if (CSS) await p.addStyleTag({content: CSS});
   if (process.env.JS) await p.evaluate(process.env.JS);
@@ -36,7 +42,9 @@ const BASE = process.env.ML_BASE || 'http://127.0.0.1:8199/', PW = process.env.M
   const steps = [['size L', '#size-l'], ['size M', '#size-m'], ['layout list', '#lay-list'], ['layout grid', '#lay-grid'],
     ['pick cover a', '#grid .book:nth-child(3) .selbox'], ['pick cover b', '#grid .book:nth-child(4)'], ['picks: None', '#sel-none'], ['chip Read', '#f-completed'], ['chip All', '#f-all'],
     ['open detail', '#grid .book:nth-child(6)'], ['close detail', '#d-close']];
-  console.log('items', await p.evaluate(() => LIB.items.length), 'throttle', THR, CSS ? 'css: ' + CSS.slice(0, 60) : '');
-  for (const [label, sel] of steps) { console.log(label.padEnd(16), await click(sel)); if (label === 'open detail') await p.waitForTimeout(2000); }
+  if (process.env.SERIES) steps.push(['open a series', '#grid .book.group'], ['close series', '#d-close']);
+  console.log('items', await p.evaluate(() => LIB.items.length), 'cards', await p.evaluate(() => document.querySelectorAll('#grid > .book').length),
+              'throttle', THR, CSS ? 'css: ' + CSS.slice(0, 60) : '');
+  for (const [label, sel] of steps) { console.log(label.padEnd(16), await click(sel)); if (label.startsWith('open')) await p.waitForTimeout(2000); }
   await b.close();
 })();

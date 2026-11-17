@@ -19,7 +19,8 @@ the keyboard, the phone sheet, the cached library, and how long clicks take.
 | `checks/full-page.js` | D72: expand and reduce, `#page=` and its history entry, Back / Forward / Esc, the shelf's scroll kept, ‹ › on the page, a link into the page, ✕ from it, two columns, the phone page |
 | `checks/panel-bottom.js` | the panel's last line (Move to trash) can be scrolled into view: wide screen at the top and scrolled, a narrower window, the phone sheet |
 | `checks/joplin-lists.js` | D73: the Sync page's Joplin lists (lines left with why and candidates, added items, a failed client run, a conflict copy, 375 px) |
-| `checks/perf.js` | click timings (not pass/fail): `run.py --perf 10 4` clones the library 10x and slows the CPU 4x |
+| `checks/series.js` | D76-D81: Create series… on a selection (the name asked, the order shown, a move named), Undo; one card; the series' panel (order ⤒ ↑ ↓, remove, rename, delete, each with Undo); a book's "Book 2 of 3" and strip; Add to / Remove from series; ‹ › counting the card once; the page view; the list layout; a section; filter box and search; the trash keeping a place; Movies' film collection; an older kept library; 375 px; locked |
+| `checks/perf.js` | click timings (not pass/fail): `run.py --perf 10 4` clones the library 10x and slows the CPU 4x; `SERIES=3` first makes book series of every three books by one author (each clone its own) and times opening one |
 
 ## Running
 

@@ -1531,7 +1531,7 @@ leave no Nextcloud version and skip its file locking. Tested against
 the real CLI with a second profile standing in for the owner's devices, and the
 hourly script end to end with a stand-in `docker`.
 
-## 23. Book series (2026-11-18, D76-D…)
+## 23. Book series (2026-11-18, D76-D81)
 
 Books that belong together (a cycle, a trilogy) show as **one card** on the
 Books shelf, as a film collection does on Movies (§16). A book series and a
@@ -1590,3 +1590,44 @@ are):
 the library a `groups` list (`id, name, kind, tmdb, n` live members). The
 detail has the membership's label under `prov.group`, and the history shows
 "series: — → Name" and "place in the series: 3 → 1".
+
+**Console** (one code path for books and films; `GROUPED(kind)`):
+
+- **On a selection** (unlocked, Books or Movies): **Create series…** (Movies:
+  Create film collection…) opens a small dialog over the bar: the name (a
+  suggestion, selected so typing replaces it: the words every title starts
+  with, else the first one's title and "series"), the items in the order they
+  will go in, and those already in another series with its name: they move
+  (D78). **Add to series…** lists the kind's series (with how many each has, and
+  how many of the selection would move); **Remove from series** shows when one
+  of the selected is in one. Each has Undo in its message: a create is undone by
+  deleting the new series and sending each old series its order from before, an
+  add by sending the order back and taking out those that were in none, a
+  remove by sending the order back.
+- **The shelf** (D79): `foldCollections` folds books as it folds films: the
+  card where the first of them stands in the list, its cover the first in the
+  series' order, the others stacked behind, the count on a badge, "2 of 4
+  read" and the average rating under it; only what the list shows folds, two
+  or more. The card is marked (`aria-current`) while one of its books is open;
+  ‹ › (D71) count it once; dragging it moves its books. The list layout stays
+  one row per book (the title's tip names the series). In a section, the
+  section's own books of a series fold; Archive and Test as D50.
+- **The series' panel** (`c:<id>`, also as a page, D72): "Book series" over
+  its name, its authors, "4 books · 2002–2011 · 2,345 pages", then the books
+  numbered in the series' order with cover, year, status and rating (and the
+  section a book is in), each opening its own panel. Unlocked: ⤒ ↑ ↓ ✕ on each
+  row (as D70's editor), the name (Rename) and Delete series (Undo restores
+  it). The panel is drawn from the library's copy each time, so it follows
+  every change at once.
+- **A book's panel**: "Book 2 of 4 · <series>" under the authors (the name
+  opens the series), the strip of the series' covers with the one before and
+  after (as a film's, §16), and "Series" in the details with its source.
+- **Elsewhere**: the filter box and the search match the series' name, a hit
+  names it and scrolls to its card; the page takes each answer's order into
+  its copy of the library (new item objects, so the cards are redrawn), and an
+  older kept library without positions orders by date (`byPos`).
+- **Speed** (`SERIES=3 run.py --perf 10 4`: 1,680 items, every three books of
+  one author a series, 4x slower CPU): 1,270 cards instead of 1,540; the timed
+  clicks take 110-380 ms as on main without series (110-420 ms), opening a
+  series' panel 290 ms.
+- **Not done**: suggestions of a series from the book sources (D81).

@@ -4,11 +4,18 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
-- **Book series** (migration 0031): books that belong together become one
-  series, as films do in a film collection; both are now one kind of group
-  (`catalog.item_group`, `catalog.group_member`), so a film collection keeps
-  working as before. A series keeps its own order, starting from each book's
-  first published date. The console's buttons follow below.
+- **Book series** (migration 0031): select the books and choose **Create
+  series…**: name it (a suggestion is ready) and they become one card on the
+  shelf, the covers stacked behind the first, with how many there are and how
+  many you have read. Its panel lists them in order (by first publication to
+  start with) and lets you move them, take one out, rename or delete the
+  series; each book's panel says "Book 2 of 4" and shows the one before and
+  after. **Add to series…** and **Remove from series** work on a selection.
+  Every change has Undo. On Movies the same buttons make your own film
+  collection. Filters, sorting and the Visuals still count every book.
+- **Fix: the selection bar on a phone** was one button per row (a bar centred
+  on the screen only had half its width to lay out in); it now uses the
+  screen's width.
 - **Fix: a Joplin lists test failed after 13 November**: the 24-hour retry of
   the sources compared the run's clock with the database's; it stores the
   run's own clock now.

@@ -469,13 +469,20 @@ body.fb-pane .detail { visibility: hidden; }
   border: 2px solid var(--wood-muted); background: var(--board-top); color: var(--on-accent); font-size: 12px; font-weight: 800; line-height: 1; cursor: pointer; }
 .rowsel[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
 .bulkbar { position: fixed; z-index: 45; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; max-width: calc(100vw - 24px); padding: 8px 10px;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: max-content; max-width: calc(100vw - 24px); padding: 8px 10px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 34px -8px var(--shadow), 0 2px 6px var(--shadow); font-size: 13px; }
 .bulkbar b { margin: 0 4px; }
 .bulkpop { position: fixed; z-index: 55; min-width: 220px; max-height: min(420px, 60vh); overflow: auto; background: var(--panel); border: 1px solid var(--line);
   border-radius: 10px; box-shadow: 0 12px 30px -8px var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
 .bulkpop button { text-align: left; border: 0; background: none; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
 .bulkpop button:hover, .bulkpop button:focus-visible { background: var(--sel); }
+.bulkpop.gcpop { width: min(380px, calc(100vw - 16px)); padding: 8px 10px; }
+.gcform { display: flex; flex-direction: column; gap: 6px; font-size: 13px; } .gcform h4 { margin: 2px 0 2px; }
+.gcform label { font-size: 11.5px; color: var(--muted); } .gcform p { margin: 2px 0 0; font-size: 12.5px; }
+.gcform input { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13.5px; }
+.gc-list { margin: 0; padding-left: 2.1em; max-height: 9.5em; overflow: auto; } .gc-list li { margin: 1px 0; }
+.gc-move { background: var(--warn-soft); color: inherit; border-radius: 8px; padding: 6px 8px; }
+.gcform .row-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px; }
 .bulkpop h4 { margin: 6px 8px 2px; font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 500; }
 /* "define and apply to all": one blank row laid over the shelf; only what is filled in changes */
 .overlay { position: fixed; inset: 0; z-index: 60; background: rgb(20 12 4 / 0.45); display: grid; place-items: center; padding: 16px; }
@@ -490,6 +497,13 @@ body.fb-pane .detail { visibility: hidden; }
 .collfilm { border: 0; background: none; padding: 4px; margin: -4px; text-align: left; color: inherit; font: inherit; border-radius: 6px; cursor: pointer; }
 .collfilm:hover, .collfilm:focus-visible { background: var(--sunk); }
 .collstrip { margin: 12px 0 0; padding: 8px 10px; background: var(--sunk); border-radius: 10px; }
+/* a book series' (D76) or a film collection's panel: its items numbered, in its own order; unlocked, ⤒ ↑ ↓ ✕ on each */
+.eyebrow { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 2px; }
+.serline { font-size: 12.5px; margin-top: 4px; color: var(--muted); } .serline .linkbtn { font-weight: 600; }
+.grlist { list-style: none; margin: 0; padding: 0; }
+.grow { display: grid; grid-template-columns: 1.6em minmax(0, 1fr); gap: 4px; align-items: center; }
+.grow.edit { grid-template-columns: 1.6em minmax(0, 1fr) auto; }
+.grow .collfilm { margin: 0; }
 /* the collection's editor (D70) */
 .ce-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; }
 .ce-row { display: grid; grid-template-columns: auto 30px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
@@ -819,6 +833,13 @@ const serverApi = {
   shelfItems(sid, body) { return this.send("POST", "api/shelves/" + sid + "/items", body); },
   move(sid, item, to) { return this.send("POST", "api/shelves/" + sid + "/move", {item, to}); },
   orderShelf(sid, items) { return this.send("POST", "api/shelves/" + sid + "/order", {items}); },
+  newGroup(kind, name, items, move) { return this.send("POST", "api/groups", {kind, name, items, move}); },
+  groupItems(gid, body) { return this.send("POST", "api/groups/" + gid + "/items", body); },
+  orderGroup(gid, items) { return this.send("POST", "api/groups/" + gid + "/order", {items}); },
+  renameGroup(gid, name) { return this.send("PATCH", "api/groups/" + gid, {name}); },
+  deleteGroup(gid) { return this.send("DELETE", "api/groups/" + gid, {}); },
+  restoreGroup(gid) { return this.send("POST", "api/groups/" + gid + "/restore", {}); },
+  leaveGroups(items) { return this.send("POST", "api/groups/leave", {items}); },
   lookup(body) { return this.send("POST", "api/lookup", body); },
   add(token, index, status, format) { return this.send("POST", "api/add", {token, index, status, format}); },
   fill(id) { return this.send("POST", "api/items/" + id + "/fill", {}); },
@@ -1116,7 +1137,7 @@ function shelfItems() {
     : list.filter(i => !hiddenItem(i));                                          // a collection: all but Archive / Test
 }
 const visibleItems = () => shelfItems().filter(i => fMatch(i));
-const statusQ = i => (st.filter === "all" || i.status === st.filter) && (!st.q.trim() || fold(allTitles(i) + " " + i.authors + " " + i.genres.join(" ")).includes(fold(st.q.trim())));
+const statusQ = i => (st.filter === "all" || i.status === st.filter) && (!st.q.trim() || fold(allTitles(i) + " " + i.authors + " " + i.genres.join(" ") + " " + (i.coll?.name || "")).includes(fold(st.q.trim())));
 const filtered = list => list.filter(statusQ);
 function sorted(list, prefs) {
   const sortKey = st.listSort?.key || prefs.sort, desc = st.listSort ? st.listSort.desc : prefs.desc;
@@ -1236,10 +1257,12 @@ function layoutShelves() {
   }
   if (canEdit()) paintRowToggles();
 }
-// Films of one collection fold into one card on the Movies grid (D49), where the first of them stands, with
-// those the list shows (filters still count each film); a collection with one film here stays a plain card.
+// A book series (D76) or a film collection (D49) folds into one card on the Books and Movies grids, where the first
+// of its items stands, with those the list shows (filters still count each item); a group with one item here stays
+// a plain card. A group keeps its own order (coll.pos: D77).
+const GROUPED = kind => kind === "book" || kind === "movie";
 function foldCollections(list) {
-  if (st.kind !== "movie") return list;
+  if (!GROUPED(st.kind)) return list;
   const groups = {}, out = [], done = new Set();
   for (const i of list) if (i.coll) (groups[i.coll.id] = groups[i.coll.id] || []).push(i);
   for (const i of list) {
@@ -1250,15 +1273,23 @@ function foldCollections(list) {
   return out;
 }
 const byRelease = (a, b) => (a.published ?? 9999) - (b.published ?? 9999) || String(a.sort).localeCompare(String(b.sort));
+const byPos = (a, b) => (a.coll?.pos ?? 1e9) - (b.coll?.pos ?? 1e9) || byRelease(a, b);   // a kept library has no pos: dates
 const collMakers = films => [...new Set(films.flatMap(f => (f.authors || "").split(", ")).filter(Boolean))];
+// the group's items the library holds (Archive and Test too), in the group's order
+const groupItems = gid => LIB.items.filter(i => i.coll?.id === gid).sort(byPos);
+const groupOf = gid => (LIB.groups || []).find(g => g.id === gid);
+// the words (D80): "Series" in a book's own context, "book series" where TV series can show too; films keep "collection"
+const GWORD = {book: ["series", "book series", "Series", "Book series"], movie: ["collection", "film collection", "Collection", "Film collection"]};
+const gword = (kind, form = 0) => (GWORD[kind] || GWORD.movie)[form];
+const doneWord = kind => kind === "book" ? "read" : "watched";
 function collCard(coll, films) {
-  const f = [...films].sort(byRelease), seen = f.filter(x => x.status === "completed").length, rated = f.filter(x => x.rating != null);
-  return {group: true, id: "c:" + coll.id, title: coll.name, films: f, members: films.map(x => x.id), cover: f[0].cover,
-    authors: collMakers(f).slice(0, 2).join(", "), line: seen + " of " + f.length + " watched",
+  const f = [...films].sort(byPos), seen = f.filter(x => x.status === "completed").length, rated = f.filter(x => x.rating != null);
+  return {group: true, id: "c:" + coll.id, title: coll.name, kind: f[0].kind, films: f, members: f.map(x => x.id), cover: f[0].cover,
+    authors: collMakers(f).slice(0, 2).join(", "), line: seen + " of " + f.length + " " + doneWord(f[0].kind),
     rating: rated.length ? Math.round(rated.reduce((n, x) => n + x.rating, 0) / rated.length * 10) / 10 : null,
     status: seen === f.length ? "completed" : f.some(x => x.status === "completed" || x.status === "in_progress") ? "in_progress" : f[0].status};
 }
-const collCardHtml = g => `<button class="book group" id="b-${g.id}" data-id="${g.id}" data-rep="${g.members[0]}" data-members="${g.members.join(",")}" aria-label="${esc(g.title)}, ${g.films.length} films">
+const collCardHtml = g => `<button class="book group" id="b-${g.id}" data-id="${g.id}" data-rep="${g.members[0]}" data-members="${g.members.join(",")}" aria-label="${esc(g.title)}, ${gword(g.kind, 1)} of ${g.films.length} ${noun(g.kind)}">
     <div class="stand"><div class="cov">${coverSrc(g.cover) ? `<img src="${coverSrc(g.cover)}"${srcsetOf(coverSrc(g.cover))} alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="ph">${esc(g.title)}</span>`}<span class="gmark">${g.films.length}</span>${SELBOX}</div></div>
     <span class="t">${esc(g.title)}</span><span class="a">${esc(g.authors || "—")}</span>
     <span class="s"><span class="dot ${g.status}"></span>${esc(g.line)}${g.rating != null ? " · " + g.rating + "/10" : ""}</span></button>`;
@@ -1322,8 +1353,10 @@ function syncGrid(content, list, prefs, canDrag) {
   if (sz && els.some(el => el._sz !== sz)) resizeCovers(grid, sz);
 }
 // the state of a card that is not the item's: picked (unlocked) and the book open in the panel
+// (a series' or a collection's card is current while one of its items is open)
+const isCur = el => el.dataset.id === st.selected || (!!el.dataset.members && !!st.selected && el.dataset.members.split(",").includes(st.selected));
 function paintCard(el) {
-  const cur = String(el.dataset.id === st.selected);
+  const cur = String(isCur(el));
   if (el.getAttribute("aria-current") !== cur) el.setAttribute("aria-current", cur);
   const on = canEdit() && idsOf(el).every(i => st.sel.has(i));
   if (el.classList.contains("sel") !== on) el.classList.toggle("sel", on);
@@ -1404,6 +1437,7 @@ function renderBulk() {
     <button class="btn small" data-bulk="${archived ? "unarchive" : "archive"}">${archived ? "Unarchive" : "Archive"}</button>
     <button class="btn small" data-bulk="collection" aria-haspopup="true">Add to collection…</button>
     ${manualShelf() ? `<button class="btn small" data-bulk="uncoll" title="Out of this collection only: they stay in your library">Remove from collection</button>` : ""}
+    ${GROUPED(st.kind) ? groupBulkHtml() : ""}
     <button class="btn small primary" data-bulk="edit" title="Fill in what they should all have; the rest stays as it is">Edit all…</button>
     <button class="btn small danger" data-bulk="trash" title="It stays in the Trash 30 days; Undo right after">Move to trash</button>
     <button class="xbtn" data-bulk="clear" aria-label="Clear the selection" style="float:none">✕</button>`;
@@ -1539,7 +1573,7 @@ function listHtml(list, prefs) {
 const listRowHtml = (i, pick, screen, k) => `<tr data-id="${i.id}" id="r-${i.id}"${k != null ? ` aria-rowindex="${k + 2}"` : ""} aria-current="${st.selected === i.id}"${pick && st.sel.has(i.id) ? ' class="picked"' : ""}>
     ${pick ? `<td><input type="checkbox" data-lsel="${i.id}" ${st.sel.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.title)}"></td>` : ""}
     <td>${listCover(i)}</td>
-    <td class="wrap"><button class="ltitle" data-ltitle="${i.id}" title="Open the details"><b>${esc(tt(i))}</b></button></td><td>${esc(i.authors || "—")}</td>
+    <td class="wrap"><button class="ltitle" data-ltitle="${i.id}" title="Open the details${i.coll ? esc(" · " + gword(i.kind, 2) + ": " + i.coll.name) : ""}"><b>${esc(tt(i))}</b></button></td><td>${esc(i.authors || "—")}</td>
     <td><span class="dot ${i.status}" style="display:inline-block;margin-right:6px"></span>${esc(statusLabel(i.kind, i.status))}</td>
     <td class="num">${i.rating ?? ""}</td><td class="num">${esc(lastRead(i) || "")}</td><td class="num">${esc(amountText(i))}</td>
     <td>${esc(langName(screen ? i.origLang : i.lang))}</td><td>${screen ? esc((i.platforms || []).map(platformName).join(", ")) : versionOf(i) ? `<span class="vico">${VICON[versionOf(i)]}</span> ${versionLabel(versionOf(i))}` : ""}</td><td>${esc(i.genres.slice(0, 2).join(", "))}</td><td class="mono">${esc(i.added)}</td></tr>`;
@@ -2177,7 +2211,7 @@ function showSelection() {
   syncSheet();
   const lib = $("lib"), pane = $("detail");
   if (!lib || !pane || st.selected?.startsWith?.("__")) return renderDatabase();
-  for (const el of lib.querySelectorAll("[data-id][aria-current]")) { const v = String(el.dataset.id === st.selected); if (el.getAttribute("aria-current") !== v) el.setAttribute("aria-current", v); }
+  for (const el of lib.querySelectorAll("[data-id][aria-current]")) { const v = String(isCur(el)); if (el.getAttribute("aria-current") !== v) el.setAttribute("aria-current", v); }
   const want = !!st.selected;
   if (lib.classList.contains("withdetail") === want) { pane.hidden = !want; return; }
   glide(() => { lib.classList.toggle("withdetail", want); pane.hidden = !want; });
@@ -2354,6 +2388,7 @@ function renderDetail() {
 function renderDetailNow() {
   const el = $("detail"); if (!el) return;
   if (st.selected === "__coll") return collEditRender(el);
+  if (String(st.selected).startsWith("c:")) st.detail = collDetail(st.selected);     // a group: always from the library as it is
   const d = st.detail;
   if (d?.coll === true) { el.innerHTML = collDetailHtml(d); return; }
   if (!d) {                                          // while the details load: what the shelf already knows
@@ -2371,7 +2406,7 @@ function renderDetailNow() {
   el.innerHTML = `${panelTop()}
     <div class="head"><div class="cov">${coverSrc(chosen?.thumb) ? `<img src="${coverSrc(chosen.thumb)}" alt="Cover of ${esc(d.title)}">` : `<span class="ph">no cover</span>`}</div>
       <div style="min-width:0"><h2 id="d-title" tabindex="-1">${esc(tt(d))}</h2>
-        <div>${d.authorsList.map(a => esc(a.name)).join(", ") || `<span class="muted">no ${makerLabel(d.kind, 1).toLowerCase()}</span>`}</div>
+        <div>${d.authorsList.map(a => esc(a.name)).join(", ") || `<span class="muted">no ${makerLabel(d.kind, 1).toLowerCase()}</span>`}</div>${seriesLine(d)}
         <div class="muted" style="font-size:12.5px;margin-top:4px">${(SCREEN(d.kind) ? screenFacts(d) : [e?.published ? fmtDate(e.published, e.publishedPrecision) : null, e?.pages ? e.pages + " pages" : null, langName(e?.lang)]).filter(Boolean).map(esc).join(" · ")}</div>
         ${d.locked ? `<div style="margin-top:6px"><span class="pill warn" title="Automated sources may not change it">locked: tts-ereader copy</span></div>` : ""}
       </div></div>
@@ -2468,40 +2503,58 @@ function screenDetailsHtml(d) {
     ${d.kind === "series" ? row("Last aired", esc(x.lastAired ? fmtKey(x.lastAired) : ""), tag("last_air_date")) + row("Status", esc(STATUS[x.status] || ""), tag("status"))
       + row("Episodes", esc([x.seasonCount ? x.seasonCount + " season" + (x.seasonCount === 1 ? "" : "s") : null, x.episodeCount ? x.episodeCount + " episodes" : null, x.episodeRuntime ? "about " + fmtRuntime(x.episodeRuntime) + " each" : null].filter(Boolean).join(" · ")), tag("episode_count"))
       : row("Runtime", esc(fmtRuntime(x.runtime)), tag("runtime_min"))}
-    ${d.coll ? `<dt>Collection</dt><dd><button class="linkbtn" id="d-coll" data-open="c:${esc(d.coll.id)}" title="All its films">${esc(d.coll.name)}</button>${tag("collection_id")}</dd>` : ""}
+    ${d.coll ? `<dt>Collection</dt><dd><button class="linkbtn" id="d-coll" data-open="c:${esc(d.coll.id)}" title="All its films">${esc(d.coll.name)}</button>${srcTag("group", "group_id")}</dd>` : ""}
     ${row("Country", esc((x.countries || []).map(countryName).join(", ")), tag("origin_countries"))}
     ${d.genreList.length ? `<dt>Genres</dt><dd class="tags">${d.genreList.map(g => `<span class="tag genre">${esc(g)}</span>`).join("")}</dd>` : ""}
     ${d.tagList.length ? `<dt>Tags</dt><dd class="tags">${d.tagList.map(g => `<span class="tag">${esc(g)}</span>`).join("")}</dd>` : ""}
     ${row("Added", esc(d.added))}
   </dl>${it.description ? `<details class="more" style="margin-top:8px"><summary>Overview</summary><p class="desc">${esc(it.description)}</p></details>` : ""}`;
 }
-// a film of a collection: the collection's other films under its head, with the one before and after, so the next
-// film opens from here instead of from the collection's card on the shelf
+// an item of a group (a book of a series, a film of a collection): the group's other items under its head, with
+// the one before and after, so the next one opens from here instead of from the group's card on the shelf
 function collStripHtml(d) {
-  if (!d.coll || d.kind !== "movie") return "";
-  const f = LIB.items.filter(i => i.coll?.id === d.coll.id).sort(byRelease), k = f.findIndex(x => x.id === st.selected);
+  if (!d.coll || !GROUPED(d.kind)) return "";
+  const f = groupItems(d.coll.id), k = f.findIndex(x => x.id === st.selected), what = d.kind === "book" ? "book" : "film";
   if (f.length < 2 || k < 0) return "";
-  const nav = (x, dir) => x ? `<button class="btn small" id="cs-${dir}" data-open="${x.id}" title="${esc(x.title)}" aria-label="${dir === "prev" ? "Previous" : "Next"} film: ${esc(x.title)}">${dir === "prev" ? "‹" : "›"}</button>` : `<button class="btn small" disabled aria-hidden="true">${dir === "prev" ? "‹" : "›"}</button>`;
+  const nav = (x, dir) => x ? `<button class="btn small" id="cs-${dir}" data-open="${x.id}" title="${esc(tt(x))}" aria-label="${dir === "prev" ? "Previous" : "Next"} ${what}: ${esc(tt(x))}">${dir === "prev" ? "‹" : "›"}</button>` : `<button class="btn small" disabled aria-hidden="true">${dir === "prev" ? "‹" : "›"}</button>`;
   return `<div class="collstrip" aria-label="${esc(d.coll.name)}">
-    <div class="cs-head">${nav(f[k - 1], "prev")}<button class="linkbtn" data-open="c:${esc(d.coll.id)}" title="The collection">${esc(d.coll.name)}</button><span class="muted">${k + 1} of ${f.length}</span>${nav(f[k + 1], "next")}</div>
-    <div class="cs-films">${f.map(x => `<button class="cs-film" data-open="${x.id}"${x.id === st.selected ? ` aria-current="true"` : ""} title="${esc(tt(x) + (x.published ? " (" + x.published + ")" : ""))}" aria-label="${esc(tt(x))}">${coverSrc(x.cover) ? `<img src="${smallCover(coverSrc(x.cover))}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}${x.status === "completed" ? `<span class="cs-seen" aria-hidden="true"></span>` : ""}</button>`).join("")}</div>
+    <div class="cs-head">${nav(f[k - 1], "prev")}<button class="linkbtn" data-open="c:${esc(d.coll.id)}" title="The ${gword(d.kind)}: all its ${noun(d.kind)}">${esc(d.coll.name)}</button><span class="muted">${k + 1} of ${f.length}</span>${nav(f[k + 1], "next")}</div>
+    <div class="cs-films">${f.map(x => `<button class="cs-film" data-open="${x.id}"${x.id === st.selected ? ` aria-current="true"` : ""} title="${esc(f.indexOf(x) + 1 + ". " + tt(x) + (x.published ? " (" + x.published + ")" : ""))}" aria-label="${esc(tt(x))}">${coverSrc(x.cover) ? `<img src="${smallCover(coverSrc(x.cover))}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}${x.status === "completed" ? `<span class="cs-seen" aria-hidden="true"></span>` : ""}</button>`).join("")}</div>
   </div>`;
 }
-// a film collection's panel: its films in release order, each opening its own panel
-function collDetail(id) {
-  const films = LIB.items.filter(i => i.coll?.id === id.slice(2)).sort(byRelease);
-  return films.length ? {coll: true, id, name: films[0].coll.name, films} : {error: "This collection has no films."};
+// "Book 2 of 4" under a book's title (its series' name a link to the series' panel)
+function seriesLine(d) {
+  if (d.kind !== "book" || !d.coll) return "";
+  const f = groupItems(d.coll.id), k = f.findIndex(x => x.id === d.id);
+  return k < 0 ? "" : `<div class="serline" id="d-serline">Book ${k + 1} of ${f.length} · <button class="linkbtn" data-open="c:${esc(d.coll.id)}" title="The series: all its books">${esc(d.coll.name)}</button></div>`;
 }
+// a group's panel: its items in order, each opening its own panel; unlocked, the order, the name and the group itself
+function collDetail(id) {
+  const gid = id.slice(2), films = groupItems(gid), g = groupOf(gid);
+  if (!films.length && !g) return {error: "This series or collection is not there any more."};
+  return {coll: true, id, gid, name: films[0]?.coll.name || g.name, kind: films[0]?.kind || g.kind, tmdb: !!g?.tmdb, films};
+}
+const GROUP = {seq: 0};
 function collDetailHtml(d) {
-  const f = d.films, seen = f.filter(x => x.status === "completed").length, mins = f.reduce((n, x) => n + (x.runtime || 0), 0);
-  const ys = f.map(x => x.published).filter(Boolean), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const f = d.films, book = d.kind === "book", edit = canEdit(), seen = f.filter(x => x.status === "completed").length;
+  const ys = f.map(x => x.published).filter(Boolean), y0 = Math.min(...ys), y1 = Math.max(...ys), amount = f.reduce((n, x) => n + ((book ? x.pages : x.runtime) || 0), 0);
+  const facts = [f.length + " " + noun(d.kind, f.length), ys.length ? y0 + (y1 > y0 ? "–" + y1 : "") : null, amount ? (book ? amount.toLocaleString("en") + " pages" : fmtRuntime(amount)) : null];
+  const word = gword(d.kind), Word = gword(d.kind, 2);
   return `${panelTop()}
-    <div class="head"><div class="cov">${coverSrc(f[0].cover) ? `<img src="${coverSrc(f[0].cover)}" alt="">` : `<span class="ph">${esc(d.name)}</span>`}</div>
-      <div style="min-width:0"><h2 id="d-title" tabindex="-1">${esc(d.name)}</h2><div>${esc(collMakers(f).join(", "))}</div>
-        <div class="muted" style="font-size:12.5px;margin-top:4px">${esc([f.length + " films", ys.length ? y0 + (y1 > y0 ? "–" + y1 : "") : null, mins ? fmtRuntime(mins) : null].filter(Boolean).join(" · "))}</div></div></div>
-    <div class="d-sec"><h3>Films</h3><p class="muted" style="font-size:12.5px;margin:0 0 10px">${seen} of ${f.length} watched. Open a film for its watches, rating and details.</p>
-      <div class="seasons">${f.map(x => `<button class="season collfilm" id="cf-${x.id}" data-open="${x.id}">${coverSrc(x.cover) ? `<img src="${coverSrc(x.cover)}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}
-        <span><b>${esc(tt(x))}</b> <span class="muted">${esc(x.published || "")}</span><br><span class="pill ${x.status === "completed" ? "ok" : x.status === "dropped" ? "warn" : "plain"}">${esc(statusLine(x))}</span>${x.rating != null ? ` <span class="muted" style="font-size:12px">${x.rating}/10</span>` : ""}</span></button>`).join("")}</div></div>`;
+    <div class="head"><div class="cov">${coverSrc(f[0]?.cover) ? `<img src="${coverSrc(f[0].cover)}" alt="">` : `<span class="ph">${esc(d.name)}</span>`}</div>
+      <div style="min-width:0"><div class="eyebrow">${esc(gword(d.kind, 3))}${d.tmdb ? " · from TMDB" : ""}</div><h2 id="d-title" tabindex="-1">${esc(d.name)}</h2><div>${esc(collMakers(f).join(", "))}</div>
+        <div class="muted" style="font-size:12.5px;margin-top:4px">${esc(facts.filter(Boolean).join(" · "))}</div></div></div>
+    <div class="dbody"><div class="d-sec"><h3>${book ? "Books" : "Films"}</h3><p class="muted" style="font-size:12.5px;margin:0 0 10px" id="g-read">${f.length ? `${seen} of ${f.length} ${doneWord(d.kind)}. Open a${book ? " book for its readings" : " film for its watches"}, rating and details.` : `No ${noun(d.kind)} in this ${word} now.`}${edit && f.length > 1 ? " Change the order with the arrows." : ""}</p>
+      <ol class="seasons grlist" id="g-items">${f.map((x, k) => groupRowHtml(x, k, f.length, edit, d)).join("")}</ol></div>
+    ${edit ? `<div class="d-sec"><h3>Name</h3><form class="ce-name" id="gform"><input id="gf-name" value="${esc(d.name)}" maxlength="300" aria-label="${Word} name" autocomplete="off"><button class="btn small" type="submit">Rename</button></form></div>
+    <div class="d-sec"><button type="button" class="btn small danger" id="gf-delete">Delete ${word}</button> <span class="muted" style="font-size:12.5px">The ${noun(d.kind)} stay in your library; Undo is in the message.</span></div>` : ""}</div>`;
+}
+function groupRowHtml(x, k, n, edit, d) {
+  const T = esc(tt(x)), b = (what, sym, label, off) => `<button class="btn small" id="gr-${what}-${x.id}" data-grmove="${what}" data-grid="${x.id}" ${off ? "disabled" : ""} title="${label}" aria-label="${label}: ${T}">${sym}</button>`;
+  const where = hiddenItem(x) || x.section ? `<span class="muted" style="font-size:12px"> · in ${esc(sectionOf(x.section)?.name || "a section")}</span>` : "";
+  return `<li class="grow${edit ? " edit" : ""}" id="gr-${x.id}"><span class="ce-num">${k + 1}</span><button class="season collfilm" id="cf-${x.id}" data-open="${x.id}">${coverSrc(x.cover) ? `<img src="${coverSrc(x.cover)}" alt="" loading="lazy" decoding="async">` : `<span class="noimg"></span>`}
+    <span><b>${T}</b> <span class="muted">${esc(x.published || "")}</span><br><span class="pill ${x.status === "completed" ? "ok" : x.status === "dropped" ? "warn" : "plain"}">${esc(statusLine(x))}</span>${x.rating != null ? ` <span class="muted" style="font-size:12px">${x.rating}/10</span>` : ""}${where}</span></button>
+    ${edit ? `<span class="ce-acts">${b("top", TOPICO, "To the top", !k)}${b("up", "↑", "Up one", !k)}${b("down", "↓", "Down one", k === n - 1)}<button class="btn small" id="gr-rm-${x.id}" data-grrm="${x.id}" data-grid="${x.id}" title="Out of this ${gword(d.kind)}: it stays in your library" aria-label="Remove ${T} from the ${gword(d.kind)}">✕</button></span>` : ""}</li>`;
 }
 // a series' seasons: each with its poster, episodes and what you did with it
 function seasonsHtml(d) {
@@ -2521,6 +2574,7 @@ function detailsHtml(d) {
   return `<dl class="kv">
     ${row("Authors", esc(d.authorsList.map(a => a.name).join(", ")))}
     ${row("Original", esc([it.originalTitle, langName(it.originalLang), it.firstPublished ? fmtDate(it.firstPublished, it.firstPublishedPrecision) : null].filter(Boolean).join(" · ")), "item", "original_language")}
+    ${d.coll ? `<dt>Series</dt><dd><button class="linkbtn" id="d-coll" data-open="c:${esc(d.coll.id)}" title="All its books">${esc(d.coll.name)}</button>${srcTag("group", "group_id")}</dd>` : ""}
     ${titlesRow(d)}
     ${e ? row("Edition", esc(e.title + (e.subtitle ? ": " + e.subtitle : "")), "edition", "title") : ""}
     ${e ? row("Language", esc(langName(e.lang)), "edition", "language") : ""}
@@ -2664,6 +2718,9 @@ document.addEventListener("click", async e => {
     const b = t.dataset.bulk, done = LABEL[st.kind].completed.toLowerCase();
     if (b === "clear") { st.sel.clear(); selChanged(); return; }
     if (b === "uncoll") { const ids = [...st.sel]; st.sel.clear(); closeBulkPop(); selChanged(); return collRemove(ids); }
+    if (b === "gnew") return groupCreatePop(t);
+    if (b === "gadd") return groupAddPop(t);
+    if (b === "gout") { const ids = [...st.sel].filter(id => LIB.items.find(i => i.id === id)?.coll); closeBulkPop(); return groupLeave(ids, true); }
     if (b === "status") return bulkRun({action: "status", status: "completed"}, "Marked as " + done, true);
     if (b === "archive") return bulkRun({action: "archive"}, "Archived");
     if (b === "unarchive") return bulkRun({action: "unarchive"}, "Back in the library");
@@ -2679,6 +2736,11 @@ document.addEventListener("click", async e => {
   if (t.dataset.bulkmove !== undefined) { const sid = t.dataset.bulkmove;
     return bulkRun({action: "section", section: sid || null}, sid ? "Moved to " + sectionOf(sid).name : "Back in the library"); }
   if (t.dataset.bulkcoll) return bulkRun({action: "collection", shelf: t.dataset.bulkcoll}, "Added to the collection", true);
+  if (t.dataset.gadd) { closeBulkPop(); return groupAdd(t.dataset.gadd, [...st.sel], true); }
+  if (t.id === "gc-cancel") { closeBulkPop(); $("bulkbar")?.querySelector("[data-bulk=gnew]")?.focus(); return; }
+  if (t.dataset.grmove) return groupMove(st.detail?.gid, t.dataset.grid, t.dataset.grmove);
+  if (t.dataset.grrm) return groupRemove(st.detail?.gid, [t.dataset.grrm]);
+  if (t.id === "gf-delete") return groupDelete(st.detail?.gid);
   if (t.id === "side-toggle") { st.side = !st.side; save("side", st.side); applySide(); return; }
   if (t.id === "filter-btn" || t.id === "vfilter-btn") { st.fpane = !st.fpane; renderFilterPane(); return; }
   if (t.id === "fp-close") { closeFilterPane(); filterBtn()?.focus(); return; }
@@ -2826,6 +2888,8 @@ document.addEventListener("submit", async e => {
   if (f.id === "sectionform") { await act(async () => { await api.editSection(st.section, {name: $("sc-name").value}); LIB = await api.library(); st.selected = null; render(); }, "Renamed"); return; }
   if (f.id === "editall-form") { const fields = editAllFields(); if (!Object.keys(fields).length) { toast("Nothing filled in: nothing to change", true); return; }
     $("editall")?.remove(); return bulkRun({action: "edit", fields}, "Updated", true); }
+  if (f.id === "gc-form") return groupCreate($("gc-name").value.trim());
+  if (f.id === "gform") return groupRename(st.detail?.gid, $("gf-name").value.trim());
   if (f.id === "shelfform") { const s = manualShelf(), name = $("sf-name").value.trim(); if (!s || !name || name === s.name) return;
     await act(async () => { await api.editShelf(s.id, {name}); s.name = name; LIBREV++; renderDatabase(); }, "Renamed", "coll:" + s.id); return; }
   if (f.id === "newshelf") { const name = $("newshelf-name").value.trim(); if (!name) return;
@@ -2972,6 +3036,149 @@ function collMove(id, how) {
   const to = how === "top" ? 0 : how === "up" ? k - 1 : k + 1; if (to < 0 || to >= order.length || to === k) return;
   order.splice(k, 1); order.splice(to, 0, id);
   return collChange(s, () => api.orderShelf(s.id, order), how === "top" ? "Moved to the top" : "Moved " + (how === "up" ? "up" : "down"), undoOrder(s.id));
+}
+
+// ------------------------------------------- book series and film collections (D76-D80)
+// On a selection: Create series… (a name asked, the books listed in the order they go in, those in another series
+// named: they move), Add to series…, Remove from series; on Movies the same makes a film collection. The series'
+// panel: order (⤒ ↑ ↓), remove, rename, delete. Each change is one request; the page takes the group's order from
+// the answer (no reload) and the message has Undo (D53), which sends back what was.
+const barWord = kind => kind === "book" ? gword(kind) : gword(kind, 1);     // "collection" alone is the left pane's
+function groupBulkHtml() {
+  const kind = st.kind, w = barWord(kind), sel = [...st.sel].map(id => LIB.items.find(i => i.id === id)).filter(Boolean);
+  const any = (LIB.groups || []).some(g => g.kind === kind), inOne = sel.some(i => i.coll);
+  return `<button class="btn small" data-bulk="gnew" aria-haspopup="true" title="${kind === "book" ? "Put these books together as one series: one card on the shelf, in their order" : "Put these films together as one collection: one card on the shelf"}">Create ${w}…</button>`
+    + (any ? `<button class="btn small" data-bulk="gadd" aria-haspopup="true">Add to ${w}…</button>` : "")
+    + (inOne ? `<button class="btn small" data-bulk="gout" title="Out of their ${w}: they stay in your library">Remove from ${w}</button>` : "");
+}
+// a name to start from, never used without being shown: the words every title starts with ("Saga of the Moon" and
+// "Saga of the Moon: Book Two" give "Saga of the Moon"), else the first one's title and "series"
+function groupName(items, kind) {
+  const words = items.map(i => tt(i).split(/\s+/)), common = [];
+  for (let k = 0; k < Math.min(...words.map(w => w.length)); k++) {
+    const w = words[0][k]; if (!words.every(x => fold(x[k]) === fold(w))) break; common.push(w);
+  }
+  const lead = common.join(" ").replace(/[\s:,;.\-–—(#]+$/, "").replace(/\s+(?:the|of|and|a|an|in|il|la|di|og|af)$/i, "");
+  if (items.length > 1 && lead.replace(ARTICLE, "").length >= 3) return lead;
+  return items[0] ? tt(items[0]) + " " + (kind === "book" ? "series" : "collection") : "";
+}
+const byDate = (a, b) => (a.published ?? 99999) - (b.published ?? 99999) || String(titleSort(a)).localeCompare(String(titleSort(b)));
+function groupCreatePop(btn) {
+  const kind = st.kind, items = [...st.sel].map(id => LIB.items.find(i => i.id === id)).filter(Boolean).sort(byDate);
+  if (!items.length) return;
+  const other = items.filter(i => i.coll), w = barWord(kind);
+  bulkPop(btn, `<form id="gc-form" class="gcform" aria-label="Create ${w}"><h4>New ${gword(kind, 1)}</h4>
+    <label for="gc-name">Name</label><input id="gc-name" value="${esc(groupName(items, kind))}" maxlength="300" autocomplete="off" spellcheck="false" required>
+    <p class="muted">${items.length === 1 ? "It goes in" : `They go in by first publication (change the order afterwards in the ${gword(kind)})`}:</p>
+    <ol class="gc-list">${items.map(i => `<li>${esc(tt(i))}${i.published ? ` <span class="muted">(${i.published})</span>` : ""}</li>`).join("")}</ol>
+    ${other.length ? `<p class="gc-move" id="gc-move">${[...new Set(other.map(i => i.coll.id))].map(g => { const its = other.filter(i => i.coll.id === g);
+      return `${its.map(i => esc(tt(i))).join(", ")} ${its.length === 1 ? "is" : "are"} in “${esc(its[0].coll.name)}”`; }).join("; ")}: ${other.length === 1 ? "it moves" : "they move"} to the new one.</p>` : ""}
+    <div class="row-actions"><button type="button" class="btn small" id="gc-cancel">Cancel</button><button type="submit" class="btn small primary" id="gc-ok">Create ${w}</button></div></form>`);
+  $("bulkpop").classList.add("gcpop");
+  const pop = $("bulkpop"), r = btn.getBoundingClientRect();                 // wider than a menu: placed again
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + "px";
+  pop.style.top = Math.max(8, r.top - pop.offsetHeight - 6) + "px";
+  $("gc-name").focus(); $("gc-name").select();
+}
+function groupAddPop(btn) {
+  const kind = st.kind, w = barWord(kind), gs = (LIB.groups || []).filter(g => g.kind === kind).sort((a, b) => a.name.localeCompare(b.name));
+  const sel = [...st.sel].map(id => LIB.items.find(i => i.id === id)).filter(Boolean);
+  bulkPop(btn, `<h4>Add to ${w}</h4>` + gs.map(g => { const away = sel.filter(i => i.coll && i.coll.id !== g.id).length;
+    return `<button data-gadd="${g.id}" id="gadd-${g.id}">${esc(g.name)} <span class="muted">${g.n} ${noun(kind, g.n)}${away ? ` · ${away} move${away === 1 ? "s" : ""} from another` : ""}</span></button>`; }).join("")
+    + `<p class="muted" style="margin:6px 8px;font-size:12px">They go in where their dates belong; the ${gword(kind)}'s panel changes the order.</p>`);
+}
+// the server's answer for one group: its items in order (the page's copy follows), and every group
+function takeGroup(r) {
+  if (r.groups) LIB.groups = r.groups;
+  if (r.items && r.id) {
+    const now = new Map(r.items.map((id, n) => [id, n + 1]));
+    LIB.items.forEach((x, k) => {
+      const pos = now.get(x.id);
+      if (pos) { if (x.coll?.id !== r.id || x.coll.pos !== pos || x.coll.name !== r.name) LIB.items[k] = {...x, coll: {id: r.id, name: r.name, pos}}; }
+      else if (x.coll?.id === r.id) LIB.items[k] = {...x, coll: null};
+    });
+  }
+  LIBREV++;
+}
+const dropGroup = gid => { LIB.items.forEach((x, k) => { if (x.coll?.id === gid) LIB.items[k] = {...x, coll: null}; }); LIBREV++; };
+const orderOf = gid => groupItems(gid).map(x => x.id);
+// redraw after a change: the shelf, and the group's panel when it is open (the focus kept on the same button)
+function groupRedraw() {
+  const a = document.activeElement, fid = a && $("detail")?.contains(a) ? a.id : null, row = a?.dataset?.grid;
+  renderDatabase();
+  if (fid) { const b = $(fid); if (b && !b.disabled) b.focus({preventScroll: true});
+    else (row && $("gr-" + row)?.querySelector(".ce-acts button:not([disabled])") || $("d-title"))?.focus({preventScroll: true}); }
+}
+// one change with Undo; `undo` runs the requests that put back what was
+function groupAct(call, msg, undo, key) {
+  const ukey = "undo:grp:" + (++GROUP.seq);
+  return act(async () => {
+    await call(); groupRedraw();
+    toast(msg, false, undo ? {label: "Undo", run: () => act(async () => { await undo(); groupRedraw(); toast("Undone"); }, null, ukey)} : null);
+  }, null, key || "grp");
+}
+// put back the groups the items were in before (each group's order from before), and take out those that were in none
+async function undoMoves(befores, out) {
+  if (out.length) { const r = await api.leaveGroups(out); dropIds(r.left); LIB.groups = r.groups; }
+  for (const [gid, order] of Object.entries(befores)) if (order.length) takeGroup(await api.orderGroup(gid, order));
+}
+const dropIds = ids => { const s = new Set(ids); LIB.items.forEach((x, k) => { if (s.has(x.id) && x.coll) LIB.items[k] = {...x, coll: null}; }); LIBREV++; };
+function groupCreate(name) {
+  const kind = st.kind, ids = [...st.sel], items = ids.map(id => LIB.items.find(i => i.id === id)).filter(Boolean);
+  if (!name || !items.length) return;
+  const befores = Object.fromEntries([...new Set(items.filter(i => i.coll).map(i => i.coll.id))].map(g => [g, orderOf(g)]));
+  let made = null;
+  return groupAct(async () => {
+    const r = await api.newGroup(kind, name, items.map(i => i.id), !!Object.keys(befores).length);
+    made = r.id; takeGroup(r); closeBulkPop(); st.sel.clear(); selChanged();
+  }, `${gword(kind, 3)} “${name}” created${Object.keys(befores).length ? ": " + items.filter(i => i.coll).length + " moved from another" : ""}`, async () => {
+    const r = await api.deleteGroup(made); dropGroup(made); LIB.groups = r.groups;
+    await undoMoves(befores, []);
+  }, "grp-new");
+}
+function groupAdd(gid, ids, fromBar) {
+  const g = groupOf(gid), items = ids.map(id => LIB.items.find(i => i.id === id)).filter(i => i && i.coll?.id !== gid); if (!g) return;
+  if (!items.length) { toast(`Already in ${g.name}`); return; }
+  const moved = items.filter(i => i.coll), befores = Object.fromEntries([...new Set(moved.map(i => i.coll.id))].map(x => [x, orderOf(x)]));
+  const fresh = items.filter(i => !i.coll).map(i => i.id), before = orderOf(gid);
+  return groupAct(async () => {
+    takeGroup(await api.groupItems(gid, {add: items.map(i => i.id), move: true}));
+    if (fromBar) { st.sel.clear(); selChanged(); }
+  }, `Added to ${g.name}${moved.length ? ": " + moved.length + " moved from another" : ""}`, async () => {
+    takeGroup(await api.orderGroup(gid, before.length ? before : orderOf(gid)));        // its own order first
+    await undoMoves(befores, fresh);
+  });
+}
+function groupLeave(ids, fromBar) {
+  const items = ids.map(id => LIB.items.find(i => i.id === id)).filter(i => i?.coll); if (!items.length) return;
+  const befores = Object.fromEntries([...new Set(items.map(i => i.coll.id))].map(g => [g, orderOf(g)])), kind = items[0].kind;
+  const one = items.length === 1 ? items[0] : null, names = [...new Set(items.map(i => i.coll.name))];
+  return groupAct(async () => {
+    const r = await api.leaveGroups(items.map(i => i.id)); dropIds(r.left); LIB.groups = r.groups;
+    if (fromBar) { st.sel.clear(); selChanged(); }
+  }, one ? `${tt(one)} is out of ${one.coll.name}` : `${items.length} out of ${names.length === 1 ? names[0] : "their " + gword(kind)}`,
+  () => undoMoves(befores, []));
+}
+function groupRemove(gid, ids) { return groupLeave(ids.filter(id => LIB.items.find(i => i.id === id)?.coll?.id === gid), false); }
+function groupMove(gid, id, how) {
+  const order = orderOf(gid), k = order.indexOf(id); if (!gid || k < 0) return;
+  const to = how === "top" ? 0 : how === "up" ? k - 1 : k + 1; if (to < 0 || to >= order.length || to === k) return;
+  const before = [...order]; order.splice(k, 1); order.splice(to, 0, id);
+  return groupAct(async () => takeGroup(await api.orderGroup(gid, order)), how === "top" ? "Moved to the top" : "Moved " + (how === "up" ? "up" : "down"),
+    async () => takeGroup(await api.orderGroup(gid, before)), "grp:" + gid);
+}
+function groupRename(gid, name) {
+  const g = groupOf(gid); if (!g || !name || name === g.name) return;
+  const old = g.name;
+  return groupAct(async () => takeGroup(await api.renameGroup(gid, name)), "Renamed", async () => takeGroup(await api.renameGroup(gid, old)), "grp:" + gid);
+}
+function groupDelete(gid) {
+  const g = groupOf(gid); if (!g) return;
+  const kind = g.kind, open = st.selected;
+  return groupAct(async () => {
+    const r = await api.deleteGroup(gid); dropGroup(gid); LIB.groups = r.groups;
+    if (st.selected === open) closeDetail();
+  }, `${gword(kind, 3)} “${g.name}” deleted: its ${noun(kind)} stay in your library`, async () => takeGroup(await api.restoreGroup(gid)), "grp:" + gid);
 }
 
 // ------------------------------------------------------------- add a book
@@ -3150,7 +3357,7 @@ const otherHit = (i, t) => fold(tt(i)).includes(t) ? "" : [i.title, i.origTitle,
 function runSearch(q) {
   const pop = $("search-pop"), terms = fold(q).split(/\s+/).filter(Boolean);
   if (!terms.length) { pop.hidden = true; hits = []; return; }
-  hits = LIB.items.filter(i => !hiddenItem(i)).map(i => ({i, hay: fold([allTitles(i), i.authors, i.genres.join(" "), statusLabel(i.kind, i.status), i.year].join(" "))}))
+  hits = LIB.items.filter(i => !hiddenItem(i)).map(i => ({i, hay: fold([allTitles(i), i.authors, i.genres.join(" "), statusLabel(i.kind, i.status), i.year, i.coll?.name].join(" "))}))
     .filter(x => terms.every(t => x.hay.includes(t)))
     .map(x => ({...x, score: fold(tt(x.i)).startsWith(terms.join(" ")) ? 3 : fold(allTitles(x.i)).includes(terms[0]) ? 2 : 1}))
     .sort((a, b) => b.score - a.score || a.i.sort.localeCompare(b.i.sort)).slice(0, 20).map(x => x.i);
@@ -3163,7 +3370,7 @@ function runSearch(q) {
     const idx = hits.indexOf(h);
     return `<button class="pop-item${idx === active ? " active" : ""}" role="option" id="hit-${idx}" data-hit="${idx}" aria-selected="${idx === active}">
       ${coverSrc(h.cover) ? `<img src="${smallCover(coverSrc(h.cover))}" alt="">` : `<span class="noimg"></span>`}<span class="pop-name">${mark(tt(h), rawTerms)}${otherHit(h, terms[0]) ? ` <span class="muted">${mark(otherHit(h, terms[0]), rawTerms)}</span>` : ""}</span>
-      <span class="pop-sub">${mark(h.authors || "—", rawTerms)} · ${esc(statusLabel(h.kind, h.status))}${h.year ? " " + h.year : ""}</span></button>`;
+      <span class="pop-sub">${mark(h.authors || "—", rawTerms)} · ${esc(statusLabel(h.kind, h.status))}${h.year ? " " + h.year : ""}${h.coll ? " · " + mark(h.coll.name, rawTerms) : ""}</span></button>`;
   }).join("")).join("");
   pop.hidden = false;
 }
@@ -3173,7 +3380,7 @@ function goHit(h) {
   st.sec = "database"; st.kind = h.kind; st.shelf = allShelf(h.kind).id; st.filter = "all"; st.q = ""; st.view = "shelf"; st.section = h.section || null;
   render(); openDetail(h.id);
   setTimeout(() => {
-    const el = document.getElementById("b-" + h.id) || document.getElementById("r-" + h.id), k = LWIN ? LWIN.list.findIndex(i => i.id === h.id) : -1;
+    const el = document.getElementById("b-" + h.id) || (h.coll && document.getElementById("b-c:" + h.coll.id)) || document.getElementById("r-" + h.id), k = LWIN ? LWIN.list.findIndex(i => i.id === h.id) : -1;
     const tb = document.querySelector("#content table.list tbody");
     if (el) el.scrollIntoView({block: "center"});         // no smooth scroll: cards on the way have estimated heights
     else if (k >= 0 && tb) scrollTo({top: scrollY + tb.getBoundingClientRect().top + k * LWIN.rowH - innerHeight / 2});
@@ -3917,6 +4124,34 @@ function makePreviewApi(P) {
     async lookup() { throw new Error("Adding a book looks it up at Apple Books and Open Library. That runs on the server; this preview can't reach them."); },
     async fill() { throw new Error("Filling missing details looks them up at Apple Books and Open Library. That runs on the server, not in this preview."); },
     async move(sid, item, to) { const s = S.library.shelves.find(x => x.id === sid); const order = s.items.filter(x => x !== item); order.splice(to - 1, 0, item); s.items = order; persist(); return {ok: true}; },
+    // book series and film collections (D76): the item's coll and the list of groups, as the server answers
+    _G() { return (S.library.groups = S.library.groups || []); },
+    _gorder(gid) { return S.library.items.filter(i => i.coll?.id === gid).sort((a, b) => a.coll.pos - b.coll.pos).map(i => i.id); },
+    _gset(id, coll) { const i = S.library.items.find(x => x.id === id); if (i) i.coll = coll; if (S.details[id]) S.details[id].coll = coll; },
+    _gput(gid, ids) { const g = this._G().find(x => x.id === gid); for (const id of this._gorder(gid)) this._gset(id, null); ids.forEach((id, n) => this._gset(id, {id: gid, name: g.name, pos: n + 1})); },
+    _ganswer(gid, moved) { const g = this._G().find(x => x.id === gid), items = this._gorder(gid); persist();
+      for (const x of this._G()) x.n = this._gorder(x.id).length;
+      return {id: gid, name: g.name, kind: g.kind, tmdb: !!g.tmdb, items, moved: moved || [], groups: clone(this._G().filter(x => !x.deleted))}; },
+    async newGroup(kind, name, items, move) {
+      if (this._G().some(g => !g.deleted && g.kind === kind && g.name.toLowerCase() === name.trim().toLowerCase())) throw new Error("There is already one with that name: pick another, or add to that one.");
+      const its = items.map(x => S.library.items.find(i => i.id === x)).filter(Boolean);
+      if (its.some(i => i.coll) && !move) throw new Error("Some are already in another one.");
+      const id = newId(); this._G().push({id, name: name.trim(), kind, tmdb: false, n: 0});
+      this._gput(id, its.sort((a, b) => (a.published ?? 99999) - (b.published ?? 99999)).map(i => i.id)); return this._ganswer(id); },
+    async groupItems(gid, body) { const cur = this._gorder(gid);
+      if (body.add) { const add = body.add.filter(x => !cur.includes(x)).map(x => S.library.items.find(i => i.id === x)).filter(Boolean);
+        for (const i of add) i.coll = null;
+        const all = [...cur, ...add.map(i => i.id)].map(x => S.library.items.find(i => i.id === x)).sort((a, b) => (a.published ?? 99999) - (b.published ?? 99999));
+        this._gput(gid, all.map(i => i.id)); }
+      if (body.remove) for (const x of body.remove) if (cur.includes(x)) this._gset(x, null);
+      return this._ganswer(gid); },
+    async orderGroup(gid, items) { const cur = this._gorder(gid); this._gput(gid, [...items, ...cur.filter(x => !items.includes(x))]); return this._ganswer(gid); },
+    async renameGroup(gid, name) { this._G().find(x => x.id === gid).name = name; this._gput(gid, this._gorder(gid)); return this._ganswer(gid); },
+    async deleteGroup(gid) { const g = this._G().find(x => x.id === gid), items = this._gorder(gid); g.deleted = true; g.members = items; for (const id of items) this._gset(id, null);
+      persist(); return {id: gid, items, groups: clone(this._G().filter(x => !x.deleted))}; },
+    async restoreGroup(gid) { const g = this._G().find(x => x.id === gid); g.deleted = false; this._gput(gid, (g.members || []).filter(id => !S.library.items.find(i => i.id === id)?.coll)); return this._ganswer(gid); },
+    async leaveGroups(items) { const left = items.filter(id => S.library.items.find(i => i.id === id)?.coll); for (const id of left) this._gset(id, null);
+      for (const x of this._G()) x.n = this._gorder(x.id).length; persist(); return {left, groups: clone(this._G().filter(x => !x.deleted))}; },
   };
 }
 

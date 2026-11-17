@@ -23,6 +23,9 @@ looks like a bookshelf.
   Sheets, fill down, clear and undo; one request saves all the changed rows.
 - **Collections you edit in place**: add items from a search of your library,
   remove them, put them in order, each change with Undo.
+- **Book series**: select books and Create series…: one card on the shelf, a
+  panel with the books in their order, "Book 2 of 4" on each; the same makes
+  your own film collections on Movies.
 - **Sections and quick actions**: folders in the left pane (and an Archive);
   select covers, rows or everything and mark them read, move, archive,
   delete, or edit them all at once (only the fields you fill in change).
@@ -71,7 +74,7 @@ Status: 1.0.0, used daily by its author.
 |---|---|
 | [`docs/INSTALL.md`](docs/INSTALL.md) | install, update, backups, rollback |
 | [`DESIGN.md`](DESIGN.md) | needs, PostgreSQL vs MySQL, schema, integrity and operations, import mapping |
-| [`DECISIONS.md`](DECISIONS.md) | design decisions (cited in the code as D1…D42) |
+| [`DECISIONS.md`](DECISIONS.md) | design decisions (cited in the code as D1…D81) |
 | [`SECURITY.md`](SECURITY.md) | security model and how to report a problem |
 | [`CHANGELOG.md`](CHANGELOG.md) | releases |
 
