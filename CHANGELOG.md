@@ -4,6 +4,10 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **Fix: the info panel's bottom could not be reached**: since the page bar stays
+  at the top, the panel was taller than the room under it, so its last lines
+  (Move to trash) stayed under the window's edge however far you scrolled. Its
+  height now leaves room for both bars; the phone sheet uses the visible height.
 - **App icon**: a bookshelf icon (SVG, 32 px, touch icon) linked from the
   console and the reader and served at `/favicon.ico` and
   `/apple-touch-icon.png`, so browser tabs, bookmarks and home screens show it.

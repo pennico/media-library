@@ -60,7 +60,7 @@ CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 
 READER_CSP = ("default-src 'none'; script-src 'self'; style-src 'unsafe-inline' blob:; img-src blob: data:;"
               " font-src blob: data:; media-src blob:; connect-src 'self'; frame-src blob:; base-uri 'none';"
               " form-action 'none'; frame-ancestors 'self'")
-# The app icon (owner 2026-11-15, the homelab icon family): Safari asks the root for a favicon and a touch icon
+# The app icon (owner 2026-11-15, one family with the sibling consoles): Safari asks the root for a favicon and a touch icon
 # when a bookmark or the start page has no page to read the links from.
 ICONS = {"/favicon.ico": ("icon-32.png", "image/png"), "/icon-32.png": ("icon-32.png", "image/png"),
          "/icon.svg": ("icon.svg", "image/svg+xml"), "/apple-touch-icon.png": ("icon-180.png", "image/png")}
