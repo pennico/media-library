@@ -279,7 +279,11 @@ made-up items to the Test section to try the console with (`--remove` deletes th
 migration; the first start makes the 160, 480 and 640 px thumbnails of the chosen
 covers in the background (about 110 KB more per cover, in `media/thumbs/`). After
 1.1.0 (2026-11-12): migration 0030 (Joplin lists); the lists themselves are
-optional (6d).
+optional (6d). Book series (2026-11-18): migration 0031 moves the film
+collections into the new group tables (`catalog.item_group`,
+`catalog.group_member`) and drops `catalog.movie.collection_id`, so code from
+before it cannot read the database after it: to go back, restore the dump
+taken before the update (7).
 
 ## Upgrades
 
