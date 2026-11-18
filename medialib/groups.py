@@ -88,8 +88,14 @@ def _write(conn, gid, order):
             conn.execute("UPDATE catalog.group_member SET group_id = %s, position = %s WHERE item_id = %s", (gid, pos, item))
 
 
-def place(conn, gid, items):
-    """The items join the group (from none or another) where their dates belong. -> the ones that joined."""
+def place(conn, gid, items, numbers=None):
+    """The items join the group (from none or another) where they belong. -> the ones that joined.
+
+    By their number in the series when `numbers` ({item id: number}, a suggestion's, D85) gives one and a member
+    has one too: before the first member numbered higher. Else by date: before the first member dated later;
+    undated ones last. The numbered ones go first, in their order, so a new series of numbered books is in
+    their order and the others find their dates among them."""
+    numbers = numbers or {}
     cur = members(conn, gid)
     order, dated = [r["id"] for r in cur], {r["id"]: r for r in cur}
     joining = [x for x in by_date(conn, items) if x not in dated]
@@ -97,10 +103,14 @@ def place(conn, gid, items):
         return []
     for r in conn.execute(DATED + " WHERE i.id = ANY(%s)", (joining,)).fetchall():
         dated[r["id"]] = r
+    joining.sort(key=lambda x: (numbers.get(x) is None, numbers.get(x) or 0))      # stable: by date among equals
     for x in joining:
-        d = dated[x]["d"]
-        at = len(order) if d is None else next((k for k, y in enumerate(order) if dated[y]["d"] is not None and dated[y]["d"] > d),
-                                                len(order))
+        n, d = numbers.get(x), dated[x]["d"]
+        if n is not None and any(numbers.get(y) is not None for y in order):
+            at = next((k for k, y in enumerate(order) if numbers.get(y) is not None and numbers[y] > n), len(order))
+        else:
+            at = len(order) if d is None else next((k for k, y in enumerate(order) if dated[y]["d"] is not None
+                                                    and dated[y]["d"] > d), len(order))
         order.insert(at, x)
     _write(conn, gid, order)
     return joining

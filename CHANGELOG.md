@@ -4,6 +4,18 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **Series suggestions** (migration 0032): Fill missing now also looks for
+  the series a book is in: Open Library's series and the book's number in it,
+  or a series named in a title ("Eldest (Inheritance, Book 2)"). It is only
+  suggested, in the book's panel: **Add to “<your series>”** when you have it
+  (the name may be written differently), else **Create series “<name>”** with
+  your other books Open Library puts in it, ticked in a list. They go in by
+  their numbers. **Suggest series** in the bar (Books) looks a whole selection
+  up, ten books at a time, and lists what it found by series to review. Every
+  click has Undo; **Not this series** hides a suggestion for that book.
+  Publishers' series ("Penguin Classics") are never suggested.
+- **Browser checks** answer every lookup from recorded answers
+  (`tools/uicheck/recorded/`) and never reach the network.
 - **Book series** (migration 0031): select the books and choose **Create
   series…**: name it (a suggestion is ready) and they become one card on the
   shelf, the covers stacked behind the first, with how many there are and how

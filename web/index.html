@@ -500,6 +500,17 @@ body.fb-pane .detail { visibility: hidden; }
 /* a book series' (D76) or a film collection's panel: its items numbered, in its own order; unlocked, ⤒ ↑ ↓ ✕ on each */
 .eyebrow { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 2px; }
 .serline { font-size: 12.5px; margin-top: 4px; color: var(--muted); } .serline .linkbtn { font-weight: 600; }
+/* a series suggestion (D83): in a book's panel, and the review list of Suggest series */
+.sersug { border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.sersug h3 { margin-top: 0; } .sersug p { margin: 0 0 8px; font-size: 13px; overflow-wrap: anywhere; }
+.sersug .row-actions, .ss-series .row-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 6px; margin-top: 4px; }
+.sersug .gcform { margin-bottom: 8px; } .sersug .linkbtn { font-size: 12.5px; margin-left: auto; }
+.sc-list { list-style: none; margin: 4px 0 6px; padding: 0; max-height: 15em; overflow: auto; font-size: 13px; }
+.sc-list li { margin: 2px 0; } .sc-list label { display: flex; gap: 6px; align-items: baseline; color: inherit; font-size: 13px; cursor: pointer; }
+.sc-list input { flex: none; margin: 0; } .sc-n { font-variant-numeric: tabular-nums; color: var(--muted); }
+.ss-progress { font-size: 13px; margin: 10px 0 4px; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; overflow-wrap: anywhere; }
+.ss-series { border-top: 1px solid var(--line); padding: 10px 0 12px; } .ss-series h3 { margin: 0 0 4px; font-size: 14px; } .ss-from { font-weight: 400; font-size: 12px; }
+.ss-one { margin-top: 8px; } .ss-one summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 6px 0; }
 .grlist { list-style: none; margin: 0; padding: 0; }
 .grow { display: grid; grid-template-columns: 1.6em minmax(0, 1fr); gap: 4px; align-items: center; }
 .grow.edit { grid-template-columns: 1.6em minmax(0, 1fr) auto; }
@@ -833,13 +844,16 @@ const serverApi = {
   shelfItems(sid, body) { return this.send("POST", "api/shelves/" + sid + "/items", body); },
   move(sid, item, to) { return this.send("POST", "api/shelves/" + sid + "/move", {item, to}); },
   orderShelf(sid, items) { return this.send("POST", "api/shelves/" + sid + "/order", {items}); },
-  newGroup(kind, name, items, move) { return this.send("POST", "api/groups", {kind, name, items, move}); },
+  newGroup(kind, name, items, move, suggestion) { return this.send("POST", "api/groups", Object.assign({kind, name, items, move}, suggestion ? {suggestion} : {})); },
   groupItems(gid, body) { return this.send("POST", "api/groups/" + gid + "/items", body); },
   orderGroup(gid, items) { return this.send("POST", "api/groups/" + gid + "/order", {items}); },
   renameGroup(gid, name) { return this.send("PATCH", "api/groups/" + gid, {name}); },
   deleteGroup(gid) { return this.send("DELETE", "api/groups/" + gid, {}); },
   restoreGroup(gid) { return this.send("POST", "api/groups/" + gid + "/restore", {}); },
   leaveGroups(items) { return this.send("POST", "api/groups/leave", {items}); },
+  suggestSeries(items) { return this.send("POST", "api/series/suggest", {items}); },
+  seriesSuggestions() { return this.get("api/series/suggestions"); },
+  dismissSeries(items, key, back) { return this.send("POST", "api/series/dismiss", {items, key, back: !!back}); },
   lookup(body) { return this.send("POST", "api/lookup", body); },
   add(token, index, status, format) { return this.send("POST", "api/add", {token, index, status, format}); },
   fill(id) { return this.send("POST", "api/items/" + id + "/fill", {}); },
@@ -2388,6 +2402,7 @@ function renderDetail() {
 function renderDetailNow() {
   const el = $("detail"); if (!el) return;
   if (st.selected === "__coll") return collEditRender(el);
+  if (st.selected === "__series") return seriesReviewRender(el);
   if (String(st.selected).startsWith("c:")) st.detail = collDetail(st.selected);     // a group: always from the library as it is
   const d = st.detail;
   if (d?.coll === true) { el.innerHTML = collDetailHtml(d); return; }
@@ -2411,7 +2426,7 @@ function renderDetailNow() {
         ${d.locked ? `<div style="margin-top:6px"><span class="pill warn" title="Automated sources may not change it">locked: tts-ereader copy</span></div>` : ""}
       </div></div>
     ${collStripHtml(d)}<div class="dbody">
-    ${st.err ? `<p class="err">${esc(st.err)}</p>` : ""}
+    ${st.err ? `<p class="err">${esc(st.err)}</p>` : ""}${seriesSuggestHtml(d)}
     ${!edit && !PREVIEW && SESSION.owner ? `<p class="muted" style="font-size:12.5px;margin:12px 0 0">Unlock (top right) to change anything here.</p>` : ""}
     <div class="d-sec"><h3>Status${srcTag("entry", "status")}</h3><div class="statusbar">${statusBtns}</div></div>
     ${d.kind === "book" ? `<div class="d-sec"><h3>Version${srcTag("edition", "format")}</h3>${versionHtml(d, edit)}</div>` : ""}
@@ -2422,7 +2437,7 @@ function renderDetailNow() {
         : d.review ? `<div class="review">${esc(d.review)}</div>` : `<p class="muted" style="margin:0">No review.</p>`}</div>
     <div class="d-sec"><h3>${d.kind === "book" ? "Readings" : "Watches"}${edit ? `<button class="btn small" id="rd-add">Add</button>` : ""}</h3>${readingsHtml(d, edit)}</div>
     ${d.kind === "series" && d.screen?.seasons?.length ? `<div class="d-sec"><h3>Seasons</h3>${seasonsHtml(d)}</div>` : ""}
-    <div class="d-sec"><h3>Details${edit && !st.editing ? `${d.kind === "book" && !d.locked ? `<button class="btn small" id="ed-fill" title="Look up Apple Books and Open Library and fill only the empty fields">Fill missing</button>` : SCREEN(d.kind) && LIB.tmdb && !d.locked ? `<button class="btn small" id="ed-fill" title="Look it up at TMDB and fill only the empty fields">Fill missing</button>` : ""}<button class="btn small" id="ed-edit" style="margin-left:4px">Edit</button>` : ""}</h3>${st.editing ? editForm(d) : SCREEN(d.kind) ? screenDetailsHtml(d) : detailsHtml(d)}</div>
+    <div class="d-sec"><h3>Details${edit && !st.editing ? `${d.kind === "book" && !d.locked ? `<button class="btn small" id="ed-fill" title="Look up Apple Books and Open Library and fill only the empty fields; a series they know is only suggested">Fill missing</button>` : SCREEN(d.kind) && LIB.tmdb && !d.locked ? `<button class="btn small" id="ed-fill" title="Look it up at TMDB and fill only the empty fields">Fill missing</button>` : ""}<button class="btn small" id="ed-edit" style="margin-left:4px">Edit</button>` : ""}</h3>${st.editing ? editForm(d) : SCREEN(d.kind) ? screenDetailsHtml(d) : detailsHtml(d)}</div>
     <div class="d-sec"><h3>Collections</h3><div class="shelfchecks">${d.shelves.map(s => `<label><input type="checkbox" id="sh-${s.id}" data-shelfcheck="${s.id}" ${s.member ? "checked" : ""} ${edit && s.kind !== "all" ? "" : "disabled"}> ${esc(s.kind === "all" ? "All " + noun(d.kind) : s.name)}</label>`).join("")}${d.shelves.length < 2 ? `<span class="muted">Create a collection in the left pane.</span>` : ""}</div></div>
     <div class="d-sec"><h3>${SCREEN(d.kind) ? "Poster" : "Cover"}${edit ? `<button class="btn small" id="cv-upload" title="JPEG, PNG or WebP, up to 15 MB">Upload ${SCREEN(d.kind) ? "a poster" : "a cover"}</button>` : ""}</h3>
       ${d.covers.length ? `<div class="covers">${d.covers.map(c => `<button id="cv-${c.id}" data-cover="${c.id}" aria-pressed="${c.chosen}" ${edit ? "" : "disabled"} title="${esc(c.note || "")}">
@@ -2720,6 +2735,7 @@ document.addEventListener("click", async e => {
     if (b === "uncoll") { const ids = [...st.sel]; st.sel.clear(); closeBulkPop(); selChanged(); return collRemove(ids); }
     if (b === "gnew") return groupCreatePop(t);
     if (b === "gadd") return groupAddPop(t);
+    if (b === "gsug") { closeBulkPop(); return sugOpen([...st.sel]); }
     if (b === "gout") { const ids = [...st.sel].filter(id => LIB.items.find(i => i.id === id)?.coll); closeBulkPop(); return groupLeave(ids, true); }
     if (b === "status") return bulkRun({action: "status", status: "completed"}, "Marked as " + done, true);
     if (b === "archive") return bulkRun({action: "archive"}, "Archived");
@@ -2738,6 +2754,16 @@ document.addEventListener("click", async e => {
   if (t.dataset.bulkcoll) return bulkRun({action: "collection", shelf: t.dataset.bulkcoll}, "Added to the collection", true);
   if (t.dataset.gadd) { closeBulkPop(); return groupAdd(t.dataset.gadd, [...st.sel], true); }
   if (t.id === "gc-cancel") { closeBulkPop(); $("bulkbar")?.querySelector("[data-bulk=gnew]")?.focus(); return; }
+  if (t.id === "ss-new") return sugNewClick(t);
+  if (t.id === "ss-add") { const id = st.selected; return groupAdd(t.dataset.ssgroup, [id], false, t.dataset.sskey); }
+  if (t.id === "ss-no") return sugDismiss([st.selected], t.dataset.sskey, t.dataset.ssname);
+  if (t.id === "ss-all") return sugOpen(null);
+  if (t.id === "sc-cancel") { SUG.form = null; renderDetail(); $("ss-new")?.focus({preventScroll: true}); return; }
+  if (t.id === "ss-stop") { if (SUG.run) SUG.run.stopped = true; renderDetail(); return; }
+  if (t.id === "ss-retry") { if (SUG.run) { SUG.run.error = null; SUG.run.stopped = false; } return sugLoop(); }
+  if (t.dataset.ssapply != null) return sugApply(t.dataset.ssapply);
+  if (t.dataset.ssno != null) { const x = (SUG.series || []).find(s => s.key === t.dataset.ssno); if (!x) return;
+    return sugDismiss(sugBooks(x.books).map(b => b.id), x.key, x.name); }
   if (t.dataset.grmove) return groupMove(st.detail?.gid, t.dataset.grid, t.dataset.grmove);
   if (t.dataset.grrm) return groupRemove(st.detail?.gid, [t.dataset.grrm]);
   if (t.id === "gf-delete") return groupDelete(st.detail?.gid);
@@ -2805,8 +2831,9 @@ document.addEventListener("click", async e => {
   if (t.dataset.addidx !== undefined) { const status = $("ad-status").value, format = $("ad-version").value || null;
     await act(async () => { const r = await api.add(addState.token, +t.dataset.addidx, status, format); LIB = await api.library();
       toast(r.existing ? "Already in your library" : "Added"); await openDetail(r.id); }, null, "add"); return; }
-  if (t.id === "ed-fill") { const fid = st.selected; await act(async () => { const r = await api.fill(fid);
-    toast(r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know")); await afterItemChange(r.item); }); return; }
+  if (t.id === "ed-fill") { const fid = st.selected; await act(async () => { const r = await api.fill(fid), sug = r.item?.seriesSuggest?.[0];
+    toast((r.changes.length ? "Filled: " + r.changes.map(c => c.field.replace(/_/g, " ")).join(", ") : (r.note || "Nothing missing that the sources know"))
+      + (sug ? `. A series is suggested: “${sug.name}”` : "") + (r.series_error ? ". The series lookup failed: " + r.series_error : ""), !!r.series_error); await afterItemChange(r.item); }); return; }
   if (t.matches(".book")) { if (drag.suppressClick) { drag.suppressClick = false; return; }
     if (canEdit() && (st.sel.size || e.target.closest(".selbox"))) { toggleSel(idsOf(t)); selChanged(); return; }
     return openBook(t, e.detail === 0); }
@@ -2889,6 +2916,7 @@ document.addEventListener("submit", async e => {
   if (f.id === "editall-form") { const fields = editAllFields(); if (!Object.keys(fields).length) { toast("Nothing filled in: nothing to change", true); return; }
     $("editall")?.remove(); return bulkRun({action: "edit", fields}, "Updated", true); }
   if (f.id === "gc-form") return groupCreate($("gc-name").value.trim());
+  if (f.id === "sc-form") return sugCreate($("sc-name").value.trim(), [...f.querySelectorAll("[data-scbook]")].filter(c => c.checked).map(c => c.dataset.scbook), f.dataset.sskey);
   if (f.id === "gform") return groupRename(st.detail?.gid, $("gf-name").value.trim());
   if (f.id === "shelfform") { const s = manualShelf(), name = $("sf-name").value.trim(); if (!s || !name || name === s.name) return;
     await act(async () => { await api.editShelf(s.id, {name}); s.name = name; LIBREV++; renderDatabase(); }, "Renamed", "coll:" + s.id); return; }
@@ -2926,10 +2954,16 @@ document.addEventListener("input", e => {
   if (e.target.id === "filter-q") { st.q = e.target.value; clearTimeout(qTimer); qTimer = setTimeout(renderDatabase, LIB.items.length > 300 ? 140 : 0); }
   if (e.target.id === "search") runSearch(e.target.value);
   if (e.target.id === "ce-q") { COLL.q = e.target.value; const s = manualShelf(); if (s && $("ce-hits")) $("ce-hits").innerHTML = collHitsHtml(s); }
+  if (e.target.id === "sc-name" && SUG.form) SUG.form.name = e.target.value;            // kept through a redraw of the panel
 });
 document.addEventListener("change", e => {
   if (e.target.id === "rf-platform") { const own = $("rf-platform-new"); if (own) { own.hidden = e.target.value !== "__new"; if (!own.hidden) own.focus(); } }
+  // the ticks in a suggestion's list survive the redraws (the review list is drawn again after every batch)
+  if (e.target.dataset?.scbook && SUG.form) SUG.form.on[e.target.checked ? "add" : "delete"](e.target.dataset.scbook);
+  if (e.target.dataset?.ssbook) { const k = e.target.closest(".ss-series")?.dataset.sskey + "|" + e.target.dataset.ssbook;
+    SUG.tick.set(k, e.target.checked); }
 });
+document.addEventListener("toggle", e => { if (e.target.classList?.contains("ss-one")) SUG.oneOpen = e.target.open; }, true);
 document.addEventListener("change", async e => {
   if (e.target.id === "cv-file" && e.target.files[0]) {
     const file = e.target.files[0], id = st.selected;
@@ -3049,7 +3083,8 @@ const barWord = kind => kind === "book" ? gword(kind) : gword(kind, 1);     // "
 function groupBulkHtml() {
   const kind = st.kind, w = barWord(kind), sel = [...st.sel].map(id => LIB.items.find(i => i.id === id)).filter(Boolean);
   const any = (LIB.groups || []).some(g => g.kind === kind), inOne = sel.some(i => i.coll);
-  return (kind === "book" ? `<button class="btn small" data-bulk="gnew" aria-haspopup="true" title="Put these books together as one series: one card on the shelf, in their order">Create ${w}…</button>` : "")
+  return (kind === "book" ? `<button class="btn small" data-bulk="gnew" aria-haspopup="true" title="Put these books together as one series: one card on the shelf, in their order">Create ${w}…</button>`
+      + `<button class="btn small" data-bulk="gsug" title="Look these books up at Open Library for the series they are in: a list to review, nothing changes until you click">Suggest series</button>` : "")
     + (any ? `<button class="btn small" data-bulk="gadd" aria-haspopup="true">Add to ${w}…</button>` : "")
     + (inOne ? `<button class="btn small" data-bulk="gout" title="Out of their ${w}: they stay in your library">Remove from ${w}</button>` : "");
 }
@@ -3138,17 +3173,19 @@ function groupCreate(name) {
     await undoMoves(befores, []);
   }, "grp-new");
 }
-function groupAdd(gid, ids, fromBar) {
+function groupAdd(gid, ids, fromBar, sug) {          // sug: a suggestion's name key (D85: placed by its numbers)
   const g = groupOf(gid), items = ids.map(id => LIB.items.find(i => i.id === id)).filter(i => i && i.coll?.id !== gid); if (!g) return;
   if (!items.length) { toast(`Already in ${g.name}`); return; }
   const moved = items.filter(i => i.coll), befores = Object.fromEntries([...new Set(moved.map(i => i.coll.id))].map(x => [x, orderOf(x)]));
   const fresh = items.filter(i => !i.coll).map(i => i.id), before = orderOf(gid);
   return groupAct(async () => {
-    takeGroup(await api.groupItems(gid, {add: items.map(i => i.id), move: true}));
+    takeGroup(await api.groupItems(gid, Object.assign({add: items.map(i => i.id), move: true}, sug ? {suggestion: sug} : {})));
     if (fromBar) { st.sel.clear(); selChanged(); }
+    if (sug) { SUG.form = null; await sugRefresh(ids); }
   }, `Added to ${g.name}${moved.length ? ": " + moved.length + " moved from another" : ""}`, async () => {
     takeGroup(await api.orderGroup(gid, before.length ? before : orderOf(gid)));        // its own order first
     await undoMoves(befores, fresh);
+    if (sug) await sugRefresh(ids);
   });
 }
 function groupLeave(ids, fromBar) {
@@ -3181,6 +3218,136 @@ function groupDelete(gid) {
     const r = await api.deleteGroup(gid); dropGroup(gid); LIB.groups = r.groups;
     if (st.selected === open) closeDetail();
   }, `${gword(kind, 3)} “${g.name}” deleted: its ${noun(kind)} stay in your library`, async () => takeGroup(await api.restoreGroup(gid)), "grp:" + gid);
+}
+
+// ------------------------------------------- series suggestions (D83-D86)
+// Fill missing and Suggest series keep what Open Library (or a title) says about a book's series; nothing is applied
+// until you click. A book's panel shows its first suggestion: Add to "<your series>" when the name matches one you have,
+// else Create series "<name>" with the other books of yours the source puts in it (ticked in a list, in place). The
+// bar's Suggest series (Books) looks the selection up in turns and lists what was found, by series, to review. Each
+// click is one request with Undo; Not this series hides a suggestion for those books (Undo too).
+const SUG = {series: null, run: null, seq: 0, form: null, tick: new Map()};
+// where a suggestion comes from, as the start of a sentence, and short for the review list
+const sugLead = s => s.how !== "title" ? (SRC[s.source] || s.source) + " has it as" : s.source === "apple" ? "Apple Books' title says"
+  : s.source === "openlibrary" ? "Open Library's title says" : "Its title says";
+const sugSrc = s => s.how === "title" ? (s.source === "apple" ? "Apple Books' title" : s.source === "openlibrary" ? "Open Library's title" : "its title") : SRC[s.source] || s.source;
+const sugWhat = s => s.number != null ? `book ${s.number} of “${esc(s.name)}”` : `in “${esc(s.name)}”`;
+const sameAuthor = (a, b) => { const x = splitList(a?.authors || "", ","), y = splitList(b?.authors || "", ",");
+  return !x.length || !y.length || x.some(n => y.some(m => fold(m) === fold(n))); };
+const sugBooks = (rows, me) => rows.map(o => ({...o, item: LIB.items.find(i => i.id === o.id)})).filter(o => o.item && o.item.kind === "book" && !o.item.coll)
+  .sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9) || (a.item.published ?? 99999) - (b.item.published ?? 99999));
+// a book in a suggestion's list: its number, title, year, and its author where it may differ (the source when a title said it)
+const sugRow = (o, attr, on, me) => `<li><label><input type="checkbox" ${attr}="${o.id}" ${on ? "checked" : ""}${o.self ? " disabled" : ""}><span>${o.number != null ? `<span class="sc-n">${o.number}.</span> ` : ""}${esc(tt(o.item))}${o.item.published ? ` <span class="muted">(${o.item.published})</span>` : ""}${!me || !sameAuthor(o.item, me) ? ` <span class="muted">· ${esc(o.item.authors || "no author")}${!me && o.how === "title" ? " · from " + esc(sugSrc(o)) : ""}</span>` : ""}</span></label></li>`;
+// a book's panel: its first suggestion (unlocked, the book in no series)
+function seriesSuggestHtml(d) {
+  if (d.kind !== "book" || d.coll || !canEdit() || PREVIEW || !d.seriesSuggest?.length) return "";
+  const s = d.seriesSuggest[0], me = LIB.items.find(i => i.id === d.id) || d, others = sugBooks(s.others, me), F = SUG.form;
+  const open = F && F.id === d.id && F.key === s.key;
+  const mine = s.group && fold(s.group.name) !== fold(s.name) ? ` (your series “${esc(s.group.name)}”)` : "";
+  const acts = s.group ? `<button class="btn small primary" id="ss-add" data-sskey="${esc(s.key)}" data-ssgroup="${esc(s.group.id)}">Add to “${esc(s.group.name)}”</button>`
+    : open ? "" : `<button class="btn small primary" id="ss-new" data-sskey="${esc(s.key)}"${others.length ? ` aria-expanded="false"` : ""}>Create series “${esc(s.name)}”${others.length ? "…" : ""}</button>`;
+  const rows = [{...s, id: d.id, self: true, item: me}, ...others].sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9) || (a.item.published ?? 99999) - (b.item.published ?? 99999));
+  return `<div class="d-sec sersug" id="d-sersug"><h3>Series?</h3>
+    <p>${esc(sugLead(s))} ${sugWhat(s)}${mine}.${others.length ? ` ${others.length} more of your books ${others.length === 1 ? "is" : "are"} in it.` : ""}</p>
+    ${open ? `<form id="sc-form" class="gcform" data-sskey="${esc(s.key)}" aria-label="Create a book series"><label for="sc-name">Name</label>
+      <input id="sc-name" value="${esc(F.name)}" maxlength="300" autocomplete="off" spellcheck="false" required>
+      <p class="muted">Your books in it, in their order (by number, else first publication). Untick those that don't belong:</p>
+      <ul class="sc-list" id="sc-list">${rows.map(o => sugRow(o, "data-scbook", o.self || F.on.has(o.id), me)).join("")}</ul>
+      <div class="row-actions"><button type="button" class="btn small" id="sc-cancel">Cancel</button><button type="submit" class="btn small primary" id="sc-ok">Create series</button></div></form>` : ""}
+    ${acts || !open ? `<div class="row-actions">${acts}<button class="btn small" id="ss-no" data-sskey="${esc(s.key)}" data-ssname="${esc(s.name)}" title="Hide this suggestion for this book">Not this series</button><button class="linkbtn" id="ss-all" title="Every suggestion found so far, by series">All suggestions</button></div>` : ""}</div>`;
+}
+function sugNewClick(btn) {
+  const d = st.detail, s = d?.seriesSuggest?.find(x => x.key === btn.dataset.sskey); if (!s) return;
+  const me = LIB.items.find(i => i.id === d.id) || d, others = sugBooks(s.others, me);
+  if (!others.length) return sugCreate(s.name, [d.id], s.key);
+  SUG.form = {id: d.id, key: s.key, name: s.name, on: new Set(others.filter(o => sameAuthor(o.item, me)).map(o => o.id))};
+  renderDetail(); $("sc-name")?.focus({preventScroll: true}); $("sc-name")?.select();
+}
+// after a change: the open book's panel ("Book 2 of 4", its suggestion) or the review list
+async function sugRefresh(ids) {
+  if (st.selected === "__series") SUG.series = (await api.seriesSuggestions()).series;
+  else if (st.selected && ids.includes(st.selected)) st.detail = await api.detail(st.selected);
+}
+function sugCreate(name, ids, key) {
+  if (!name || !ids.length) return;
+  let made = null;
+  return groupAct(async () => {
+    const r = await api.newGroup("book", name, ids, false, key); made = r.id; takeGroup(r); SUG.form = null; await sugRefresh(ids);
+  }, `Book series “${name}” created with ${ids.length} ${noun("book", ids.length)}`, async () => {
+    const r = await api.deleteGroup(made); dropGroup(made); LIB.groups = r.groups; await sugRefresh(ids);
+  }, "grp-new");
+}
+function sugDismiss(ids, key, name) {
+  const run = back => async () => { const r = await api.dismissSeries(ids, key, back); SUG.series = r.series; await sugRefresh(ids); SUG.form = null; groupRedraw(); };
+  return act(async () => {
+    await run(false)();
+    toast(`“${name}” is no longer suggested for ${ids.length === 1 ? (ids[0] === st.selected ? "this book" : "that book") : ids.length + " books"}`, false,
+      {label: "Undo", run: () => act(async () => { await run(true)(); toast("Undone"); }, null, "undo:sug:" + (++SUG.seq))});
+  }, null, "sug");
+}
+// the review list (the panel "__series"): the selection looked up in turns of 10, what was found by series
+function sugOpen(ids) {
+  if (!canEdit()) return act(GATE);
+  const todo = (ids || []).filter(id => { const i = LIB.items.find(x => x.id === id); return i && i.kind === "book" && !i.coll; });
+  if (ids) SUG.run = {todo, total: todo.length, error: null, stopped: false, busy: false};
+  st.selected = "__series"; st.detail = null; st.editing = false; SUG.form = null;
+  if (ids) { st.sel.clear(); selChanged(); }
+  renderDatabase(); $("d-title")?.focus({preventScroll: true});
+  sugLoop();
+}
+async function sugLoop() {
+  const run = SUG.run;
+  try { if (!SUG.series || !run) SUG.series = (await api.seriesSuggestions()).series; } catch (e) { if (run) run.error = e.message; }
+  if (st.selected === "__series") renderDetail();
+  if (!run || run.busy) return;
+  run.busy = true;
+  while (run === SUG.run && run.todo.length && !run.stopped && !run.error && st.selected === "__series") {
+    const batch = run.todo.slice(0, 10);
+    try {
+      const r = await api.suggestSeries(batch);
+      run.todo = run.todo.filter(id => !batch.includes(id) || (r.left || []).includes(id));
+      SUG.series = r.series; if (r.error) run.error = r.error;
+    } catch (e) { run.error = e.message; }
+    if (st.selected === "__series") renderDetail();
+  }
+  run.busy = false; if (st.selected === "__series") renderDetail();
+}
+function sugProgress(run) {
+  const done = run.total - run.todo.length, n = run.todo.length;
+  if (run.error) return `${esc(run.error)}. ${n} ${noun("book", n)} not looked up. <button class="btn small" id="ss-retry">Try again</button>`;
+  if (n && (run.stopped || !run.busy)) return `Stopped: ${done} of ${run.total} looked up. <button class="btn small" id="ss-retry">Go on</button>`;
+  if (n) return `Looking up ${done} of ${run.total} at Open Library… <button class="btn small" id="ss-stop">Stop</button>`;
+  return `Looked up ${run.total} ${noun("book", run.total)}.`;
+}
+function sugSeriesHtml(x) {
+  const books = sugBooks(x.books), first = books[0]?.item;
+  if (!books.length) return "";
+  const mine = x.group && fold(x.group.name) !== fold(x.name) ? ` <span class="muted">· your “${esc(x.group.name)}”</span>` : "";
+  const from = [...new Set(books.map(b => b.how === "title" ? "titles" : SRC[b.source] || b.source))].join(", ");
+  return `<section class="ss-series" data-sskey="${esc(x.key)}" aria-label="${esc(x.name)}"><h3>${esc(x.name)}${mine} <span class="muted ss-from">· ${esc(from)}</span></h3>
+    <ul class="sc-list">${books.map(b => sugRow(b, "data-ssbook", SUG.tick.get(x.key + "|" + b.id) ?? sameAuthor(b.item, first), null)).join("")}</ul>
+    <div class="row-actions"><button class="btn small primary" data-ssapply="${esc(x.key)}">${x.group ? `Add to “${esc(x.group.name)}”` : books.length === 1 ? "Create series" : `Create series of ${books.length}`}</button><button class="btn small" data-ssno="${esc(x.key)}" title="Hide this suggestion for these books">Not a series</button></div></section>`;
+}
+function seriesReviewRender(el) {
+  const a = document.activeElement, keep = a && el.contains(a) ? (a.id ? "#" + a.id : ["ssbook", "ssapply", "ssno"].map(k => a.dataset[k] != null ? `[data-${k}="${CSS.escape(a.dataset[k])}"]` : "").find(Boolean)) : null;
+  const run = SUG.run, list = (SUG.series || []).filter(x => sugBooks(x.books).length);
+  const many = list.filter(x => x.books.length > 1 || x.group), one = list.filter(x => x.books.length === 1 && !x.group);
+  el.innerHTML = `<button class="xbtn" id="d-close" aria-label="Close">✕</button>
+    <h2 id="d-title" tabindex="-1">Series suggestions</h2>
+    <p class="muted" style="font-size:12.5px;margin:2px 0 0">Open Library's series for your books, and series named in their titles. Nothing changes until you click; each change has Undo. Untick a book that doesn't belong.</p>
+    ${run ? `<p class="ss-progress" id="ss-progress" role="status">${sugProgress(run)}</p>` : ""}
+    ${!SUG.series ? `<p class="muted">Loading…</p>` : !list.length ? `<p class="muted" id="ss-none">No suggestions${run && !run.todo.length ? " for these books" : " yet: select books and choose Suggest series in the bar"}.</p>` : ""}
+    <div id="ss-list">${many.map(sugSeriesHtml).join("")}
+    ${one.length ? `<details class="more ss-one"${SUG.oneOpen ? " open" : ""}><summary>${one.length} ${one.length === 1 ? "series" : "series"} with one of your books</summary>${one.map(sugSeriesHtml).join("")}</details>` : ""}</div>`;
+  const back = keep && el.querySelector(keep);
+  if (back && !back.disabled) back.focus({preventScroll: true});
+}
+function sugApply(key) {
+  const x = (SUG.series || []).find(s => s.key === key), sec = [...document.querySelectorAll(".ss-series")].find(e => e.dataset.sskey === key);
+  if (!x || !sec) return;
+  const ids = [...sec.querySelectorAll("[data-ssbook]")].filter(c => c.checked).map(c => c.dataset.ssbook);
+  if (!ids.length) { toast("Tick the books that belong in it first", true); return; }
+  return x.group ? groupAdd(x.group.id, ids, false, key) : sugCreate(x.name, ids, key);
 }
 
 // ------------------------------------------------------------- add a book
@@ -4125,6 +4292,9 @@ function makePreviewApi(P) {
     async epubAdd() { throw new Error("Adding from an EPUB needs the server."); },
     async lookup() { throw new Error("Adding a book looks it up at Apple Books and Open Library. That runs on the server; this preview can't reach them."); },
     async fill() { throw new Error("Filling missing details looks them up at Apple Books and Open Library. That runs on the server, not in this preview."); },
+    async suggestSeries() { throw new Error("Suggest series looks the books up at Open Library. That runs on the server, not in this preview."); },
+    async seriesSuggestions() { return {series: []}; },
+    async dismissSeries() { return {changed: 0, series: []}; },
     async move(sid, item, to) { const s = S.library.shelves.find(x => x.id === sid); const order = s.items.filter(x => x !== item); order.splice(to - 1, 0, item); s.items = order; persist(); return {ok: true}; },
     // book series and film collections (D76): the item's coll and the list of groups, as the server answers
     _G() { return (S.library.groups = S.library.groups || []); },

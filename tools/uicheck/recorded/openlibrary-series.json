@@ -1,0 +1,280 @@
+[
+ {
+  "url": "https://openlibrary.org/search.json?isbn=9780999990018&limit=3&fields=key%2Ctitle%2Csubtitle%2Cauthor_name%2Cfirst_publish_year%2Cseries_key%2Cseries_name%2Cseries_position",
+  "body": {
+   "numFound": 1,
+   "docs": [
+    {
+     "key": "/works/OL9900011W",
+     "title": "Lantern Dawn",
+     "author_name": [
+      "Uma Checker"
+     ],
+     "series_key": [
+      "OL9900001L"
+     ],
+     "series_name": [
+      "The Lantern Cycle"
+     ],
+     "series_position": [
+      "1"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://openlibrary.org/search.json?isbn=9780999990025&limit=3&fields=key%2Ctitle%2Csubtitle%2Cauthor_name%2Cfirst_publish_year%2Cseries_key%2Cseries_name%2Cseries_position",
+  "body": {
+   "numFound": 1,
+   "docs": [
+    {
+     "key": "/works/OL9900012W",
+     "title": "Lantern Noon",
+     "author_name": [
+      "Uma Checker"
+     ],
+     "series_key": [
+      "OL9900001L"
+     ],
+     "series_name": [
+      "The Lantern Cycle"
+     ],
+     "series_position": [
+      "2"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://openlibrary.org/search.json?isbn=9780999990032&limit=3&fields=key%2Ctitle%2Csubtitle%2Cauthor_name%2Cfirst_publish_year%2Cseries_key%2Cseries_name%2Cseries_position",
+  "body": {
+   "numFound": 1,
+   "docs": [
+    {
+     "key": "/works/OL9900013W",
+     "title": "Lantern Dusk",
+     "author_name": [
+      "Uma Checker"
+     ],
+     "series_key": [
+      "OL9900001L"
+     ],
+     "series_name": [
+      "The Lantern Cycle"
+     ],
+     "series_position": [
+      "3"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://openlibrary.org/search.json?title=lantern+night&author=checker&limit=5&fields=key%2Ctitle%2Csubtitle%2Cauthor_name%2Cfirst_publish_year%2Cseries_key%2Cseries_name%2Cseries_position",
+  "body": {
+   "numFound": 1,
+   "docs": [
+    {
+     "key": "/works/OL9900014W",
+     "title": "Lantern Night",
+     "author_name": [
+      "Uma Checker"
+     ],
+     "series_key": [
+      "OL9900001L"
+     ],
+     "series_name": [
+      "The Lantern Cycle"
+     ],
+     "series_position": [
+      "4"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://openlibrary.org/search.json?q=series_key%3AOL9900001L&limit=100&fields=key%2Ctitle%2Csubtitle%2Cauthor_name%2Cfirst_publish_year%2Cseries_key%2Cseries_name%2Cseries_position",
+  "body": {
+   "numFound": 5,
+   "docs": [
+    {
+     "key": "/works/OL9900011W",
+     "title": "Lantern Dawn",
+     "author_name": [
+      "Uma Checker"
+     ],
+     "series_key": [
+      "OL9900001L"
+     ],
+     "series_name": [
+      "The Lantern Cycle"
+     ],
+     "series_position": [
+      "1"
+     ]
+    },
+    {
+     "key": "/works/OL9900012W",
+     "title": "Lantern Noon",
+     "author_name": [
+      "Uma Checker"
+     ],
+     "series_key": [
+      "OL9900001L"
+     ],
+     "series_name": [
+      "The Lantern Cycle"
+     ],
+     "series_position": [
+      "2"
+     ]
+    },
+    {
+     "key": "/works/OL9900013W",
+     "title": "Lantern Dusk",
+     "author_name": [
+      "Uma Checker"
+     ],
+     "series_key": [
+      "OL9900001L"
+     ],
+     "series_name": [
+      "The Lantern Cycle"
+     ],
+     "series_position": [
+      "3"
+     ]
+    },
+    {
+     "key": "/works/OL9900014W",
+     "title": "Lantern Night",
+     "author_name": [
+      "Uma Checker"
+     ],
+     "series_key": [
+      "OL9900001L"
+     ],
+     "series_name": [
+      "The Lantern Cycle"
+     ],
+     "series_position": [
+      "4"
+     ]
+    },
+    {
+     "key": "/works/OL9900015W",
+     "title": "Lantern Days (omnibus)",
+     "author_name": [
+      "Uma Checker"
+     ],
+     "series_key": [
+      "OL9900001L"
+     ],
+     "series_name": [
+      "The Lantern Cycle"
+     ],
+     "series_position": [
+      "1-2"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://openlibrary.org/search.json?isbn=9780999990223&limit=3&fields=key%2Ctitle%2Csubtitle%2Cauthor_name%2Cfirst_publish_year%2Cseries_key%2Cseries_name%2Cseries_position",
+  "body": {
+   "numFound": 1,
+   "docs": [
+    {
+     "key": "/works/OL9900022W",
+     "title": "Ember Two",
+     "author_name": [
+      "Lea Checker"
+     ],
+     "series_key": [
+      "OL9900002L"
+     ],
+     "series_name": [
+      "Ember Songs"
+     ],
+     "series_position": [
+      "2"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://openlibrary.org/search.json?q=series_key%3AOL9900002L&limit=100&fields=key%2Ctitle%2Csubtitle%2Cauthor_name%2Cfirst_publish_year%2Cseries_key%2Cseries_name%2Cseries_position",
+  "body": {
+   "numFound": 3,
+   "docs": [
+    {
+     "key": "/works/OL9900021W",
+     "title": "Ember One",
+     "author_name": [
+      "Lea Checker"
+     ],
+     "series_key": [
+      "OL9900002L"
+     ],
+     "series_name": [
+      "Ember Songs"
+     ],
+     "series_position": [
+      "1"
+     ]
+    },
+    {
+     "key": "/works/OL9900022W",
+     "title": "Ember Two",
+     "author_name": [
+      "Lea Checker"
+     ],
+     "series_key": [
+      "OL9900002L"
+     ],
+     "series_name": [
+      "Ember Songs"
+     ],
+     "series_position": [
+      "2"
+     ]
+    },
+    {
+     "key": "/works/OL9900023W",
+     "title": "Ember Three",
+     "author_name": [
+      "Lea Checker"
+     ],
+     "series_key": [
+      "OL9900002L"
+     ],
+     "series_name": [
+      "Ember Songs"
+     ],
+     "series_position": [
+      "3"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://openlibrary.org/search.json?isbn=9780999990315&limit=3&fields=key%2Ctitle%2Csubtitle%2Cauthor_name%2Cfirst_publish_year%2Cseries_key%2Cseries_name%2Cseries_position",
+  "body": {
+   "numFound": 0,
+   "docs": []
+  }
+ },
+ {
+  "url": "https://openlibrary.org/search.json?title=glass+harbor&author=checker&limit=5&fields=key%2Ctitle%2Csubtitle%2Cauthor_name%2Cfirst_publish_year%2Cseries_key%2Cseries_name%2Cseries_position",
+  "body": {
+   "numFound": 0,
+   "docs": []
+  }
+ }
+]

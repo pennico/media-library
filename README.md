@@ -25,7 +25,10 @@ looks like a bookshelf.
   remove them, put them in order, each change with Undo.
 - **Book series**: select books and Create series…: one card on the shelf, a
   panel with the books in their order, "Book 2 of 4" on each; on Movies the
-  same bar adds films to a film collection.
+  same bar adds films to a film collection. Fill missing and Suggest series
+  find the series a book is in (Open Library, or its title) and offer it:
+  Add to your series, or Create it with your other books in it, one click
+  with Undo; a list to review for many books at once.
 - **Sections and quick actions**: folders in the left pane (and an Archive);
   select covers, rows or everything and mark them read, move, archive,
   delete, or edit them all at once (only the fields you fill in change).
@@ -74,7 +77,7 @@ Status: 1.0.0, used daily by its author.
 |---|---|
 | [`docs/INSTALL.md`](docs/INSTALL.md) | install, update, backups, rollback |
 | [`DESIGN.md`](DESIGN.md) | needs, PostgreSQL vs MySQL, schema, integrity and operations, import mapping |
-| [`DECISIONS.md`](DECISIONS.md) | design decisions (cited in the code as D1…D82) |
+| [`DECISIONS.md`](DECISIONS.md) | design decisions (cited in the code as D1…D87) |
 | [`SECURITY.md`](SECURITY.md) | security model and how to report a problem |
 | [`CHANGELOG.md`](CHANGELOG.md) | releases |
 

@@ -79,7 +79,9 @@ def run_one(name, args, base_env, template):
         from medialib.web import auth
         with open(os.path.join(state, "pw"), "w") as fh:
             fh.write(auth.hash_password(pw) + "\n")
+        # lookups (Fill missing, Suggest series, TMDB) answer from recorded/ only: a check never reaches the network
         env.update(MEDIALIB_MEDIA_DIR=os.path.join(ROOT, "media"), OWNER_LOGIN=LOGIN, MEDIALIB_COOKIE_SECURE="0",
+                   MEDIALIB_HTTP_RECORDED=os.path.join(HERE, "recorded"),
                    MEDIALIB_ORIGIN="http://127.0.0.1:{}".format(port), MEDIALIB_PASSWORD_FILE=os.path.join(state, "pw"),
                    MEDIALIB_PASSKEYS_FILE=os.path.join(state, "passkeys.json"), MEDIALIB_STATE_DIR=state)
         log = open(os.path.join(state, "server.log"), "w")

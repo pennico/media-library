@@ -1632,4 +1632,74 @@ detail has the membership's label under `prov.group`, and the history shows
   one author a series, 4x slower CPU): 1,270 cards instead of 1,540; the timed
   clicks take 110-380 ms as on main without series (110-420 ms), opening a
   series' panel 290 ms.
-- **Not done**: suggestions of a series from the book sources (D81).
+- **Suggestions** of a series from the book sources: §24.
+
+## 24. Series suggestions (2026-11-18, D83-D87)
+
+Fill missing and Suggest series find the series a book is in and keep it as a
+**suggestion**; nothing goes into a series until the owner clicks (D83).
+
+**Sources** (`medialib/fill/series.py`), strongest first:
+
+| Source | How | Kept when |
+|---|---|---|
+| Open Library's series | its search, `fields=…series_key,series_name,series_position`, by `isbn=`, else `q=key:/works/OL…W`, else `title=` + `author=` (the title's score ≥ 0.9, an author agreeing) | always (a curated series on the work), with its position as the number ("1-2", an omnibus: no number) |
+| A title | the book's own (and subtitle), Apple Books' or Open Library's: a trailing "(Name, Book 2)", a subtitle "Name, Book One" / "Book One of the Name", a head "Name Volume 1", "Name #4" | a marker (#, Book, Vol., Part, Tome, Libro, Bind…) and a number (digits, I–XL, one–twenty, first–tenth) |
+| An edition's `series` field | free text: "Name ; 2", "Name -- bk. 2", "Name (Book 2)", "Name, v. 2" | only with a number |
+
+Apple Books' answers have no series field; Google Books is not asked. Never
+kept (D86): a name with an imprint word (classics, library, collection,
+edition, pocket, Penguin, Oscar, Einaudi, Gyldendal…, or "A … book"), a
+number above 99, a generic word alone ("Trilogy"), a name ending in "of",
+"the", "di"… (cut from a sentence). One request per book; for each Open
+Library series found, one more (`q=series_key:OL…L`) lists its works, which
+finds the library's other books in it (any of a book's titles with the same
+main title, and an author agreeing; never by title alone) with their
+numbers. Names that fold alike are one suggestion: the strongest source's
+name, the first number any gives.
+
+**Storage** (migration 0032): `ingest.series_suggestion`, one row per book
+and folded name (`name_key`: no accents, lower case, no leading article, no
+trailing series / serie / saga / cycle / trilogy / sequence): `name` as the
+source writes it, `number` (numeric(5,1)), `source` (a `catalog.data_source`
+code: `openlibrary`, `apple`, or the label of the title it was read from),
+`how` (`series` / `title`), `ref` (Open Library's series key), `raw` (what it
+was read from), `found_at`, `dismissed_at`. Not audited (what a source said,
+like `ingest.source_record`); the owner's applying is (`catalog.group_member`).
+A row found again keeps its dismissal and a number it had. A purge deletes the
+rows with the item.
+
+**Shown** for a book in the library, not in a live series, not dismissed:
+`/api/items/<id>` has `seriesSuggest` (the one matching a series of yours
+first, then the strongest), each with `group` (the series it matches, by
+folded name) and `others` (the other books suggested for it);
+`GET /api/series/suggestions` lists them all by series.
+
+**API** (owner, unlocked):
+
+| Request | |
+|---|---|
+| `POST /api/series/suggest {items}` | 1–10 books looked up (those in a series skipped); answers `looked`, `left` and `error` (a failing source stops the rest), `found`, and the listing |
+| `POST /api/series/dismiss {items, key, back}` | Not this series (back: its Undo) |
+| `POST /api/groups {…, suggestion: key}` / `POST /api/groups/<id>/items {add, suggestion}` | create / add placed by the numbers kept for that key (`groups.place(…, numbers)`: before the first member numbered higher; without numbers by date, D77) |
+
+**Console**: a book's panel (unlocked) has a **Series?** box at the top: where
+it comes from and the number ("Open Library has it as book 2 of “The
+Inheritance Cycle”. 3 more of your books are in it."), **Add to “<your
+series>”**, or **Create series “<name>”** (at once; with others, a form in
+the box: the name, the books by number then date, this one fixed, the others
+ticked when they share an author; kept through a redraw), **Not this series**
+and **All suggestions**. The bar on Books has **Suggest series**: the panel
+becomes the review list (`__series`), the page sends the selection ten at a
+time ("Looking up 30 of 150…", Stop, Try again after a failure, which names
+why), and after each answer lists what was found by series: a series of
+yours first, then by how many of your books, those with one book under a fold;
+each with its books (number, title, year, author; ticks kept through the
+redraws), Create series of N / Add to “…” and Not a series. Every click is
+one request with Undo. Fill missing's message says when a series is
+suggested. Locked: no box, no bar. Movies: none of it (TMDB's collections).
+
+**Checks**: `tests/test_series_suggest.py` (parsing, the fake Open Library,
+keeping, dismissing, the API's order by numbers, the recorded fetcher, the
+purge); `tools/uicheck/checks/series-suggest.js` with made-up books and
+recorded answers (D87: `MEDIALIB_HTTP_RECORDED`, no network in any check).

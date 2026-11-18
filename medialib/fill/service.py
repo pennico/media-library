@@ -8,7 +8,8 @@ one already in the library (DESIGN.md §7).
   entry's status is the owner's choice.
 - `fill_missing` only fills empty fields. The database refuses any change
   to a value the owner set (provenance guard), and this code skips such
-  fields before trying.
+  fields before trying. It also looks for the book's series and keeps what
+  it finds as a suggestion (`series.py`, D83), never applied here.
 """
 import collections
 import datetime
@@ -86,6 +87,29 @@ def http_fetcher(cache_dir, pause=0.4, timeout=20):
     return fetch
 
 
+def recorded_fetcher(folder):
+    """fetch(url) from recorded answers only, never the network (MEDIALIB_HTTP_RECORDED: the browser checks):
+    every *.json in the folder is a list of {url, body}. A URL that is not recorded is a FillError."""
+    answers = {}
+    for name in sorted(os.listdir(folder)):
+        if name.endswith(".json"):
+            with open(os.path.join(folder, name), encoding="utf-8") as fh:
+                answers.update((r["url"], r["body"]) for r in json.load(fh))
+
+    def fetch(url):
+        if url not in answers:
+            raise FillError("not among the recorded answers: " + url)
+        return answers[url]
+    return fetch
+
+
+def fetcher(media_dir):
+    """The fetch the app uses: cached on disk under media/cache/http, or the recorded answers when
+    MEDIALIB_HTTP_RECORDED names a folder of them."""
+    rec = os.environ.get("MEDIALIB_HTTP_RECORDED")
+    return recorded_fetcher(rec) if rec else http_fetcher(os.path.join(media_dir, "cache", "http"))
+
+
 def google_key(path=None):
     """The optional Google Books API key (a secrets file; keyless calls get 429)."""
     path = path or os.environ.get("MEDIALIB_GOOGLE_BOOKS_KEY_FILE", "/run/secrets/google-books.key")
@@ -99,8 +123,7 @@ def google_key(path=None):
 def make(media_dir, store=None):
     """The Fill the app, the feeds and the CLI use: disk-cached lookups, Google with a key."""
     from ..covers import CoverStore
-    return Fill(store or CoverStore(media_dir, log=lambda *_: None),
-                http_fetcher(os.path.join(media_dir, "cache", "http")), google_key=google_key())
+    return Fill(store or CoverStore(media_dir, log=lambda *_: None), fetcher(media_dir), google_key=google_key())
 
 
 def _raise(e):
@@ -110,6 +133,7 @@ def _raise(e):
 class Fill:
     def __init__(self, store, fetch, google_key=None):
         self.store = store
+        self.fetch = fetch
         self.apple = P.AppleBooks(fetch)
         self.ol = P.OpenLibrary(fetch)
         # Google answers 429 to keyless calls (shared quota 0): only with a key
@@ -405,7 +429,8 @@ class Fill:
                     if c.score >= 0.9 and (authors or c.provider == "openlibrary"):
                         cands.append(c)
         if not cands:
-            return {"changes": [], "note": "no confident match at Apple Books, Open Library or Google Books"}
+            return self._series(conn, login, pid, [], {"changes": [], "note": "no confident match at Apple Books,"
+                                                       " Open Library or Google Books"})
         cands.sort(key=lambda c: (-c.score, c.provider != "openlibrary"))
         m = self._merge(cands[0], cands)
         has_cover = conn.execute("SELECT 1 AS x FROM catalog.cover WHERE edition_id = %s AND is_chosen AND deleted_at IS NULL",
@@ -470,8 +495,22 @@ class Fill:
                              (it["edition_id"], cover["source"], cover["url"], cover["local_path"], cover["sha256"],
                               cover["mime"], cover["width"], cover["height"], cover["bytes"], cover.get("fetched_at")))
                 changes.append({"field": "cover", "value": cover["url"], "from": cover["source"]})
-        return {"changes": changes, "matched": {"title": cands[0].title, "authors": cands[0].authors,
-                                                "provider": cands[0].provider, "score": cands[0].score}}
+        return self._series(conn, login, pid, cands, {
+            "changes": changes, "matched": {"title": cands[0].title, "authors": cands[0].authors,
+                                            "provider": cands[0].provider, "score": cands[0].score}})
+
+    def _series(self, conn, login, pid, cands, res):
+        """Fill missing's last step: the book's series as a suggestion (D83), from Open Library and the titles the
+        candidates have; a book already in a series is not looked up. A failing lookup is only a note."""
+        from . import series
+        book = series.books(conn, [pid])
+        if not book or book[0]["grouped"]:
+            return res
+        got = series.suggest(conn, series.Finder(self.fetch), book, "console:" + (login or "unknown"),
+                             extra={book[0]["id"]: series.from_candidates(cands)})
+        if got["error"]:
+            res["series_error"] = got["error"]
+        return res
 
 
 def _partial(s):

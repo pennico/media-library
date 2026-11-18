@@ -283,7 +283,11 @@ optional (6d). Book series (2026-11-18): migration 0031 moves the film
 collections into the new group tables (`catalog.item_group`,
 `catalog.group_member`) and drops `catalog.movie.collection_id`, so code from
 before it cannot read the database after it: to go back, restore the dump
-taken before the update (7).
+taken before the update (7). Series suggestions (2026-11-18): migration 0032
+adds one table (`ingest.series_suggestion`) and changes nothing else; to go
+back to the code before it, drop that table and its row in
+`meta.schema_migration` (version 32) as the superuser, so the health check
+expects 31 again; the series themselves stay.
 
 ## Upgrades
 

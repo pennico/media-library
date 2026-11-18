@@ -4,6 +4,7 @@ import collections
 import datetime
 
 from .. import groups
+from ..fill import series as series_mod
 
 KINDS = ("book", "movie", "series")
 PROVIDER_URL = {
@@ -325,8 +326,73 @@ def detail(conn, pid):
                  "group": labels(member["provenance"]) if member else {}},
         "shelves": [dict(s) for s in shelves],
         "history": history(conn, iid, ed_ids, [r["id"] for r in reads], it["kind"]),
+        "seriesSuggest": item_suggestions(conn, iid) if it["kind"] == "book" else [],
     })
     return d
+
+
+# ------------------------------------------------------------------ series suggestions (D83-D86)
+# What Fill missing and Suggest series found (ingest.series_suggestion), for books in no series, not dismissed.
+
+SUGGESTED = """
+SELECT s.item_id, i.public_id::text AS id, s.name_key AS key, s.name, s.number, s.source, s.how, s.ref, s.raw
+  FROM ingest.series_suggestion s
+  JOIN catalog.media_item i ON i.id = s.item_id AND i.deleted_at IS NULL AND i.kind = 'book'
+  JOIN library.entry e ON e.item_id = i.id AND e.deleted_at IS NULL
+ WHERE s.dismissed_at IS NULL
+   AND NOT EXISTS (SELECT 1 FROM catalog.group_member gm JOIN catalog.item_group g ON g.id = gm.group_id AND g.deleted_at IS NULL
+                    WHERE gm.item_id = s.item_id)
+"""
+
+
+def _num(v):
+    return None if v is None else int(v) if v == int(v) else float(v)
+
+
+def _strength(r):
+    return 3 if r["ref"] else 2 if r["how"] == "title" else 1
+
+
+def _book(r):
+    return {"id": r["id"], "number": _num(r["number"]), "source": r["source"], "how": r["how"], "raw": r["raw"]}
+
+
+def _series_by_key(conn):
+    """The live book series by name key (the first by name when two fold alike)."""
+    out = {}
+    for g in groups.listing(conn):
+        if g["kind"] == "book":
+            out.setdefault(series_mod.key(g["name"]), {"id": g["id"], "name": g["name"]})
+    return out
+
+
+def series_suggestions(conn):
+    """Every live suggestion, by series: [{key, name, ref, group: {id, name} or None, books: [{id, number, source, how,
+    raw}]}], the series with more of the library's books first. `group`: the series of yours it matches."""
+    by = {}
+    for r in conn.execute(SUGGESTED + " ORDER BY s.name_key, s.number NULLS LAST, i.sort_title, i.id").fetchall():
+        by.setdefault(r["key"], []).append(r)
+    have = _series_by_key(conn)
+    out = [{"key": k, "name": max(rows, key=_strength)["name"], "ref": next((r["ref"] for r in rows if r["ref"]), None),
+            "group": have.get(k), "books": [_book(r) for r in rows]} for k, rows in by.items()]
+    out.sort(key=lambda x: (x["group"] is None, -len(x["books"]), x["name"].lower()))
+    return out
+
+
+def item_suggestions(conn, iid):
+    """A book's live suggestions, the one matching a series of yours first, then the strongest source:
+    [{key, name, number, source, how, raw, group, others: [{id, number, ...}] (the other books suggested for it)}]."""
+    rows = conn.execute(SUGGESTED + " AND s.item_id = %s", (iid,)).fetchall()
+    if not rows:
+        return []
+    have = _series_by_key(conn)
+    out = []
+    for r in sorted(rows, key=lambda r: (r["key"] not in have, -_strength(r))):
+        others = conn.execute(SUGGESTED + " AND s.name_key = %s AND s.item_id <> %s ORDER BY s.number NULLS LAST, i.sort_title",
+                              (r["key"], iid)).fetchall()
+        out.append(dict(_book(r), key=r["key"], name=r["name"], ref=r["ref"], group=have.get(r["key"]),
+                        others=[_book(o) for o in others]))
+    return out
 
 
 def screen_detail(conn, iid, kind):

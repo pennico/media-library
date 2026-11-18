@@ -45,6 +45,7 @@ WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 MAX_BODY = 256 * 1024
 MAX_COVER = 15 * 1024 * 1024
 MAX_EBOOK = 500 * 1024 * 1024
+SUGGEST_BATCH = 10                     # books per Suggest series request (D84): one or two Open Library requests each
 THUMB_WIDTHS = (160, 320, 480, 640)      # the shelf picks one for the cover's size and the screen (srcset)
 LIB_TTL = 30                              # seconds a built /api/library answer is reused while nothing changed
 LOCKED = "Too many wrong passwords. Try again in 10 minutes, or use Touch ID / Face ID."
@@ -131,7 +132,7 @@ class App:
         self.find = self.saved_find() or self.find_default
         self.store = CoverStore(cfg.media_dir, log=lambda *_: None)
         self.fill = fill_service.make(cfg.media_dir, self.store)
-        self.tmdb = tmdb_mod.Tmdb(fill_service.http_fetcher(os.path.join(cfg.media_dir, "cache", "http")), tmdb_mod.api_key())
+        self.tmdb = tmdb_mod.Tmdb(fill_service.fetcher(cfg.media_dir), tmdb_mod.api_key())
         self.cookie_secure = cookie_secure
         # one unlock for the consoles on this host (auth.py, owner 2026-11-08): the finance console's cookie too
         self.cookie_name = auth_mod.UNLOCK_COOKIE if cookie_secure else auth_mod.UNLOCK_COOKIE_DEV
@@ -363,6 +364,9 @@ def make_handler(app):
                         return self.error(400, "ids: 1 to 200 item ids, separated by commas.")
                     with app.pool.connection() as conn:
                         return self.send(200, queries.library_rows(conn, ids))
+                if path == "/api/series/suggestions":
+                    with app.pool.connection() as conn:
+                        return self.send(200, {"series": queries.series_suggestions(conn)})
                 if path == "/api/trash":
                     with app.pool.connection() as conn:
                         return self.send(200, {"items": queries.trash(conn, writes.TRASH_DAYS), "days": writes.TRASH_DAYS})
@@ -790,6 +794,18 @@ def make_handler(app):
                     os.remove(base + ext)
             return self.with_version(conn, login, r, req)
 
+        def series_suggest(self, conn, login, req):
+            """Suggest series (D84): {items} (at most SUGGEST_BATCH books; the page sends the selection in turns and
+            shows how far it got) looked up at Open Library; what is found is kept as suggestions, nothing applied."""
+            from ..fill import series
+            pids = req.get("items")
+            if not isinstance(pids, list) or not pids or len(pids) > SUGGEST_BATCH or \
+                    not all(isinstance(x, str) and re.fullmatch(UUID, x) for x in pids):
+                raise writes.BadRequest("items: 1 to {} item ids".format(SUGGEST_BATCH))
+            got = series.suggest(conn, series.Finder(app.fill.fetch), series.books(conn, list(dict.fromkeys(pids))),
+                                 "console:" + (login or "unknown"))
+            return dict(got, series=queries.series_suggestions(conn))
+
         def with_version(self, conn, login, r, req):
             """Adding a book: the version picked in the form (ebook, print, audiobook) goes on the new book."""
             if req.get("format") and not r.get("existing"):
@@ -887,6 +903,10 @@ def make_handler(app):
                     return self.send(200, writes.create_group(conn, login, req))
                 if path == "/api/groups/leave" and method == "POST":
                     return self.send(200, writes.leave_groups(conn, login, req))
+                if path == "/api/series/suggest" and method == "POST":
+                    return self.send(200, self.series_suggest(conn, login, req))
+                if path == "/api/series/dismiss" and method == "POST":
+                    return self.send(200, dict(writes.series_dismiss(conn, login, req), series=queries.series_suggestions(conn)))
                 m = re.fullmatch(r"/api/groups/" + UUID + r"(/items|/order|/restore)?", path)
                 if m:
                     gid, sub = m.group(1), m.group(2)

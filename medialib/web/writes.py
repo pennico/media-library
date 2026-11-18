@@ -1293,9 +1293,23 @@ def group_result(conn, g, moved=()):
             "items": groups.live_order(conn, g["id"]), "moved": list(moved), "groups": groups.listing(conn)}
 
 
+def _numbers(conn, body, item_ids):
+    """{suggestion: <name key>} on a create or add: the items' (and the members') numbers in that series, as the
+    sources suggested them (D85), for placing; {} without one."""
+    k = body.get("suggestion")
+    if k is None:
+        return {}
+    if not isinstance(k, str) or not 0 < len(k) <= 300:
+        raise BadRequest("suggestion must be a series' name key")
+    rows = conn.execute("SELECT item_id, number FROM ingest.series_suggestion WHERE name_key = %s AND item_id = ANY(%s)"
+                        " AND number IS NOT NULL", (k, list(item_ids))).fetchall()
+    return {r["item_id"]: float(r["number"]) for r in rows}
+
+
 def create_group(conn, login, body):
-    """A book series (or a film collection) from a selection: {kind, name, items, move}. The items go in by their
-    first published date; one already in another group moves only with move (the page says so first)."""
+    """A book series (or a film collection) from a selection: {kind, name, items, move, suggestion}. The items go in
+    by their first published date (by their numbers when they come from a suggestion); one already in another group
+    moves only with move (the page says so first)."""
     kind = body.get("kind")
     if kind not in groups.KINDS:
         raise BadRequest("kind must be book or movie")
@@ -1308,12 +1322,14 @@ def create_group(conn, login, body):
             raise BadRequest("There is already a {} called “{}”: use Add to {}… to put these in it.".format(
                 GROUP_WORD[kind], name.strip(), GROUP_WORD[kind]))
         g = groups.create(conn, kind, name)
-        groups.place(conn, g["id"], [iid for _, iid, _ in items])
+        ids = [iid for _, iid, _ in items]
+        groups.place(conn, g["id"], ids, _numbers(conn, body, ids))
         return group_result(conn, g, other)
 
 
 def group_items(conn, login, gid, body):
-    """{add: [ids], move} joins them where their dates belong; {remove: [ids]} takes them out (in no group)."""
+    """{add: [ids], move, suggestion} joins them where their dates (or numbers) belong; {remove: [ids]} takes them out
+    (in no group)."""
     with tx(conn, login):
         g = group_row(conn, gid)
         other = []
@@ -1321,7 +1337,8 @@ def group_items(conn, login, gid, body):
             items = _group_items(conn, g["media_kind"], body["add"], "add")
             other = _elsewhere(conn, items, g["id"])
             _refuse_moves(other, g["media_kind"], body.get("move"))
-            groups.place(conn, g["id"], [iid for _, iid, _ in items])
+            ids = [iid for _, iid, _ in items]
+            groups.place(conn, g["id"], ids, _numbers(conn, body, ids + [r["id"] for r in groups.members(conn, g["id"])]))
         if body.get("remove") is not None:
             items = _group_items(conn, g["media_kind"], body["remove"], "remove")
             groups.leave(conn, [iid for _, iid, _ in items if groups.membership(conn, iid)[0] == g["id"]])
@@ -1375,3 +1392,22 @@ def leave_groups(conn, login, body):
         ids = {pid: ids_for(conn, pid)["id"] for pid in dict.fromkeys(pids)}
         left = groups.leave(conn, list(ids.values()))
         return {"left": [pid for pid, iid in ids.items() if iid in left], "groups": groups.listing(conn)}
+
+
+# ------------------------------------------------------------------ series suggestions (D83-D86)
+# Fill missing and Suggest series keep what the sources say in ingest.series_suggestion (medialib/fill/series.py);
+# the page applies one with the group calls above ({suggestion: <name key>} for the numbers) and dismisses here.
+
+def series_dismiss(conn, login, body):
+    """{items, key, back}: the suggestion of that series hidden for those books (back: shown again, the Undo)."""
+    pids, k = body.get("items"), body.get("key")
+    if not isinstance(pids, list) or not pids or len(pids) > BULK_MAX or not all(isinstance(x, str) for x in pids):
+        raise BadRequest("items must be a list of item ids")
+    if not isinstance(k, str) or not 0 < len(k) <= 300:
+        raise BadRequest("key must be a series' name key")
+    with tx(conn, login):
+        ids = [ids_for(conn, pid)["id"] for pid in dict.fromkeys(pids)]
+        n = conn.execute("UPDATE ingest.series_suggestion SET dismissed_at = {} WHERE name_key = %s AND item_id = ANY(%s)"
+                         " AND (dismissed_at IS NULL) = %s".format("NULL" if body.get("back") else "now()"),
+                         (k, ids, not body.get("back"))).rowcount
+    return {"changed": n}
