@@ -211,6 +211,12 @@ let fails = 0; const ok = (c, m) => { if (!c) fails++; console.log(c ? 'PASS' : 
   ok((await cards()).includes('c:' + F) && (await lastToast()).includes('Undo'), 'added: one card for the two films, with Undo');
   await sel([films[0]]); await p.waitForSelector('[data-bulk=gout]');
   ok((await p.locator('[data-bulk=gout]').textContent()).trim() === 'Remove from film collection', 'Movies: Remove from film collection');
+  await p.setViewportSize({width: 375, height: 760}); await p.waitForTimeout(400);
+  const mbar = await p.evaluate(() => { const r = document.getElementById('bulkbar').getBoundingClientRect();
+    return {l: r.left, r: r.right, vw: innerWidth, create: !!document.querySelector('[data-bulk=gnew]'), add: !!document.querySelector('[data-bulk=gadd]')}; });
+  ok(mbar.l >= 0 && mbar.r <= mbar.vw && !mbar.create && mbar.add, `phone: Movies' bar fits, Add to and no Create ${JSON.stringify(mbar)}`);
+  if (process.env.SHOTS) await p.screenshot({path: process.env.SHOTS + '/movies-bar-phone.png'});
+  await p.setViewportSize({width: 1400, height: 900}); await p.waitForTimeout(300);
   await sel([]);
   await p.click(`[id="b-c:${F}"]`); await p.waitForSelector('#g-items');
   ok((await p.locator('#detail .eyebrow').textContent()).trim() === 'Film collection', 'its panel: "Film collection"');
