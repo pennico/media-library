@@ -3044,10 +3044,12 @@ function collMove(id, how) {
 // panel: order (⤒ ↑ ↓), remove, rename, delete. Each change is one request; the page takes the group's order from
 // the answer (no reload) and the message has Undo (D53), which sends back what was.
 const barWord = kind => kind === "book" ? gword(kind) : gword(kind, 1);     // "collection" alone is the left pane's
+// Create… on Books only: on Movies the bar adds to a film collection (TMDB's, or one from an import) and takes films
+// out of one, but makes none (D82, the owner: "Add to, let's leave the creation to the left panel only")
 function groupBulkHtml() {
   const kind = st.kind, w = barWord(kind), sel = [...st.sel].map(id => LIB.items.find(i => i.id === id)).filter(Boolean);
   const any = (LIB.groups || []).some(g => g.kind === kind), inOne = sel.some(i => i.coll);
-  return `<button class="btn small" data-bulk="gnew" aria-haspopup="true" title="${kind === "book" ? "Put these books together as one series: one card on the shelf, in their order" : "Put these films together as one collection: one card on the shelf"}">Create ${w}…</button>`
+  return (kind === "book" ? `<button class="btn small" data-bulk="gnew" aria-haspopup="true" title="Put these books together as one series: one card on the shelf, in their order">Create ${w}…</button>` : "")
     + (any ? `<button class="btn small" data-bulk="gadd" aria-haspopup="true">Add to ${w}…</button>` : "")
     + (inOne ? `<button class="btn small" data-bulk="gout" title="Out of their ${w}: they stay in your library">Remove from ${w}</button>` : "");
 }

@@ -11,8 +11,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
   start with) and lets you move them, take one out, rename or delete the
   series; each book's panel says "Book 2 of 4" and shows the one before and
   after. **Add to series…** and **Remove from series** work on a selection.
-  Every change has Undo. On Movies the same buttons make your own film
-  collection. Filters, sorting and the Visuals still count every book.
+  Every change has Undo. On Movies the bar adds films to a film collection
+  (TMDB's, or one from an import file) and takes them out, but makes none.
+  Filters, sorting and the Visuals still count every book.
 - **Fix: the selection bar on a phone** was one button per row (a bar centred
   on the screen only had half its width to lay out in); it now uses the
   screen's width.

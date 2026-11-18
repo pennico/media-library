@@ -194,17 +194,24 @@ let fails = 0; const ok = (c, m) => { if (!c) fails++; console.log(c ? 'PASS' : 
     await sel([A.id, B.id, D.id]); await p.click('[data-bulk=gnew]'); await p.waitForSelector('#gc-name'); await p.waitForTimeout(300);
     await p.screenshot({path: process.env.SHOTS + '/series-create.png'}); await p.click('#gc-cancel'); await sel([]); }
 
-  // ---- Movies: the same makes a film collection
+  // ---- Movies (D82): the bar adds films to a film collection and takes them out, but makes none
   await p.click('#kind-movie'); await p.waitForTimeout(300);
   const test = await p.evaluate(() => (LIB.sections || []).find(s => s.kind === 'test')?.id);
   await p.evaluate(s => { st.section = s; st.selected = null; render(); }, test); await p.waitForSelector('#grid .book');
   const films = await p.evaluate(() => LIB.items.filter(i => i.kind === 'movie' && i.section === st.section && !i.coll).slice(0, 2).map(i => i.id));
-  await sel(films); await p.waitForSelector('[data-bulk=gnew]');
-  ok((await p.locator('[data-bulk=gnew]').textContent()).trim() === 'Create film collection…', 'Movies: Create film collection…');
-  await p.click('[data-bulk=gnew]'); await p.fill('#gc-name', name + ' films'); await p.press('#gc-name', 'Enter');
-  await p.waitForFunction(id => LIB.items.find(i => i.id === id)?.coll, films[0]);
-  const F = await gidOf(films[0]);
-  ok((await cards()).includes('c:' + F), 'one card for the two films');
+  await sel(films); await p.waitForSelector('#bulkbar');
+  ok(await p.locator('[data-bulk=gnew]').count() === 0 && !(await p.locator('#bulkbar').textContent()).includes('Create'), 'Movies: no Create film collection… in the bar');
+  // a film collection to add to, made as TMDB or an import file makes one
+  const F = await p.evaluate(async ([n, f]) => { const r = await api.newGroup('movie', n, [f], false); takeGroup(r); render(); return r.id; }, [name + ' films', films[0]]);
+  await sel([films[1]]); await p.waitForSelector('[data-bulk=gadd]');
+  ok((await p.locator('[data-bulk=gadd]').textContent()).trim() === 'Add to film collection…' && await p.locator('[data-bulk=gnew]').count() === 0,
+     'Movies: Add to film collection… is there');
+  await p.click('[data-bulk=gadd]'); await p.click(`[data-gadd="${F}"]`);
+  await p.waitForFunction(([id, g]) => LIB.items.find(i => i.id === id)?.coll?.id === g, [films[1], F]);
+  ok((await cards()).includes('c:' + F) && (await lastToast()).includes('Undo'), 'added: one card for the two films, with Undo');
+  await sel([films[0]]); await p.waitForSelector('[data-bulk=gout]');
+  ok((await p.locator('[data-bulk=gout]').textContent()).trim() === 'Remove from film collection', 'Movies: Remove from film collection');
+  await sel([]);
   await p.click(`[id="b-c:${F}"]`); await p.waitForSelector('#g-items');
   ok((await p.locator('#detail .eyebrow').textContent()).trim() === 'Film collection', 'its panel: "Film collection"');
   await p.click('#gf-delete'); await p.waitForTimeout(400);

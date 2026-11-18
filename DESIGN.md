@@ -1593,13 +1593,15 @@ detail has the membership's label under `prov.group`, and the history shows
 
 **Console** (one code path for books and films; `GROUPED(kind)`):
 
-- **On a selection** (unlocked, Books or Movies): **Create series…** (Movies:
-  Create film collection…) opens a small dialog over the bar: the name (a
+- **On a selection** (unlocked, Books): **Create series…** opens a small
+  dialog over the bar (Movies have no Create in the bar, D82: a film
+  collection comes from TMDB or an import file): the name (a
   suggestion, selected so typing replaces it: the words every title starts
   with, else the first one's title and "series"), the items in the order they
   will go in, and those already in another series with its name: they move
-  (D78). **Add to series…** lists the kind's series (with how many each has, and
-  how many of the selection would move); **Remove from series** shows when one
+  (D78). **Add to series…** (Movies: Add to film collection…) lists the
+  kind's series (with how many each has, and how many of the selection would
+  move); **Remove from series** shows when one
   of the selected is in one. Each has Undo in its message: a create is undone by
   deleting the new series and sending each old series its order from before, an
   add by sending the order back and taking out those that were in none, a
