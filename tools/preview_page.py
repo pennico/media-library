@@ -30,7 +30,7 @@ from medialib.web import queries  # noqa: E402
 def thumb(path, width=240):
     with Image.open(path) as im:
         im = im.convert("RGB")
-        im = im.resize((width, max(1, round(im.height * width / im.width))), Image.LANCZOS)
+        im = im.resize((width, max(1, round(im.height * width / im.width))), Image.Resampling.LANCZOS)
         buf = io.BytesIO()
         im.save(buf, "JPEG", quality=72, optimize=True, progressive=True)
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()

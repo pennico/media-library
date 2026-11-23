@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- **Pillow 13.0.0** (was 12.3.0): fixes five critical image-decoding
+  vulnerabilities (CVE-2026-96639, CVE-2026-112393, CVE-2026-112398,
+  CVE-2026-112403, CVE-2026-112900). Resizing uses `Image.Resampling.LANCZOS`.
 - **Series suggestions** (migration 0032): Fill missing now also looks for
   the series a book is in: Open Library's series and the book's number in it,
   or a series named in a title ("Eldest (Inheritance, Book 2)"). It is only

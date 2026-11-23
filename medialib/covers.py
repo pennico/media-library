@@ -123,7 +123,7 @@ def make_thumb(src, dest, width):
         width = min(width, im.width)
         h = max(1, round(im.height * width / im.width))
         im.draft("RGB", (width, h))          # a JPEG is decoded at 1/2..1/8 scale, never below the size wanted
-        im = im.convert("RGB").resize((width, h), Image.LANCZOS)
+        im = im.convert("RGB").resize((width, h), Image.Resampling.LANCZOS)
         tmp = "{}.{}.tmp".format(dest, threading.get_ident())
         try:
             im.save(tmp, "JPEG", quality=78, optimize=True)     # baseline: decodes faster than progressive
