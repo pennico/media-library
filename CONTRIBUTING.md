@@ -16,7 +16,9 @@ Thanks for your interest in media-library. Please read the
   (`web/index.html`) is one file with no build step.
 - **No site specifics or library data in the repository.** Hostnames,
   ports, paths and personal data belong in `.env` or in `private/` (ignored).
-  CI runs `scripts/scan-private.sh`.
+  CI runs `scripts/scan-private.sh` on the tree and on the new commits
+  (messages, added lines; author and committer must be GitHub noreply
+  addresses).
 
 ## Development
 
@@ -28,6 +30,7 @@ a real Yamtrack/CWA snapshot in `data/` skip without it.
 ```bash
 pytest -q tests/
 scripts/scan-private.sh
+scripts/scan-private.sh --history origin/main..HEAD   # your commits: messages, added lines, noreply identities
 ```
 
 ## Pull requests
